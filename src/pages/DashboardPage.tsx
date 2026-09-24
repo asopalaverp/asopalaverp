@@ -565,10 +565,7 @@ export const DashboardPage: React.FC = () => {
 
             {departmentStats.length > 0 && (
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>{departmentStats.length} Active Departments</span>
-                </span>
+                <span>{departmentStats.length} Active Departments</span>
                 <span className="truncate ml-2 text-right">
                   Top: <strong className="text-slate-900 dark:text-white">{departmentStats[0]?.name}</strong> ({departmentStats[0]?.percentage}%)
                 </span>
@@ -664,10 +661,7 @@ export const DashboardPage: React.FC = () => {
 
             {categoryStats.length > 0 && (
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>100% Accounted</span>
-                </span>
+                <span>100% Accounted</span>
                 <span className="truncate ml-2 text-right">
                   Top: <strong className="text-slate-900 dark:text-white">{categoryStats[0]?.name}</strong> ({categoryStats[0]?.percentage}%)
                 </span>

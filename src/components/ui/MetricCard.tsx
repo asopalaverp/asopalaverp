@@ -65,14 +65,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
       {/* Footer Meta / Status */}
       {(subValue || statusText) && (
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400 font-sans pt-0.5">
-          {statusDotColor && (
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ backgroundColor: statusDotColor }}
-            />
-          )}
-          <span className="truncate">{statusText || subValue}</span>
+        <div className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans pt-0.5 truncate">
+          {statusText || subValue}
         </div>
       )}
     </div>

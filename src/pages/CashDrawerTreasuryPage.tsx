@@ -653,9 +653,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             <div className="text-2xl font-mono font-medium text-slate-900 dark:text-white tabular-nums">
               {formatINR(currentCashBalance)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>Cash notes in counter</span>
+            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
+              Cash notes in counter
             </div>
           </div>
         </div>
@@ -671,9 +670,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             <div className="text-2xl font-mono font-medium text-slate-900 dark:text-white tabular-nums">
               {formatINR(currentUpiBalance)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
-              <span>Shop UPI bank account</span>
+            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
+              Shop UPI bank account
             </div>
           </div>
         </div>
@@ -689,9 +687,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             <div className="text-2xl font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
               {formatINR(currentCashBalance + currentUpiBalance)}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>Total Cash + UPI Money</span>
+            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
+              Total Cash + UPI Money
             </div>
           </div>
         </div>

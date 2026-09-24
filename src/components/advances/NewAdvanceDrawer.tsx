@@ -254,9 +254,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     : 'ST';
 
   const drawerBadge = (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] badge-status-emerald text-[11px] font-sans font-medium select-none">
-      <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-      <span>New Advance</span>
+    <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] badge-status-emerald text-[11px] font-sans font-medium select-none">
+      New Advance
     </span>
   );
 

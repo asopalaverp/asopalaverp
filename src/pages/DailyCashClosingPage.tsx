@@ -423,27 +423,24 @@ export const DailyCashClosingPage: React.FC = () => {
           <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Expected Cash in Box</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(openingCash)}</div>
-            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>Shop Record Balance</span>
+            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e]">
+              Shop Record Balance
             </div>
           </div>
 
           <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Cash Spent Today</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(cashDisbursedToday)}</div>
-            <div className="text-xs font-mono text-amber-600 dark:text-[#f59e0b] flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-              <span>{dayVouchers.filter((v) => v.payment_method === 'Physical_Cash').length} Cash Expenses</span>
+            <div className="text-xs font-mono text-amber-600 dark:text-[#f59e0b]">
+              {dayVouchers.filter((v) => v.payment_method === 'Physical_Cash').length} Cash Expenses
             </div>
           </div>
 
           <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Actual Counted Cash</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(physicalTotal)}</div>
-            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>Counted Notes & Coins</span>
+            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e]">
+              Counted Notes & Coins
             </div>
           </div>
 
@@ -452,11 +449,8 @@ export const DailyCashClosingPage: React.FC = () => {
             <div className={cn("text-2xl font-mono tabular-nums font-medium", varianceAmount === 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : varianceAmount > 0 ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400")}>
               {varianceAmount === 0 ? 'Matched ₹0' : formatINR(varianceAmount)}
             </div>
-            <div className="text-xs font-mono flex items-center gap-1.5">
-              <span className={cn('w-1.5 h-1.5 rounded-full', varianceAmount === 0 ? 'bg-[#3ecf8e]' : varianceAmount > 0 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-rose-500 dark:bg-rose-400')} />
-              <span className={varianceAmount === 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : varianceAmount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}>
-                {varianceAmount === 0 ? 'Exact Match (₹0 Diff)' : varianceAmount > 0 ? '+ Extra Cash' : '- Cash Shortage'}
-              </span>
+            <div className={cn("text-xs font-mono", varianceAmount === 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : varianceAmount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400')}>
+              {varianceAmount === 0 ? 'Exact Match (₹0 Diff)' : varianceAmount > 0 ? '+ Extra Cash' : '- Cash Shortage'}
             </div>
           </div>
         </div>

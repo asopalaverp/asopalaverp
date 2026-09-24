@@ -617,4 +617,18 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
+
+  /* Sonner Toast Supabase Studio Architecture (erpskill.md) */
+  [data-sonner-toaster] {
+    font-family: inherit !important;
+  }
+  [data-sonner-toaster] [data-sonner-toast] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  [data-sonner-toaster] [data-close-button] {
+    display: none !important;
+  }
 }

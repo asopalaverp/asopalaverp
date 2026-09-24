@@ -189,9 +189,8 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
     : 'ST';
 
   const drawerBadge = (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] badge-status-amber text-[11px] font-sans font-medium select-none">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-      <span>SETTLE</span>
+    <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] badge-status-amber text-[11px] font-sans font-medium select-none">
+      SETTLE
     </span>
   );
 

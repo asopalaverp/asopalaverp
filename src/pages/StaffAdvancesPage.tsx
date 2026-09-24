@@ -1071,36 +1071,32 @@ export const StaffAdvancesPage: React.FC = () => {
           <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Advances Given</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(metrics.totalDisbursed)}</div>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>{advances.length} advances recorded</span>
+            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+              {advances.length} advances recorded
             </div>
           </div>
 
           <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Pending to Recover</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(metrics.totalUnsettled)}</div>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
-              <span>{metrics.activeCount} staff balance due</span>
+            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+              {metrics.activeCount} staff balance due
             </div>
           </div>
 
           <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Recovered (Bills & Cash)</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(metrics.totalSettled)}</div>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-              <span>{metrics.settlementRate}% recovery velocity</span>
+            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+              {metrics.settlementRate}% recovery velocity
             </div>
           </div>
 
           <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">15+ Days Overdue</div>
             <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(metrics.overdueAmount)}</div>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
-              <span>{metrics.overdueCount} advances follow-up</span>
+            <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+              {metrics.overdueCount} advances follow-up
             </div>
           </div>
         </div>

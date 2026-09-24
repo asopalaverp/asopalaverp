@@ -243,12 +243,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             )}
             title="Cash currently in shop cash box (Click to manage)"
           >
-            <span
-              className={cn(
-                'w-1.5 h-1.5 rounded-full shrink-0',
-                isSafeDropAlert ? 'bg-amber-500 animate-pulse' : 'bg-[#3ecf8e]'
-              )}
-            />
             <Wallet className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070] shrink-0 stroke-[1.8]" />
             <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">Cash:</span>
             <strong className="font-medium tabular-nums text-xs text-emerald-600 dark:text-[#3ecf8e]">
@@ -267,7 +261,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             className="hidden md:flex items-center gap-1.5 h-[34px] px-2.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100 dark:hover:bg-[#202020] text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none"
             title="Bank UPI account balance (Click to manage)"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
             <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">UPI:</span>
             <strong className="font-medium tabular-nums text-xs text-sky-500 dark:text-sky-400">
               <AnimatedCounter value={upiBalance} isCurrency />

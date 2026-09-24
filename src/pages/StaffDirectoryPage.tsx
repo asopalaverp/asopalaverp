@@ -1304,9 +1304,8 @@ export const StaffDirectoryPage: React.FC = () => {
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Accounts</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{usersList.length}</div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>Registered cashier & admin logins</span>
+                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                  Registered cashier & admin logins
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
@@ -1314,9 +1313,8 @@ export const StaffDirectoryPage: React.FC = () => {
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">
                   {usersList.filter((u) => u.role_code === 'Super_Admin').length}
                 </div>
-                <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-[#707070]" />
-                  <span>Full system security access</span>
+                <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1]">
+                  Full system security access
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
@@ -1324,9 +1322,8 @@ export const StaffDirectoryPage: React.FC = () => {
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">
                   {usersList.filter((u) => u.role_code !== 'Super_Admin').length}
                 </div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>Showroom till operators</span>
+                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                  Showroom till operators
                 </div>
               </div>
             </>
@@ -1335,25 +1332,22 @@ export const StaffDirectoryPage: React.FC = () => {
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Showroom Staff</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{staff.length}</div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>Floor associates & specialists</span>
+                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                  Floor associates & specialists
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Filtered Showing</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{filteredStaff.length}</div>
-                <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] flex items-center gap-1.5">
-                  <span className={cn('w-1.5 h-1.5 rounded-full', filteredStaff.length < staff.length ? 'bg-amber-500' : 'bg-[#3ecf8e]')} />
-                  <span>Showing {filteredStaff.length} of {staff.length} staff</span>
+                <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1]">
+                  Showing {filteredStaff.length} of {staff.length} staff
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Showroom Branches</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{branches.length}</div>
-                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span>Operating showroom locations</span>
+                <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                  Operating showroom locations
                 </div>
               </div>
             </>
@@ -1619,8 +1613,7 @@ export const StaffDirectoryPage: React.FC = () => {
 
                         {visibleUserCols.has('status') && (
                           <td className={cn("border-r border-slate-100 dark:border-[#1f1f1f] text-center font-mono", densityStyles.cell)}>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[10px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#3ecf8e]/20">
-                              <span className="w-1 h-1 rounded-full bg-[#3ecf8e]" />
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#3ecf8e]/20 font-medium">
                               Active
                             </span>
                           </td>

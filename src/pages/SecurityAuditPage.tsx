@@ -434,14 +434,12 @@ export const SecurityAuditPage: React.FC = () => {
                         </td>
                         <td className="py-2.5 px-3.5 whitespace-nowrap">
                           {isWarning ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
-                              <span>400 WARN</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-mono font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              400 WARN
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-[#3ecf8e]" />
-                              <span>200 OK</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
+                              200 OK
                             </span>
                           )}
                         </td>
@@ -495,9 +493,8 @@ export const SecurityAuditPage: React.FC = () => {
               <span>SHA-256 Validated</span>
             </div>
             <div className="flex items-center gap-3 text-[11px]">
-              <span className="inline-flex items-center gap-1 text-[#3ecf8e]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                <span>Telemetry Live</span>
+              <span className="text-[#3ecf8e] font-medium">
+                Telemetry Live
               </span>
               <span>&bull;</span>
               <span>Latency: ~12ms</span>

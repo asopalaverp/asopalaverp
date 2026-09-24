@@ -1112,7 +1112,6 @@ export const NewVoucherPage: React.FC = () => {
                 )}
                 onClick={() => handleSwitchDraft(draft.id)}
               >
-                <span className={cn('w-1.5 h-1.5 rounded-full', isActive ? 'bg-[#3ecf8e]' : 'bg-slate-400 dark:bg-[#555]')} />
                 <span className="truncate max-w-[130px] font-mono text-[11px]">{draftTitle}</span>
                 {drafts.length > 1 && (
                   <button
