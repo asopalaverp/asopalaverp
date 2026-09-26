@@ -185,20 +185,28 @@ export const AnnouncementBanner: React.FC = () => {
                 >
                   {broadcast?.message}
                 </p>
-                {broadcast?.link && (
-                  <>
-                    <span aria-hidden="true" className="text-amber-300 dark:text-amber-800">▪</span>
-                    <a
-                      href={broadcast.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline underline-offset-4 decoration-amber-500/40 hover:decoration-amber-500 text-xs font-sans font-medium transition-colors cursor-pointer"
-                    >
-                      <span>Learn more</span>
-                      <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                    </a>
-                  </>
-                )}
+                {broadcast?.link && (() => {
+                  try {
+                    const url = new URL(broadcast.link);
+                    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+                    return (
+                      <>
+                        <span aria-hidden="true" className="text-amber-300 dark:text-amber-800">▪</span>
+                        <a
+                          href={broadcast.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group inline-flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline underline-offset-4 decoration-amber-500/40 hover:decoration-amber-500 text-xs font-sans font-medium transition-colors cursor-pointer"
+                        >
+                          <span>Learn more</span>
+                          <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        </a>
+                      </>
+                    );
+                  } catch {
+                    return null;
+                  }
+                })()}
               </>
             )}
           </div>

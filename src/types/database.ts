@@ -103,7 +103,6 @@ export interface CourierPartner {
   partner_code: string;
   partner_name: string;
   contact_phone?: string | null;
-  tracking_url_template?: string | null;
   is_active: boolean;
   created_at?: string;
 }

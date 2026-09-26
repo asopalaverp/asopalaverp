@@ -380,22 +380,25 @@ export const Sidebar: React.FC = () => {
                   })}
                 </div>
 
-                <div className="border-t border-slate-100 dark:border-[#282828] my-0.5" />
-
-                <div className="p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActivePage('settings');
-                      setIsBranchDropdownOpen(false);
-                      setBranchSearch('');
-                    }}
-                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-[4px] text-slate-700 dark:text-zinc-300 hover:text-[#171717] dark:hover:text-white bg-[#f4f4f5] dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] transition-colors cursor-pointer font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Manage Showrooms</span>
-                  </button>
-                </div>
+                {can('can_manage_periods') && (
+                  <>
+                    <div className="border-t border-slate-100 dark:border-[#282828] my-0.5" />
+                    <div className="p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePage('settings');
+                          setIsBranchDropdownOpen(false);
+                          setBranchSearch('');
+                        }}
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-[4px] text-slate-700 dark:text-zinc-300 hover:text-[#171717] dark:hover:text-white bg-[#f4f4f5] dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] transition-colors cursor-pointer font-medium"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Manage Showrooms</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

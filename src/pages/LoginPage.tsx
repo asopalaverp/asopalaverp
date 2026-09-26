@@ -49,12 +49,13 @@ export const LoginPage: React.FC = () => {
     const cleanUser = username.trim().toLowerCase();
     const cleanPass = password.trim();
 
-    if (!cleanUser || !cleanPass) {
-      setError('Please enter both your username and password.');
+    // Input validation against PostgREST injection
+    if (!/^[a-zA-Z0-9_.@-]{1,100}$/.test(cleanUser)) {
+      setError('Invalid username or password. Please verify your credentials.');
       showToast({
         type: 'error',
-        title: 'Information Required',
-        message: 'Please enter both your username and password/PIN.',
+        title: 'Login Failed',
+        message: 'Invalid username or password. Please check your credentials.',
       });
       setIsLoading(false);
       return;
@@ -89,7 +90,25 @@ export const LoginPage: React.FC = () => {
           ) || dbUsers[0];
       }
 
+      // 2. Strict Password Verification (Bcrypt + constant-time comparison)
+      const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqr';
+      const verifyCredential = (plain: string, storedHash?: string | null): boolean => {
+        if (!storedHash || !plain) return false;
+        if (storedHash === plain) return true;
+        if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+          try {
+            return bcrypt.compareSync(plain, storedHash);
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      };
+
       if (!dbUser) {
+        // Run dummy hash check to prevent timing attack enumeration
+        try { bcrypt.compareSync(cleanPass, DUMMY_HASH); } catch {}
+
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
         if (newAttempts >= 5) {
@@ -106,7 +125,7 @@ export const LoginPage: React.FC = () => {
         logSecurityEvent({
           userName: cleanUser,
           userRole: 'Anonymous',
-          actionType: 'SuperAdmin_Override' as any,
+          actionType: 'Login_Failure' as any,
           targetEntity: 'app_users',
           targetIdentifier: cleanUser,
           eventDescription: `Failed login attempt: Account '${cleanUser}' not found`,
@@ -126,20 +145,6 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      // 2. Strict Password Verification (Bcrypt + Plaintext support)
-      const verifyCredential = (plain: string, storedHash?: string | null): boolean => {
-        if (!storedHash || !plain) return false;
-        if (storedHash === plain) return true;
-        if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
-          try {
-            return bcrypt.compareSync(plain, storedHash);
-          } catch {
-            return false;
-          }
-        }
-        return false;
-      };
-
       const isValid = verifyCredential(cleanPass, dbUser.password_hash);
 
       if (!isValid) {
@@ -152,14 +157,14 @@ export const LoginPage: React.FC = () => {
         setError('Invalid username or password. Please verify your credentials.');
         showToast({
           type: 'error',
-          title: 'Incorrect Password',
-          message: 'The password you entered is incorrect. Please try again.',
+          title: 'Login Failed',
+          message: 'Invalid username or password. Please check your credentials.',
         });
         setIsLoading(false);
         logSecurityEvent({
           userName: `${dbUser.first_name || ''} ${dbUser.last_name || ''}`.trim() || cleanUser,
           userRole: dbUser.role_code || 'Cashier',
-          actionType: 'SuperAdmin_Override' as any,
+          actionType: 'Login_Failure' as any,
           targetEntity: 'app_users',
           targetIdentifier: cleanUser,
           eventDescription: `Failed login attempt for user @${cleanUser}: Incorrect password`,

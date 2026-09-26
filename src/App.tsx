@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore, PageId } from '@/store/uiStore';
 import { useBrandStore } from '@/store/brandStore';
+import { RolePermissions } from '@/types/database';
 import { useHotkeys } from '@/hooks/useHotkeys';
 
 // Layout Components (Synchronous for instantaneous shell rendering)
@@ -114,8 +115,21 @@ const CASHIER_ALLOWED_PAGES: PageId[] = [
   'search',
 ];
 
+const PAGE_PERMISSIONS: Partial<Record<PageId, keyof RolePermissions>> = {
+  'treasury': 'can_inject_float',
+  'staff': 'can_manage_users_roles',
+  'settings': 'can_manage_periods',
+  'audit': 'can_view_audit_logs',
+};
+
+// Pages accessible to all authenticated users
+const PUBLIC_PAGES: PageId[] = [
+  'dashboard', 'new-voucher', 'expenses', 'advances',
+  'closing', 'profile', 'notifications', 'search',
+];
+
 export const App: React.FC = () => {
-  const { isAuthenticated, user, getAllowedBranches } = useAuthStore();
+  const { isAuthenticated, user, getAllowedBranches, can, isLocked } = useAuthStore();
   const {
     activePage,
     theme,
@@ -147,11 +161,13 @@ export const App: React.FC = () => {
 
   // Route security guard: Redirect cashiers away from restricted pages
   useEffect(() => {
-    if (user?.role_code === 'Cashier' && !CASHIER_ALLOWED_PAGES.includes(activePage)) {
+    if (!user) return;
+    const requiredPerm = PAGE_PERMISSIONS[activePage];
+    if (requiredPerm && !can(requiredPerm)) {
       showToast({
         type: 'error',
         title: 'Access Restricted',
-        message: `Cashier accounts are restricted from accessing ${activePage}. Redirecting to Dashboard.`,
+        message: `You don't have permission to access this page.`,
       });
       useUIStore.getState().setActivePage('dashboard');
     }
@@ -360,12 +376,12 @@ export const App: React.FC = () => {
 
   // Active page renderer mapping
   const renderActivePage = () => {
-    // Hard role guard for Cashiers with dedicated Access Denied security view
-    if (user?.role_code === 'Cashier' && !CASHIER_ALLOWED_PAGES.includes(activePage)) {
+    const requiredPerm = PAGE_PERMISSIONS[activePage];
+    if (requiredPerm && !can(requiredPerm)) {
       return (
         <AccessDeniedView
           pageName={activePage}
-          message={`Cashier accounts are restricted from accessing ${activePage}. No unauthorized showroom data has been loaded.`}
+          message={`Your role does not have permission to access this page.`}
           onGoBack={() => useUIStore.getState().setActivePage('dashboard')}
         />
       );
@@ -425,13 +441,25 @@ export const App: React.FC = () => {
             ref={mainRef}
             className="flex-1 overflow-y-auto bg-white dark:bg-[#141414] focus:outline-none transition-all duration-200 ease-out flex flex-col p-0 pb-20 lg:pb-0"
           >
-            <PageTransition pageKey={activePage}>
-              <AppErrorBoundary>
-                <Suspense fallback={<PageLoadingSkeleton />}>
-                  {renderActivePage()}
-                </Suspense>
-              </AppErrorBoundary>
-            </PageTransition>
+            {!isLocked && (
+              <PageTransition pageKey={activePage}>
+                <AppErrorBoundary>
+                  <Suspense fallback={<PageLoadingSkeleton />}>
+                    {renderActivePage()}
+                  </Suspense>
+                </AppErrorBoundary>
+              </PageTransition>
+            )}
+            {isLocked && (
+              <div className="flex-1 flex items-center justify-center bg-[#0a0a0a]">
+                <div className="text-center">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#1a1a1a] flex items-center justify-center">
+                    <svg className="w-6 h-6 text-[#3ecf8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                  </div>
+                  <p className="text-sm text-[#878787]">Terminal Locked</p>
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>

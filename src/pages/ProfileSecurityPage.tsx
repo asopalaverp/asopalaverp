@@ -49,6 +49,14 @@ export const ProfileSecurityPage: React.FC = () => {
   const { getActiveBranch } = useBranchStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  if (!user) {
+    return (
+      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center">
+        <p className="text-[#878787]">Session expired. Please log in again.</p>
+      </div>
+    );
+  }
+
   const activeBranch = getActiveBranch();
 
   // Tab State
@@ -82,6 +90,12 @@ export const ProfileSecurityPage: React.FC = () => {
       return;
     }
 
+    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      showToast({ type: 'error', title: 'Invalid File Type', message: 'Only JPEG, PNG, and WebP images are allowed. SVG and other formats are not permitted.' });
+      return;
+    }
+
     const toastId = 'avatar-upload-toast';
     setIsUploadingPhoto(true);
     triggerHaptic('light');
@@ -110,19 +124,12 @@ export const ProfileSecurityPage: React.FC = () => {
           message: 'Saved to Supabase storage. Click "Save Profile" to apply to your account.',
         });
       } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          setAvatarUrl(result);
-          triggerHaptic('selection');
-          showToast({
-            id: toastId,
-            type: 'info',
-            title: 'Avatar Preview Ready',
-            message: 'Preview loaded. Click "Save Profile" to update.',
-          });
-        };
-        reader.readAsDataURL(file);
+        showToast({
+          id: toastId,
+          type: 'error',
+          title: 'Upload Failed',
+          message: 'Could not upload avatar. Please try again.',
+        });
       }
     } catch (err: any) {
       console.warn('Avatar upload fallback:', err);
@@ -154,23 +161,33 @@ export const ProfileSecurityPage: React.FC = () => {
     triggerHaptic('selection');
 
     try {
-      const updatedUser = {
-        ...user,
+      const profileUpdates = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
-        username: username.trim().toLowerCase(),
         avatar_url: avatarUrl || null,
       };
 
       await erpService.saveAppUser(
-        updatedUser,
+        { id: user.id, username: user.username, role_code: user.role_code, ...profileUpdates },
         true,
         `${user.first_name} ${user.last_name}`,
         user.role_code
       );
 
-      await login(updatedUser);
+      // Update local auth state without resetting session:
+      const updatedUser = { ...user, ...profileUpdates };
+      useAuthStore.setState({ user: updatedUser });
+
+      await logSecurityEvent({
+        userName: `${user.first_name} ${user.last_name}`,
+        userRole: user.role_code,
+        actionType: 'Update_Profile',
+        targetEntity: 'app_users',
+        targetIdentifier: user.id,
+        eventDescription: `Profile updated: name, email, or avatar changed`,
+        justification: 'Self-service profile update',
+      });
 
       setProfileSuccess(true);
       showToast({
@@ -204,8 +221,29 @@ export const ProfileSecurityPage: React.FC = () => {
     }
 
     if (newPassword) {
-      if (newPassword.length < 6) {
-        setSecurityError('New password must be at least 6 characters long.');
+      if (!currentPassword) {
+        setSecurityError('Please enter your current password to change it.');
+        return;
+      }
+      if (!(user as any).password_hash || !bcrypt.compareSync(currentPassword, (user as any).password_hash)) {
+        setSecurityError('Current password is incorrect.');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        setSecurityError('Password must be at least 8 characters long.');
+        return;
+      }
+      if (!/[A-Z]/.test(newPassword)) {
+        setSecurityError('Password must contain at least one uppercase letter.');
+        return;
+      }
+      if (!/[0-9]/.test(newPassword)) {
+        setSecurityError('Password must contain at least one number.');
+        return;
+      }
+      if (!/[^A-Za-z0-9]/.test(newPassword)) {
+        setSecurityError('Password must contain at least one special character.');
         return;
       }
       if (newPassword !== confirmPassword) {
@@ -226,7 +264,15 @@ export const ProfileSecurityPage: React.FC = () => {
 
     try {
       if (pin && user) {
+        const hashedPin = bcrypt.hashSync(pin, 10);
         updateUserPin(user.id, pin);
+        // Also persist to database
+        await erpService.saveAppUser(
+          { id: user.id, username: user.username, role_code: user.role_code, lock_pin_hash: hashedPin },
+          true,
+          `${user.first_name} ${user.last_name}`,
+          user.role_code
+        );
       }
 
       if (newPassword && user) {
@@ -608,10 +654,11 @@ export const ProfileSecurityPage: React.FC = () => {
                           type="text"
                           required
                           value={username}
-                          onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                          readOnly
                           placeholder="e.g. rekha.patel"
-                          className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] transition-colors"
+                          className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] transition-colors cursor-not-allowed opacity-70"
                         />
+                        <p className="text-[10px] text-slate-500">Contact administrator to change username</p>
                       </div>
 
                       <div className="space-y-1.5">

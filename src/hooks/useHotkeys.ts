@@ -23,7 +23,7 @@ export function useHotkeys() {
     setSettleTargetAdvance,
     toggleSidebarCollapse,
   } = useUIStore();
-  const { isLocked, lockScreen, user } = useAuthStore();
+  const { isLocked, lockScreen, user, can } = useAuthStore();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -195,13 +195,9 @@ export function useHotkeys() {
       if (key === 'F4') {
         e.preventDefault();
         e.stopPropagation();
-        if (isCashier) {
+        if (!can('can_inject_float')) {
           triggerHaptic('error');
-          showToast({
-            type: 'error',
-            title: 'Access Restricted (F4)',
-            message: 'Cash Box & Treasury management is restricted to Store Managers and Admins.',
-          });
+          showToast({ type: 'error', title: 'Access Restricted (F4)', message: 'Treasury access requires appropriate permissions.' });
           return;
         }
         setActivePage('treasury');
@@ -220,13 +216,9 @@ export function useHotkeys() {
       if (key === 'F8') {
         e.preventDefault();
         e.stopPropagation();
-        if (isCashier) {
+        if (!can('can_view_audit_logs')) {
           triggerHaptic('error');
-          showToast({
-            type: 'error',
-            title: 'Access Restricted (F8)',
-            message: 'Activity History and Audit Logs are restricted to Admins and Auditors.',
-          });
+          showToast({ type: 'error', title: 'Access Restricted (F8)', message: 'Audit log access requires appropriate permissions.' });
           return;
         }
         setActivePage('audit');
@@ -245,13 +237,9 @@ export function useHotkeys() {
       if (key === 'F10') {
         e.preventDefault();
         e.stopPropagation();
-        if (isCashier) {
+        if (!can('can_manage_users_roles')) {
           triggerHaptic('error');
-          showToast({
-            type: 'error',
-            title: 'Access Restricted (F10)',
-            message: 'Staff Directory and PIN management is restricted to Super Admins.',
-          });
+          showToast({ type: 'error', title: 'Access Restricted (F10)', message: 'Staff management requires appropriate permissions.' });
           return;
         }
         setActivePage('staff');
@@ -262,13 +250,9 @@ export function useHotkeys() {
       if (key === 'F11') {
         e.preventDefault();
         e.stopPropagation();
-        if (isCashier) {
+        if (!can('can_manage_periods')) {
           triggerHaptic('error');
-          showToast({
-            type: 'error',
-            title: 'Access Restricted (F11)',
-            message: 'Shop Settings and System Configuration are restricted to Super Admins.',
-          });
+          showToast({ type: 'error', title: 'Access Restricted (F11)', message: 'Settings access requires appropriate permissions.' });
           return;
         }
         setActivePage('settings');
@@ -298,5 +282,7 @@ export function useHotkeys() {
     setSettleTargetAdvance,
     toggleSidebarCollapse,
     lockScreen,
+    user,
+    can,
   ]);
 }

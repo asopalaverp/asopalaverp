@@ -243,11 +243,17 @@ export function printThermalVoucherSlip(voucher: {
   const formattedDate = formatDate(voucher.payment_date, 'dd-MMM-yyyy');
   const printTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
+  function escapeHtml(str: string | null | undefined): string {
+    return String(str || '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m] || m));
+  }
+
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Voucher_${voucher.voucher_number}</title>
+  <title>Voucher_${escapeHtml(voucher.voucher_number)}</title>
   <style>
     @page {
       size: 80mm auto;
@@ -291,27 +297,27 @@ export function printThermalVoucherSlip(voucher: {
   <div class="text-center">
     <div class="title">Asopalav Silk Mills</div>
     <div class="subtitle">Luxury Ethnic Wear & Couture</div>
-    <div class="subtitle">Showroom: ${voucher.branch_code || 'Satellite'}</div>
+    <div class="subtitle">Showroom: ${escapeHtml(voucher.branch_code || 'Satellite')}</div>
   </div>
 
   <div class="double-divider text-center bold">
     Payment Expense Voucher
   </div>
 
-  <div class="row"><span class="row-label">Voucher No:</span><span class="row-val bold">${voucher.voucher_number}</span></div>
+  <div class="row"><span class="row-label">Voucher No:</span><span class="row-val bold">${escapeHtml(voucher.voucher_number)}</span></div>
   <div class="row"><span class="row-label">Date & Time:</span><span class="row-val">${formattedDate} ${printTime}</span></div>
-  <div class="row"><span class="row-label">Status:</span><span class="row-val bold">${voucher.status || 'Approved'}</span></div>
+  <div class="row"><span class="row-label">Status:</span><span class="row-val bold">${escapeHtml(voucher.status || 'Approved')}</span></div>
 
   <div class="divider"></div>
 
-  <div class="row"><span class="row-label">Paid To:</span><span class="row-val bold">${voucher.recipient_name}</span></div>
-  <div class="row"><span class="row-label">Category:</span><span class="row-val">${voucher.category_name || 'Expense'}</span></div>
-  <div class="row"><span class="row-label">Department:</span><span class="row-val">${voucher.department_name || 'Showroom'}</span></div>
+  <div class="row"><span class="row-label">Paid To:</span><span class="row-val bold">${escapeHtml(voucher.recipient_name)}</span></div>
+  <div class="row"><span class="row-label">Category:</span><span class="row-val">${escapeHtml(voucher.category_name || 'Expense')}</span></div>
+  <div class="row"><span class="row-label">Department:</span><span class="row-val">${escapeHtml(voucher.department_name || 'Showroom')}</span></div>
   <div class="row"><span class="row-label">Pay Mode:</span><span class="row-val">${voucher.payment_method === 'Online_UPI' ? 'Online / UPI / Bank' : 'Physical Cash'}</span></div>
 
   <div class="divider"></div>
 
-  <div style="font-size: 10px;"><strong>Particulars:</strong> ${voucher.remarks || 'General expense'}</div>
+  <div style="font-size: 10px;"><strong>Particulars:</strong> ${escapeHtml(voucher.remarks || 'General expense')}</div>
 
   <div class="amount-box">
     <div>Total Paid Amount</div>
@@ -320,8 +326,8 @@ export function printThermalVoucherSlip(voucher: {
   </div>
 
   <div class="sign-row">
-    <div class="sign-box">Cashier Signature<br><span style="font-weight:normal; font-size:8px;">${voucher.created_by_name || 'Cashier'}</span></div>
-    <div class="sign-box">Receiver Signature<br><span style="font-weight:normal; font-size:8px;">${voucher.recipient_name}</span></div>
+    <div class="sign-box">Cashier Signature<br><span style="font-weight:normal; font-size:8px;">${escapeHtml(voucher.created_by_name || 'Cashier')}</span></div>
+    <div class="sign-box">Receiver Signature<br><span style="font-weight:normal; font-size:8px;">${escapeHtml(voucher.recipient_name)}</span></div>
   </div>
 
   <div class="seal-box">

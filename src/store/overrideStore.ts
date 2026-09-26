@@ -158,6 +158,13 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   setPolicy: (key, value, userName = 'Super_Admin', userRole = 'Super_Admin') => {
+    // Security: verify caller is Super_Admin or Developer
+    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
+    const role = authUser?.role_code;
+    if (role !== 'Super_Admin' && role !== 'Developer') {
+      console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
+      return;
+    }
     triggerHaptic('selection');
     const nowStr = new Date().toISOString();
     set((state) => {
@@ -199,6 +206,13 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   setMasterOverride: (enabled, duration = 'indefinite', userName = 'Super_Admin', userRole = 'Super_Admin') => {
+    // Security: verify caller is Super_Admin or Developer
+    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
+    const role = authUser?.role_code;
+    if (role !== 'Super_Admin' && role !== 'Developer') {
+      console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
+      return;
+    }
     triggerHaptic('selection');
     const expiresAt = enabled ? calculateExpiration(duration) : null;
     const nowStr = new Date().toISOString();
@@ -254,6 +268,13 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   resetAllOverrides: (userName = 'Super_Admin', userRole = 'Super_Admin') => {
+    // Security: verify caller is Super_Admin or Developer
+    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
+    const role = authUser?.role_code;
+    if (role !== 'Super_Admin' && role !== 'Developer') {
+      console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
+      return;
+    }
     triggerHaptic('light');
     set({
       policies: { ...DEFAULT_POLICIES },

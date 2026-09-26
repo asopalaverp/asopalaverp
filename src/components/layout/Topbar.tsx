@@ -53,7 +53,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
     isSidebarCollapsed,
     setShortcutsModalOpen,
   } = useUIStore();
-  const { user, lockScreen, logout } = useAuthStore();
+  const { user, lockScreen, logout, can } = useAuthStore();
   const { getActiveBranch, selectedBranchId } = useBranchStore();
   const { mutations, isOnline, isSyncing, processSyncQueue } = useOfflineQueue();
   const { getUnreadCount } = useNotificationStore();
@@ -227,45 +227,50 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             <Kbd className="hidden lg:inline-flex">Ctrl K</Kbd>
           </button>
 
-          {/* 2A. Cash Box Balance Pill */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('selection');
-              setActivePage('treasury');
-            }}
-            aria-label={`Cash Box Balance: ₹${cashBalance.toLocaleString('en-IN')}`}
-            className={cn(
-              'hidden md:flex items-center gap-1.5 h-[34px] px-2.5 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none',
-              isSafeDropAlert
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
-                : 'border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100 dark:hover:bg-[#202020]'
-            )}
-            title="Cash currently in shop cash box (Click to manage)"
-          >
-            <Wallet className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070] shrink-0 stroke-[1.8]" />
-            <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">Cash:</span>
-            <strong className="font-medium tabular-nums text-xs text-emerald-600 dark:text-[#3ecf8e]">
-              <AnimatedCounter value={cashBalance} isCurrency />
-            </strong>
-          </button>
+          {/* 2A & 2B. Cash Box & Bank UPI Balance Pills (Restricted to Authorized Roles) */}
+          {can('can_inject_float') && (
+            <>
+              {/* 2A. Cash Box Balance Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  setActivePage('treasury');
+                }}
+                aria-label={`Cash Box Balance: ₹${cashBalance.toLocaleString('en-IN')}`}
+                className={cn(
+                  'hidden md:flex items-center gap-1.5 h-[34px] px-2.5 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none',
+                  isSafeDropAlert
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
+                    : 'border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100 dark:hover:bg-[#202020]'
+                )}
+                title="Cash currently in shop cash box (Click to manage)"
+              >
+                <Wallet className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070] shrink-0 stroke-[1.8]" />
+                <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">Cash:</span>
+                <strong className="font-medium tabular-nums text-xs text-emerald-600 dark:text-[#3ecf8e]">
+                  <AnimatedCounter value={cashBalance} isCurrency />
+                </strong>
+              </button>
 
-          {/* 2B. Bank UPI Balance Pill */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('selection');
-              setActivePage('treasury');
-            }}
-            aria-label={`UPI Balance: ₹${upiBalance.toLocaleString('en-IN')}`}
-            className="hidden md:flex items-center gap-1.5 h-[34px] px-2.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100 dark:hover:bg-[#202020] text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none"
-            title="Bank UPI account balance (Click to manage)"
-          >
-            <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">UPI:</span>
-            <strong className="font-medium tabular-nums text-xs text-sky-500 dark:text-sky-400">
-              <AnimatedCounter value={upiBalance} isCurrency />
-            </strong>
-          </button>
+              {/* 2B. Bank UPI Balance Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  setActivePage('treasury');
+                }}
+                aria-label={`UPI Balance: ₹${upiBalance.toLocaleString('en-IN')}`}
+                className="hidden md:flex items-center gap-1.5 h-[34px] px-2.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100 dark:hover:bg-[#202020] text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none"
+                title="Bank UPI account balance (Click to manage)"
+              >
+                <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans">UPI:</span>
+                <strong className="font-medium tabular-nums text-xs text-sky-500 dark:text-sky-400">
+                  <AnimatedCounter value={upiBalance} isCurrency />
+                </strong>
+              </button>
+            </>
+          )}
 
           {/* 3. POS Quick Calculator Trigger */}
           <button
@@ -464,27 +469,29 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                     </div>
                   </button>
 
-                  {/* Shop Settings */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setIsUserMenuOpen(false);
-                      setActivePage('settings');
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[6px] text-left transition-colors cursor-pointer',
-                      activePage === 'settings'
-                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
-                        : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] hover:text-slate-900 dark:hover:text-white'
-                    )}
-                  >
-                    <Settings className="w-4 h-4 text-slate-500 dark:text-[#a1a1a1] shrink-0 stroke-[1.8]" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-xs truncate">Shop Settings & Rules</div>
-                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">F11 Settings & F12 Overrides</div>
-                    </div>
-                  </button>
+                  {/* Shop Settings (Restricted to Authorized Admins) */}
+                  {can('can_manage_periods') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('selection');
+                        setIsUserMenuOpen(false);
+                        setActivePage('settings');
+                      }}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[6px] text-left transition-colors cursor-pointer',
+                        activePage === 'settings'
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
+                          : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] hover:text-slate-900 dark:hover:text-white'
+                      )}
+                    >
+                      <Settings className="w-4 h-4 text-slate-500 dark:text-[#a1a1a1] shrink-0 stroke-[1.8]" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-xs truncate">Shop Settings & Rules</div>
+                        <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">F11 Settings & F12 Overrides</div>
+                      </div>
+                    </button>
+                  )}
 
                   {/* Theme Switcher */}
                   <button

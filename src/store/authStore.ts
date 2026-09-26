@@ -101,14 +101,14 @@ const getStoredSession = (): { user: AppUser | null; timestamp: number | null } 
     const timestamp = rawTs ? Number(rawTs) : null;
     const now = Date.now();
 
-    // If session is older than 4 hours, purge and invalidate
-    if (timestamp && now - timestamp > SESSION_LIFETIME_MS) {
+    // If timestamp is missing, invalid or expired, purge and require login
+    if (!rawTs || !timestamp || isNaN(timestamp) || (now - timestamp > SESSION_LIFETIME_MS)) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       localStorage.removeItem(SESSION_TIMESTAMP_KEY);
       return { user: null, timestamp: null };
     }
 
-    return { user: JSON.parse(rawUser), timestamp: timestamp || now };
+    return { user: JSON.parse(rawUser), timestamp };
   } catch {
     return { user: null, timestamp: null };
   }
@@ -186,12 +186,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
         if (data && data.length > 0) {
           const customPins = getCustomPins();
-          const cashiers: CashierProfile[] = data.map((u: any) => ({
-            ...u,
-            avatar_url: u.avatar_url || null,
-            lock_pin_hash: customPins[u.id] || u.lock_pin_hash || null,
-            designation_title: u.role_code ? u.role_code.replace(/_/g, ' ') : 'Cashier',
-          }));
+          const cashiers: CashierProfile[] = data.map((u: any) => {
+            const { password_hash, ...safeUser } = u;
+            return {
+              ...safeUser,
+              avatar_url: safeUser.avatar_url || null,
+              lock_pin_hash: customPins[safeUser.id] || safeUser.lock_pin_hash || null,
+              designation_title: safeUser.role_code ? safeUser.role_code.replace(/_/g, ' ') : 'Cashier',
+            };
+          });
           set({ availableCashiers: cashiers });
 
           const currentUser = get().user;

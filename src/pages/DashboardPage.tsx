@@ -10,6 +10,7 @@ import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
+import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
 import {
   Wallet,
@@ -44,7 +45,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, can, isBranchAllowed } = useAuthStore();
   const { selectedBranchId, branches, getActiveBranch } = useBranchStore();
   const { setActivePage, setAdvanceModalOpen } = useUIStore();
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
@@ -75,6 +76,7 @@ export const DashboardPage: React.FC = () => {
   // Load branch wallet balances
   const loadWallet = useCallback(async () => {
     if (!selectedBranchId) return;
+    if (selectedBranchId !== 'ALL' && !isBranchAllowed(selectedBranchId)) return;
     try {
       const w = await erpService.getBranchWallet(selectedBranchId);
       setCashBalance(w.cash_balance);
@@ -82,17 +84,18 @@ export const DashboardPage: React.FC = () => {
     } catch (err) {
       console.warn('Error loading branch wallet:', err);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, isBranchAllowed]);
 
   // Load staff advances
   const loadAdvances = useCallback(async () => {
+    if (selectedBranchId !== 'ALL' && !isBranchAllowed(selectedBranchId)) return;
     try {
       const data = await erpService.getStaffAdvances(selectedBranchId);
       setAdvances(data);
     } catch (err) {
       console.warn('Error loading staff advances:', err);
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, isBranchAllowed]);
 
   // Check period lock status
   useEffect(() => {
@@ -251,14 +254,25 @@ export const DashboardPage: React.FC = () => {
   }, [filteredVouchers, metrics.totalSpend]);
 
   const handleExportTally = () => {
+    if (!can('can_export_tally')) {
+      showToast({
+        type: 'error',
+        title: 'Access Restricted',
+        message: 'Your role does not have permission to export Tally financial data.',
+      });
+      return;
+    }
     const csvContent = erpService.generateTallyExportCSV(filteredVouchers);
-    const encodedUri = encodeURI(csvContent);
+    const cleanCsv = csvContent.replace(/^data:text\/csv;charset=utf-8,/, '');
+    const blob = new Blob([cleanCsv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `Asopalav_Tally_Export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const showroomTitle = selectedBranchId === 'ALL' ? 'All Showrooms' : (activeBranch?.branch_name || 'Satellite Road Showroom');
@@ -288,24 +302,28 @@ export const DashboardPage: React.FC = () => {
 
           {/* Right Layer: Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setAdvanceModalOpen(true)}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-            >
-              <HandCoins className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>Give Advance</span>
-            </button>
+            {can('can_disburse_advance') && (
+              <button
+                type="button"
+                onClick={() => setAdvanceModalOpen(true)}
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <HandCoins className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                <span>Give Advance</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={handleExportTally}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              title="Export all vouchers in Tally Prime compatible CSV format"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
-              <span>Tally Export</span>
-            </button>
+            {can('can_export_tally') && (
+              <button
+                type="button"
+                onClick={handleExportTally}
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Export all vouchers in Tally Prime compatible CSV format"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                <span>Tally Export</span>
+              </button>
+            )}
 
             <button
               type="button"

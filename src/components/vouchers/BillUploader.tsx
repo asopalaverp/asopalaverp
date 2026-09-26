@@ -36,6 +36,21 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
       return;
     }
 
+    const ALLOWED_BILL_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    for (let i = 0; i < files.length; i++) {
+      if (!ALLOWED_BILL_MIMES.includes(files[i].type)) {
+        const msg = 'Only JPEG, PNG, and WebP images are allowed for bill uploads.';
+        setUploadError(msg);
+        showToast({
+          type: 'error',
+          title: 'Invalid File Type',
+          message: msg,
+        });
+        e.target.value = '';
+        return;
+      }
+    }
+
     const toastId = `bill-upload-${Date.now()}`;
     setUploading(true);
     triggerHaptic('light');

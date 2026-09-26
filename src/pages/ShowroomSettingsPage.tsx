@@ -276,9 +276,13 @@ export const ShowroomSettingsPage: React.FC = () => {
     }
   }, []);
 
+  const isAuthorizedAdmin = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
+
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isAuthorizedAdmin) {
+      loadData();
+    }
+  }, [isAuthorizedAdmin, loadData]);
 
   // Sync broadcast state
   useEffect(() => {
@@ -370,7 +374,8 @@ export const ShowroomSettingsPage: React.FC = () => {
       setTargetPeriod(null);
       loadData();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update period lock.');
+      toast.error(err?.message || 'Failed to update accounting period lock. Please try again.');
+      return;
     } finally {
       setIsSubmittingLock(false);
     }
@@ -382,6 +387,20 @@ export const ShowroomSettingsPage: React.FC = () => {
       toast.error('Broadcast message cannot be empty.');
       return;
     }
+
+    if (broadcastLink.trim()) {
+      try {
+        const parsed = new URL(broadcastLink.trim());
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          toast.error('Broadcast links must use http:// or https:// protocol.');
+          return;
+        }
+      } catch {
+        toast.error('Please enter a valid URL for the broadcast link.');
+        return;
+      }
+    }
+
     const finalBadge = isCustomBadge ? customBadge.trim().toUpperCase() || 'ANNOUNCEMENT' : broadcastBadge;
     setBroadcast({
       id: `BCAST-${Date.now()}`,
@@ -402,6 +421,19 @@ export const ShowroomSettingsPage: React.FC = () => {
     toast.info('Global broadcast banner cleared.');
   };
 
+  const escapeCsvField = (value: string | number | boolean | null | undefined): string => {
+    const str = String(value ?? '');
+    // Escape spreadsheet formula injection characters
+    if (/^[=+\-@|\t\r]/.test(str)) {
+      return `"'${str.replace(/"/g, '""')}"`;
+    }
+    // Standard CSV escaping
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   // Export handlers
   const handleExportCsv = () => {
     let csvContent = '';
@@ -415,7 +447,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           periods
             .map(
               (p) =>
-                `"${p.period_key}","${p.start_date}","${p.end_date}","${p.is_locked ? 'Locked' : 'Open'}","${p.locked_by_name || ''}","${p.lock_reason || ''}"`
+                `${escapeCsvField(p.period_key)},${escapeCsvField(p.start_date)},${escapeCsvField(p.end_date)},${escapeCsvField(p.is_locked ? 'Locked' : 'Open')},${escapeCsvField(p.locked_by_name || '')},${escapeCsvField(p.lock_reason || '')}`
             )
             .join('\n');
         break;
@@ -425,7 +457,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           branches
             .map(
               (b) =>
-                `"${b.branch_code}","${b.branch_name}","${b.city}","${b.state}","${b.gstin || ''}",${b.min_cash_threshold || 0},${b.max_cash_ceiling || 0},${b.max_upi_ceiling || 0},"${b.is_active ? 'Active' : 'Inactive'}"`
+                `${escapeCsvField(b.branch_code)},${escapeCsvField(b.branch_name)},${escapeCsvField(b.city)},${escapeCsvField(b.state)},${escapeCsvField(b.gstin || '')},${escapeCsvField(b.min_cash_threshold || 0)},${escapeCsvField(b.max_cash_ceiling || 0)},${escapeCsvField(b.max_upi_ceiling || 0)},${escapeCsvField(b.is_active ? 'Active' : 'Inactive')}`
             )
             .join('\n');
         break;
@@ -433,14 +465,14 @@ export const ShowroomSettingsPage: React.FC = () => {
         csvContent =
           'Category Name,Color Theme,Status\n' +
           categories
-            .map((c) => `"${c.category_name}","${c.color_theme || ''}","${c.is_active ? 'Active' : 'Inactive'}"`)
+            .map((c) => `${escapeCsvField(c.category_name)},${escapeCsvField(c.color_theme || '')},${escapeCsvField(c.is_active ? 'Active' : 'Inactive')}`)
             .join('\n');
         break;
       case 'departments':
         csvContent =
           'Department Code,Department Name,Status\n' +
           departments
-            .map((d) => `"${d.department_code}","${d.department_name}","${d.is_active ? 'Active' : 'Inactive'}"`)
+            .map((d) => `${escapeCsvField(d.department_code)},${escapeCsvField(d.department_name)},${escapeCsvField(d.is_active ? 'Active' : 'Inactive')}`)
             .join('\n');
         break;
       case 'couriers':
@@ -449,7 +481,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           couriers
             .map(
               (cr) =>
-                `"${cr.partner_code}","${cr.partner_name}","${cr.contact_phone || ''}","${cr.is_active ? 'Active' : 'Inactive'}"`
+                `${escapeCsvField(cr.partner_code)},${escapeCsvField(cr.partner_name)},${escapeCsvField(cr.contact_phone || '')},${escapeCsvField(cr.is_active ? 'Active' : 'Inactive')}`
             )
             .join('\n');
         break;
@@ -459,7 +491,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           staffMembers
             .map(
               (s) =>
-                `"${s.staff_code}","${s.first_name}","${s.last_name || ''}","${s.branch_code || ''}","${s.department_name || ''}","${s.designation || ''}","${s.mobile_number || ''}","${s.is_active ? 'Active' : 'Inactive'}"`
+                `${escapeCsvField(s.staff_code)},${escapeCsvField(s.first_name)},${escapeCsvField(s.last_name || '')},${escapeCsvField(s.branch_code || '')},${escapeCsvField(s.department_name || '')},${escapeCsvField(s.designation || '')},${escapeCsvField(s.mobile_number || '')},${escapeCsvField(s.is_active ? 'Active' : 'Inactive')}`
             )
             .join('\n');
         break;
@@ -469,7 +501,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           roles
             .map(
               (r) =>
-                `"${r.role_code}","${r.role_title}","${r.description || ''}","${r.is_system_role ? 'Yes' : 'No'}"`
+                `${escapeCsvField(r.role_code)},${escapeCsvField(r.role_title)},${escapeCsvField(r.description || '')},${escapeCsvField(r.is_system_role ? 'Yes' : 'No')}`
             )
             .join('\n');
         break;
@@ -479,7 +511,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           denominations
             .map(
               (dn) =>
-                `${dn.denomination_value},"${dn.display_label}","${dn.is_coin ? 'Coin' : 'Note'}",${dn.sort_order},"${dn.is_active ? 'Active' : 'Inactive'}"`
+                `${escapeCsvField(dn.denomination_value)},${escapeCsvField(dn.display_label)},${escapeCsvField(dn.is_coin ? 'Coin' : 'Note')},${escapeCsvField(dn.sort_order)},${escapeCsvField(dn.is_active ? 'Active' : 'Inactive')}`
             )
             .join('\n');
         break;
@@ -559,7 +591,8 @@ CREATE TABLE public.brand_settings (
   phone VARCHAR(30),
   email VARCHAR(100),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.brand_settings ENABLE ROW LEVEL SECURITY;`;
 
       case 'periods':
         return `-- Table Definition: public.accounting_periods
@@ -603,7 +636,8 @@ CREATE TABLE public.branches (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_branches_code ON public.branches(branch_code);`;
+CREATE INDEX idx_branches_code ON public.branches(branch_code);
+ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;`;
 
       case 'categories':
         return `-- Table Definition: public.expense_categories
@@ -614,7 +648,8 @@ CREATE TABLE public.expense_categories (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_categories_active ON public.expense_categories(is_active);`;
+CREATE INDEX idx_categories_active ON public.expense_categories(is_active);
+ALTER TABLE public.expense_categories ENABLE ROW LEVEL SECURITY;`;
 
       case 'departments':
         return `-- Table Definition: public.departments
@@ -623,7 +658,8 @@ CREATE TABLE public.departments (
   department_name VARCHAR(100) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;`;
 
       case 'couriers':
         return `-- Table Definition: public.courier_partners
@@ -631,10 +667,10 @@ CREATE TABLE public.courier_partners (
   partner_code VARCHAR(30) PRIMARY KEY,
   partner_name VARCHAR(100) NOT NULL,
   contact_phone VARCHAR(30),
-  tracking_template VARCHAR(255),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.courier_partners ENABLE ROW LEVEL SECURITY;`;
 
       case 'staff':
         return `-- Table Definition: public.staff_members
@@ -654,7 +690,8 @@ CREATE TABLE public.staff_members (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_staff_branch ON public.staff_members(branch_id);`;
+CREATE INDEX idx_staff_branch ON public.staff_members(branch_id);
+ALTER TABLE public.staff_members ENABLE ROW LEVEL SECURITY;`;
 
       case 'roles':
         return `-- Table Definition: public.app_roles & public.role_permissions
@@ -665,6 +702,7 @@ CREATE TABLE public.app_roles (
   is_system_role BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE public.role_permissions (
   role_code VARCHAR(50) PRIMARY KEY REFERENCES public.app_roles(role_code) ON DELETE CASCADE,
@@ -683,7 +721,8 @@ CREATE TABLE public.role_permissions (
   can_manage_users_roles BOOLEAN NOT NULL DEFAULT FALSE,
   can_manage_periods BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;`;
 
       case 'denominations':
         return `-- Table Definition: public.currency_denominations
@@ -694,7 +733,8 @@ CREATE TABLE public.currency_denominations (
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.currency_denominations ENABLE ROW LEVEL SECURITY;`;
 
       case 'broadcasts':
         return `-- Table Definition: public.system_broadcasts
@@ -706,7 +746,8 @@ CREATE TABLE public.system_broadcasts (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by VARCHAR(100),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);`;
+);
+ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
 
       default:
         return `-- Showroom Master Schema`;
@@ -879,9 +920,6 @@ CREATE TABLE public.system_broadcasts (
     normal: 'py-2.5 px-3.5 text-xs',
     relaxed: 'py-3.5 px-4 text-sm',
   }[density];
-
-  // Hard Security Role Gate (Super_Admin & Developer only)
-  const isAuthorizedAdmin = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
 
   if (!isAuthorizedAdmin) {
     return (

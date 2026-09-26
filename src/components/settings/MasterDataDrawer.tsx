@@ -131,7 +131,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
               partner_name: '',
               partner_code: '',
               contact_phone: '',
-              tracking_url_template: '',
               is_active: true,
             });
             break;
@@ -266,6 +265,9 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           userRole
         );
       } else if (type === 'role') {
+        if (isEdit && record?.is_system_role) {
+          throw new Error('Core system role permissions cannot be modified. Create a custom role instead.');
+        }
         if (!formData.role_code || !formData.role_title) {
           throw new Error('Role Code and Role Title are required.');
         }
@@ -765,16 +767,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                     value={formData.contact_phone || ''}
                     onChange={(e) => handleChange('contact_phone', cleanIndianPhoneInput(e.target.value))}
                     placeholder="+91 98765 43210"
-                    className={inputStyles}
-                  />
-                </SupabaseFieldRow>
-
-                <SupabaseFieldRow columnName="tracking_url_template" dataType="text">
-                  <input
-                    type="text"
-                    value={formData.tracking_url_template || ''}
-                    onChange={(e) => handleChange('tracking_url_template', e.target.value)}
-                    placeholder="https://track.example.com?awb="
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>

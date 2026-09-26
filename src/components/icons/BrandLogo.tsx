@@ -3,17 +3,16 @@ import { useBrandStore } from '@/store/brandStore';
 import { AsopalavLogo } from './AsopalavLogo';
 import { cn } from '@/lib/utils';
 
+import DOMPurify from 'dompurify';
+
 /** Strip script tags and event handlers from SVG to prevent XSS */
 const sanitizeSvg = (svg: string): string => {
-  return svg
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/\son\w+\s*=\s*\{[^}]*\}/gi, '')
-    .replace(/javascript\s*:/gi, '')
-    .replace(/data\s*:\s*text\/html/gi, '')
-    .replace(/<iframe[\s\S]*?(<\/iframe>|\/>)/gi, '')
-    .replace(/<embed[\s\S]*?(<\/embed>|\/>)/gi, '')
-    .replace(/<object[\s\S]*?(<\/object>|\/>)/gi, '');
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ['use'],
+    FORBID_TAGS: ['script', 'iframe', 'embed', 'object', 'form'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+  });
 };
 
 interface BrandLogoProps {

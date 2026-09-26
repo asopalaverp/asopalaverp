@@ -94,6 +94,7 @@ export const NewVoucherPage: React.FC = () => {
   const [cashBalance, setCashBalance] = useState<number>(0);
   const [upiBalance, setUpiBalance] = useState<number>(0);
   const [isPeriodLocked, setIsPeriodLocked] = useState<boolean>(false);
+  const isSubmittingRef = useRef(false);
 
   // Sync selected branch when store changes
   useEffect(() => {
@@ -538,6 +539,7 @@ export const NewVoucherPage: React.FC = () => {
 
       if (e.key === 'F2') {
         e.preventDefault();
+        if (isSubmittingRef.current) return;
         formRef.current?.requestSubmit();
       } else if (e.key === 'F6') {
         e.preventDefault();
@@ -647,7 +649,29 @@ export const NewVoucherPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    try {
+      await _handleSubmitLogic();
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const _handleSubmitLogic = async () => {
     setError(null);
+
+    // Section 40A(3) enforcement
+    if (sec40A3Check.exceeded && !is40A3ExceededAllowed()) {
+      setError(`Section 40A(3) Violation: Cash payment of ₹${finalCalculatedAmount.toLocaleString('en-IN')} exceeds the statutory limit of ₹${sec40A3Check.limit?.toLocaleString('en-IN') || '10,000'}. Switch to Bank UPI or obtain Super Admin authorization.`);
+      return;
+    }
+
+    // Block future-dated vouchers for non-admins
+    if (paymentDate > todayStr && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer') {
+      setError('Future-dated expense vouchers are not permitted. Please use today\'s date.');
+      return;
+    }
 
     // 0. Date Validation (Cashiers locked to Today only unless Super Admin override in F12 is enabled)
     if (isBackdateBlocked) {
@@ -900,12 +924,17 @@ export const NewVoucherPage: React.FC = () => {
       loadBalances();
     } catch (err: any) {
       console.error('Error creating voucher:', err);
+      const rawMsg = err?.message || 'Failed to save expense.';
+      let userFriendlyMsg = rawMsg;
+      if (rawMsg.includes('duplicate key') || rawMsg.includes('voucher_number') || rawMsg.includes('Duplicate Voucher Number')) {
+        userFriendlyMsg = `Duplicate Voucher Number: Voucher #${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()} already exists in the system. Please enter the next sequential number from your physical bill book.`;
+      }
       showToast({
         type: 'error',
         title: 'Could Not Save',
-        message: err?.message || 'Failed to save expense.',
+        message: userFriendlyMsg,
       });
-      setError(err?.message || 'Failed to save expense. Please check your internet connection.');
+      setError(userFriendlyMsg);
     } finally {
       setSubmitting(false);
     }

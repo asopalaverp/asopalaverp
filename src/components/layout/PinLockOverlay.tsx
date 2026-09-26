@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuthStore, CashierProfile } from '@/store/authStore';
-import { Lock, Key, LogOut, Eye, EyeOff, ArrowRight, Delete, RotateCcw, User, ShieldCheck } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { Lock, Key, LogOut, Eye, EyeOff, ArrowRight, Delete, RotateCcw } from 'lucide-react';
 import { AsopalavLogo } from '@/components/icons/AsopalavLogo';
 import { animateModalOpen, animateShake } from '@/lib/animations';
 import { cn, triggerHaptic } from '@/lib/utils';
@@ -9,13 +9,8 @@ export const PinLockOverlay: React.FC = () => {
   const {
     isLocked,
     unlockScreen,
-    quickSwitchCashierByPin,
     user,
     logout,
-    availableCashiers,
-    selectedCashier,
-    setSelectedCashier,
-    fetchAvailableCashiers,
   } = useAuthStore();
 
   const [pin, setPin] = useState('');
@@ -26,11 +21,8 @@ export const PinLockOverlay: React.FC = () => {
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const activeCashier = selectedCashier || (user ? availableCashiers.find((c) => c.id === user.id) : availableCashiers[0]) || (user as any);
-
   useEffect(() => {
     if (isLocked) {
-      fetchAvailableCashiers();
       animateModalOpen(cardRef.current, backdropRef.current);
       setPin('');
       setShowPin(false);
@@ -38,7 +30,7 @@ export const PinLockOverlay: React.FC = () => {
       setErrorMessage('');
       setTimeout(() => inputRef.current?.focus(), 150);
     }
-  }, [isLocked, fetchAvailableCashiers]);
+  }, [isLocked]);
 
   if (!isLocked) return null;
 
@@ -77,11 +69,11 @@ export const PinLockOverlay: React.FC = () => {
       return;
     }
 
-    const success = quickSwitchCashierByPin(pinToTest, activeCashier?.id);
+    const success = unlockScreen(pinToTest);
     if (!success) {
       triggerHaptic('error');
       setError(true);
-      setErrorMessage(`Incorrect PIN for ${activeCashier?.first_name || 'user'}. Please try again.`);
+      setErrorMessage(`Incorrect PIN for ${user?.first_name || 'user'}. Please try again.`);
       animateShake(cardRef.current);
       setTimeout(() => {
         setPin('');
@@ -129,64 +121,18 @@ export const PinLockOverlay: React.FC = () => {
           </div>
         </div>
 
-        {/* Cashier Selector Carousel (Quick Counter Shift Switch) */}
-        <div className="w-full space-y-1.5 text-left">
-          <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-semibold block">
-            Select Counter Cashier / Shift
-          </label>
-          <div className="grid grid-cols-5 gap-1.5">
-            {availableCashiers.map((cashier) => {
-              const isSelected = activeCashier?.id === cashier.id;
-              return (
-                <button
-                  key={cashier.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCashier(cashier);
-                    setPin('');
-                    setError(false);
-                    setErrorMessage('');
-                    inputRef.current?.focus();
-                  }}
-                  className={cn(
-                    'p-1.5 rounded-[8px] border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1',
-                    isSelected
-                      ? 'border-emerald-500 dark:border-[#3ecf8e] bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-950 dark:text-white ring-1 ring-emerald-500/30'
-                      : 'border-slate-200 dark:border-[#282828] bg-slate-50/50 dark:bg-[#1f1f1f] hover:border-slate-300 dark:hover:border-[#383838] text-slate-600 dark:text-zinc-400'
-                  )}
-                  title={`${cashier.first_name} ${cashier.last_name} (${cashier.role_code.replace('_', ' ')})`}
-                >
-                  <div
-                    className={cn(
-                      'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-mono font-bold transition-transform',
-                      isSelected
-                        ? 'bg-[#3ecf8e] text-[#171717] scale-105 font-semibold'
-                        : 'bg-slate-200 dark:bg-[#2a2a2a] text-slate-700 dark:text-zinc-300'
-                    )}
-                  >
-                    {cashier.avatar_initials || cashier.first_name[0]}
-                  </div>
-                  <span className="text-[10px] font-medium truncate w-full block leading-none">
-                    {cashier.first_name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Active Cashier Detail Banner */}
-        <div className="w-full p-2.5 rounded-[8px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#282828] flex items-center justify-between">
+        {/* Current User Detail Banner */}
+        <div className="w-full p-3 rounded-[8px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#282828] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center text-xs font-mono font-bold">
-              {activeCashier?.avatar_initials || activeCashier?.first_name?.[0] || 'U'}
+            <div className="w-9 h-9 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center text-xs font-mono font-bold">
+              {user?.avatar_initials || user?.first_name?.[0] || 'U'}
             </div>
             <div className="text-left">
               <h3 className="text-xs font-medium text-slate-900 dark:text-white leading-tight">
-                {activeCashier?.first_name} {activeCashier?.last_name}
+                {user?.first_name} {user?.last_name || ''}
               </h3>
               <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans leading-tight mt-0.5">
-                {activeCashier?.designation_title || (activeCashier?.role_code ? activeCashier.role_code.replace(/_/g, ' ') : 'Cashier')}
+                {user?.role_code ? user.role_code.replace(/_/g, ' ') : 'Cashier'}
               </p>
             </div>
           </div>

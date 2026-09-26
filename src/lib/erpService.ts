@@ -141,7 +141,7 @@ class ERPService {
 
     const { error } = await supabase.from('accounting_periods').update(updateData).eq('period_key', periodKey);
     if (error) {
-      console.warn('Period lock update fallback / error:', error);
+      throw new Error(error.message || 'Failed to update accounting period lock');
     }
 
     await logSecurityEvent({
@@ -441,13 +441,21 @@ class ERPService {
 
     const validVouchers = vouchers.filter((v) => v.status === 'Approved');
 
+    const sanitizeCsvCell = (str: string) => {
+      const sanitized = (str || '').replace(/"/g, '""');
+      if (/^[=+\-@|\t\r]/.test(sanitized)) {
+        return `'${sanitized}`;
+      }
+      return sanitized;
+    };
+
     const rows = validVouchers.map((v) => {
       const debitLedger = mapCategoryToDebitLedger(v.category_name);
       const creditLedger = mapPaymentToCreditLedger(v.payment_method, v.branch_code);
       const costCentre = `Showroom ${v.branch_code || 'ASI'}`;
-      const narration = (v.remarks || '').replace(/"/g, '""');
-      const payee = (v.recipient_name || '').replace(/"/g, '""');
-      const billRef = (v.bill_number || '').replace(/"/g, '""');
+      const narration = sanitizeCsvCell(v.remarks || '');
+      const payee = sanitizeCsvCell(v.recipient_name || '');
+      const billRef = sanitizeCsvCell(v.bill_number || '');
 
       return [
         `"${v.payment_date}"`,
@@ -667,6 +675,59 @@ class ERPService {
     return `${code}-ADV-${String(nextNum).padStart(4, '0')}`;
   }
 
+  /**
+   * Resiliently insert an expense voucher into Supabase.
+   * If the Supabase schema lacks newly introduced extended columns, it auto-retries with core columns.
+   */
+  private async insertExpenseVoucherRecord(record: Record<string, any>): Promise<void> {
+    const payload = { ...record };
+    const { error } = await supabase.from('expense_vouchers').insert([payload]);
+    if (!error) return;
+
+    // Check if error is due to an unmigrated column in Supabase schema cache
+    if (error.message && error.message.includes('column of') && error.message.includes('expense_vouchers')) {
+      console.warn('[Supabase Schema Adaptor] Retrying voucher insert with sanitized core fields:', error.message);
+      const corePayload: Record<string, any> = {
+        id: record.id,
+        voucher_number: record.voucher_number,
+        branch_id: record.branch_id,
+        branch_code: record.branch_code,
+        payment_date: record.payment_date,
+        payment_type: record.payment_type,
+        payment_method: record.payment_method,
+        bank_utr_number: record.bank_utr_number || null,
+        total_amount: record.total_amount,
+        recipient_name: record.recipient_name,
+        category_name: record.category_name,
+        department_name: record.department_name || null,
+        department_code: record.department_code || null,
+        courier_partner_name: record.courier_partner_name || null,
+        bill_number: record.bill_number || null,
+        bill_photo_urls: record.bill_photo_urls || [],
+        remarks: record.remarks,
+        created_by_name: record.created_by_name,
+        status: record.status || 'Approved',
+        created_at: record.created_at || new Date().toISOString(),
+      };
+      const { error: retryError } = await supabase.from('expense_vouchers').insert([corePayload]);
+      if (retryError) {
+        if (retryError.code === '23505' || retryError.message?.includes('duplicate key') || retryError.message?.includes('voucher_number')) {
+          throw new Error(`Duplicate Voucher Number: Voucher #${record.voucher_number} already exists in the system. Please enter the next sequential number from your physical bill book.`);
+        }
+        console.error('Sanitized voucher insert error:', retryError);
+        throw new Error(retryError.message);
+      }
+      return;
+    }
+
+    if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('voucher_number')) {
+      throw new Error(`Duplicate Voucher Number: Voucher #${record.voucher_number} already exists in the system. Please enter the next sequential number from your physical bill book.`);
+    }
+
+    console.error('Voucher insert error:', error);
+    throw new Error(error.message);
+  }
+
   async createVoucherWithLedger(params: CreateVoucherParams): Promise<ExpenseVoucher> {
     const { voucher, splits, userName, userRole } = params;
 
@@ -674,8 +735,15 @@ class ERPService {
     if (!voucher.total_amount || voucher.total_amount <= 0) {
       throw new Error('Voucher amount must be a positive number greater than zero.');
     }
-    if (voucher.total_amount > 10000000) {
-      throw new Error('Voucher amount exceeds maximum allowed limit of ₹1,00,00,000.');
+    // Guard: Validate splits if present
+    if (splits && splits.length > 0) {
+      const splitTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      if (Math.abs(splitTotal - voucher.total_amount) > 0.01) {
+        throw new Error(`Sum of staff splits (₹${splitTotal.toFixed(2)}) does not match voucher total amount (₹${voucher.total_amount.toFixed(2)}).`);
+      }
+      if (splits.some((s) => Number(s.amount) <= 0)) {
+        throw new Error('All staff split amounts must be greater than zero.');
+      }
     }
 
     // 1. Period Lock Guard (Super Admin can bypass)
@@ -729,11 +797,7 @@ class ERPService {
 
     // 3. If Amount > 50,000: Mark Pending Approval (No immediate wallet deduction until approved)
     if (requiresSuperAdminApproval) {
-      const { error } = await supabase.from('expense_vouchers').insert([voucherDbRecord]);
-      if (error) {
-        console.error('Voucher insert error:', error);
-        throw new Error(error.message);
-      }
+      await this.insertExpenseVoucherRecord(voucherDbRecord);
 
       if (splits && splits.length > 0) {
         for (const s of splits) {
@@ -840,11 +904,7 @@ class ERPService {
     });
 
     // 6. Insert Voucher into Database
-    const { error: voucherError } = await supabase.from('expense_vouchers').insert([voucherDbRecord]);
-    if (voucherError) {
-      console.error('Voucher insert error:', voucherError);
-      throw new Error(voucherError.message);
-    }
+    await this.insertExpenseVoucherRecord(voucherDbRecord);
 
     // 7. Insert Multi-Staff Splits if applicable
     if (splits && splits.length > 0) {
@@ -1543,11 +1603,7 @@ class ERPService {
         created_at: new Date().toISOString(),
       };
 
-      const { error: vErr } = await supabase.from('expense_vouchers').insert([settlementVoucher]);
-      if (vErr) {
-        console.error('Settlement voucher insert error:', vErr);
-        throw new Error(vErr.message);
-      }
+      await this.insertExpenseVoucherRecord(settlementVoucher);
 
       await logSecurityEvent({
         userName: params.userName,
@@ -2078,7 +2134,7 @@ class ERPService {
   }
 
   async deleteBranch(branchId: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('branches').delete().eq('branch_id', branchId);
+    const { error } = await supabase.from('branches').update({ is_active: false, updated_at: new Date().toISOString() }).eq('branch_id', branchId);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -2139,7 +2195,7 @@ class ERPService {
   }
 
   async deleteCategory(categoryName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('expense_categories').delete().eq('category_name', categoryName);
+    const { error } = await supabase.from('expense_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('category_name', categoryName);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -2199,7 +2255,7 @@ class ERPService {
   }
 
   async deleteDepartment(deptCode: string, deptName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('departments').delete().eq('department_code', deptCode);
+    const { error } = await supabase.from('departments').update({ is_active: false, updated_at: new Date().toISOString() }).eq('department_code', deptCode);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -2259,7 +2315,7 @@ class ERPService {
   }
 
   async deleteCourier(partnerCode: string, partnerName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('courier_partners').delete().eq('partner_code', partnerCode);
+    const { error } = await supabase.from('courier_partners').update({ is_active: false, updated_at: new Date().toISOString() }).eq('partner_code', partnerCode);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -2298,7 +2354,7 @@ class ERPService {
   }
 
   async deleteAppUser(userId: string, username: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('app_users').delete().eq('id', userId);
+    const { error } = await supabase.from('app_users').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', userId);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -2317,7 +2373,7 @@ class ERPService {
   }
 
   async deleteStaffMember(staffCode: string, staffName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('staff_members').delete().eq('staff_code', staffCode);
+    const { error } = await supabase.from('staff_members').update({ is_active: false, updated_at: new Date().toISOString() }).eq('staff_code', staffCode);
     if (error) throw new Error(error.message);
 
     // Direct cut of all linked app_users login access
@@ -2350,17 +2406,39 @@ class ERPService {
   async saveBranch(branch: any, isEdit: boolean, userName: string, userRole: string) {
     const branchCode = (branch.branch_code || 'BR').toUpperCase();
     const branchId = branch.branch_id || `Aellp-${branchCode}`;
-    const payload = {
-      ...branch,
+    const payload: Record<string, any> = {
       branch_id: branchId,
       branch_code: branchCode,
+      branch_name: (branch.branch_name || '').trim(),
+      short_name: (branch.short_name || branch.branch_name || '').trim(),
+      entity_company_name: (branch.entity_company_name || 'Asopalav Endeavours LLP').trim(),
+      pan_number: branch.pan_number ? String(branch.pan_number).trim() : null,
+      gstin: branch.gstin ? String(branch.gstin).trim() : null,
+      accountant_name: (branch.accountant_name || '').trim(),
+      contact_phone: (branch.contact_phone || '').trim(),
+      contact_email: (branch.contact_email || '').trim(),
+      city: (branch.city || 'Ahmedabad').trim(),
+      state: (branch.state || 'Gujarat').trim(),
+      address: (branch.address || '').trim(),
       min_cash_threshold: Number(branch.min_cash_threshold) || 3000,
-      max_cash_ceiling: Number(branch.max_cash_ceiling) || 25000,
-      max_upi_ceiling: Number(branch.max_upi_ceiling) || 50000,
       is_active: branch.is_active ?? true,
     };
 
-    const { error } = await supabase.from('branches').upsert([payload]);
+    if (branch.max_cash_ceiling !== undefined && branch.max_cash_ceiling !== '') {
+      payload.max_cash_ceiling = Number(branch.max_cash_ceiling) || 25000;
+    }
+    if (branch.max_upi_ceiling !== undefined && branch.max_upi_ceiling !== '') {
+      payload.max_upi_ceiling = Number(branch.max_upi_ceiling) || 50000;
+    }
+
+    let { error } = await supabase.from('branches').upsert([payload]);
+    if (error && error.message && error.message.includes('column of') && error.message.includes('branches')) {
+      console.warn('[Supabase Schema Adaptor] Retrying branch upsert without ceiling columns:', error.message);
+      delete payload.max_cash_ceiling;
+      delete payload.max_upi_ceiling;
+      const retry = await supabase.from('branches').upsert([payload]);
+      error = retry.error;
+    }
     if (error) throw new Error(error.message);
 
     // Guarantee sub-wallet row exists
@@ -2463,7 +2541,6 @@ class ERPService {
       partner_code: (courier.partner_code || '').trim().toUpperCase(),
       partner_name: (courier.partner_name || '').trim(),
       contact_phone: cleanPhone,
-      tracking_template: courier.tracking_template || null,
       is_active: courier.is_active ?? true,
     };
     if (!payload.partner_code || !payload.partner_name) {
