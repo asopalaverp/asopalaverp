@@ -117,9 +117,13 @@ export function animateModalClose(
 }
 
 /**
- * Animate slide-over drawer entrance from right
+ * Animate slide-over drawer entrance (Mobile: bottom sheet slide-up; Desktop/Tablet: right slide-in)
  */
-export function animateDrawerOpen(drawer: HTMLElement | null, backdrop?: HTMLElement | null) {
+export function animateDrawerOpen(
+  drawer: HTMLElement | null,
+  backdrop?: HTMLElement | null,
+  isMobile: boolean = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+) {
   if (backdrop) {
     gsap.fromTo(
       backdrop,
@@ -128,34 +132,53 @@ export function animateDrawerOpen(drawer: HTMLElement | null, backdrop?: HTMLEle
     );
   }
   if (drawer) {
-    gsap.fromTo(
-      drawer,
-      { x: '100%', opacity: 0.8 },
-      {
-        x: '0%',
-        opacity: 1,
-        duration: ANIM_CONFIG.duration.smooth,
-        ease: ANIM_CONFIG.ease.snappy,
-        clearProps: 'transform',
-      }
-    );
+    if (isMobile) {
+      gsap.fromTo(
+        drawer,
+        { y: '100%', opacity: 0.9 },
+        {
+          y: '0%',
+          opacity: 1,
+          duration: ANIM_CONFIG.duration.smooth,
+          ease: ANIM_CONFIG.ease.snappy,
+          clearProps: 'transform',
+        }
+      );
+    } else {
+      gsap.fromTo(
+        drawer,
+        { x: '100%', opacity: 0.8 },
+        {
+          x: '0%',
+          opacity: 1,
+          duration: ANIM_CONFIG.duration.smooth,
+          ease: ANIM_CONFIG.ease.snappy,
+          clearProps: 'transform',
+        }
+      );
+    }
   }
 }
 
 /**
- * Animate slide-over drawer exit
+ * Animate slide-over drawer exit (Mobile: slide-down; Desktop/Tablet: slide-right)
  */
 export function animateDrawerClose(
   drawer: HTMLElement | null,
   backdrop: HTMLElement | null | undefined,
-  onComplete: () => void
+  onComplete: () => void,
+  isMobile: boolean = typeof window !== 'undefined' ? window.innerWidth < 768 : false
 ) {
   const tl = gsap.timeline({ onComplete });
   if (backdrop) {
     tl.to(backdrop, { opacity: 0, duration: ANIM_CONFIG.duration.fast, ease: ANIM_CONFIG.ease.in }, 0);
   }
   if (drawer) {
-    tl.to(drawer, { x: '100%', opacity: 0.5, duration: ANIM_CONFIG.duration.normal, ease: 'power3.in' }, 0);
+    if (isMobile) {
+      tl.to(drawer, { y: '100%', opacity: 0.5, duration: ANIM_CONFIG.duration.normal, ease: 'power3.in' }, 0);
+    } else {
+      tl.to(drawer, { x: '100%', opacity: 0.5, duration: ANIM_CONFIG.duration.normal, ease: 'power3.in' }, 0);
+    }
   }
 }
 

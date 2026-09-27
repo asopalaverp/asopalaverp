@@ -319,13 +319,19 @@ const CLASSIFICATION_CONFIGS: Record<MasterClassification, ClassificationConfig>
 };
 
 export const BulkMasterDataImportModal: React.FC = () => {
-  const { isBulkImportOpen, setBulkImportOpen } = useUIStore();
+  const { isBulkImportOpen, setBulkImportOpen, bulkImportDefaultType } = useUIStore();
   const { user } = useAuthStore();
   const { branches, selectedBranchId, fetchBranchesAndWallets } = useBranchStore();
   const { refresh } = useVouchers();
 
-  const [activeType, setActiveType] = useState<MasterClassification>('categories');
-  const [targetBranch, setTargetBranch] = useState(selectedBranchId || 'Aellp-ASI');
+  const [activeType, setActiveType] = useState<MasterClassification>(
+    (bulkImportDefaultType && CLASSIFICATION_CONFIGS[bulkImportDefaultType as MasterClassification])
+      ? (bulkImportDefaultType as MasterClassification)
+      : 'categories'
+  );
+  const [targetBranch, setTargetBranch] = useState(
+    selectedBranchId || (branches && branches.length > 0 ? branches[0].branch_id : 'Aellp-ASI')
+  );
   const [rawText, setRawText] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -335,7 +341,23 @@ export const BulkMasterDataImportModal: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load draft from localStorage on open
+  // Sync activeType and targetBranch on modal open
+  useEffect(() => {
+    if (isBulkImportOpen) {
+      if (bulkImportDefaultType && CLASSIFICATION_CONFIGS[bulkImportDefaultType as MasterClassification]) {
+        setActiveType(bulkImportDefaultType as MasterClassification);
+      }
+      if (selectedBranchId) {
+        setTargetBranch(selectedBranchId);
+      } else if (branches && branches.length > 0 && !targetBranch) {
+        setTargetBranch(branches[0].branch_id);
+      }
+      setShowDiscardConfirm(false);
+      setResultMessage(null);
+    }
+  }, [isBulkImportOpen, bulkImportDefaultType, selectedBranchId, branches]);
+
+  // Load draft from localStorage on open or type change
   useEffect(() => {
     if (isBulkImportOpen) {
       const savedDraft = localStorage.getItem(`asopalav_bulk_draft_${activeType}`) || '';
@@ -367,30 +389,30 @@ export const BulkMasterDataImportModal: React.FC = () => {
         if (activeType === 'categories') {
           const { data } = await supabase.from('expense_categories').select('category_name');
           (data || []).forEach((c: any) => {
-            if (c.category_name) keys.add(c.category_name.trim().toLowerCase());
+            if (c?.category_name) keys.add(c.category_name.trim().toLowerCase());
           });
         } else if (activeType === 'departments') {
           const { data } = await supabase.from('departments').select('department_code, department_name');
           (data || []).forEach((d: any) => {
-            if (d.department_code) keys.add(d.department_code.trim().toUpperCase());
-            if (d.department_name) keys.add(d.department_name.trim().toUpperCase());
+            if (d?.department_code) keys.add(d.department_code.trim().toUpperCase());
+            if (d?.department_name) keys.add(d.department_name.trim().toUpperCase());
           });
         } else if (activeType === 'couriers') {
           const { data } = await supabase.from('courier_partners').select('partner_code, partner_name');
           (data || []).forEach((c: any) => {
-            if (c.partner_code) keys.add(c.partner_code.trim().toUpperCase());
-            if (c.partner_name) keys.add(c.partner_name.trim().toUpperCase());
+            if (c?.partner_code) keys.add(c.partner_code.trim().toUpperCase());
+            if (c?.partner_name) keys.add(c.partner_name.trim().toUpperCase());
           });
         } else if (activeType === 'staff') {
           const { data } = await supabase.from('staff_members').select('staff_code');
           (data || []).forEach((s: any) => {
-            if (s.staff_code) keys.add(s.staff_code.trim().toUpperCase());
+            if (s?.staff_code) keys.add(s.staff_code.trim().toUpperCase());
           });
         } else if (activeType === 'branches') {
           const { data } = await supabase.from('branches').select('branch_code, branch_id');
           (data || []).forEach((b: any) => {
-            if (b.branch_code) keys.add(b.branch_code.trim().toUpperCase());
-            if (b.branch_id) keys.add(b.branch_id.trim().toUpperCase());
+            if (b?.branch_code) keys.add(b.branch_code.trim().toUpperCase());
+            if (b?.branch_id) keys.add(b.branch_id.trim().toUpperCase());
           });
         }
         if (!isCancelled) {
@@ -407,11 +429,11 @@ export const BulkMasterDataImportModal: React.FC = () => {
     };
   }, [isBulkImportOpen, activeType]);
 
-  const currentConfig = CLASSIFICATION_CONFIGS[activeType];
+  const currentConfig = CLASSIFICATION_CONFIGS[activeType] || CLASSIFICATION_CONFIGS.categories;
 
   // Parse lines into structured rows with smart duplicate tagging
   const parsedItems = useMemo(() => {
-    if (!rawText.trim()) return [];
+    if (!rawText.trim() || !currentConfig) return [];
     const lines = rawText
       .split('\n')
       .map((l) => l.trim())
@@ -420,8 +442,11 @@ export const BulkMasterDataImportModal: React.FC = () => {
     const seenBatch = new Set<string>();
 
     return lines.map((line, idx) => {
-      const parsed = currentConfig.parseRow(line, idx, targetBranch);
-      if (!parsed.valid || !parsed.data) {
+      const parsed = currentConfig.parseRow
+        ? currentConfig.parseRow(line, idx, targetBranch || 'Aellp-ASI')
+        : { name: line, valid: false, error: 'Parser unavailable', data: null };
+
+      if (!parsed || !parsed.valid || !parsed.data) {
         return {
           ...parsed,
           isNew: false,
@@ -430,9 +455,9 @@ export const BulkMasterDataImportModal: React.FC = () => {
         };
       }
 
-      const key = currentConfig.getUniqueKey(parsed.data);
+      const key = currentConfig.getUniqueKey ? currentConfig.getUniqueKey(parsed.data) : '';
 
-      if (existingDbKeys.has(key)) {
+      if (key && existingDbKeys.has(key)) {
         return {
           ...parsed,
           isNew: false,
@@ -442,7 +467,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
         };
       }
 
-      if (seenBatch.has(key)) {
+      if (key && seenBatch.has(key)) {
         return {
           ...parsed,
           isNew: false,
@@ -452,7 +477,10 @@ export const BulkMasterDataImportModal: React.FC = () => {
         };
       }
 
-      seenBatch.add(key);
+      if (key) {
+        seenBatch.add(key);
+      }
+
       return {
         ...parsed,
         isNew: true,
@@ -646,35 +674,33 @@ export const BulkMasterDataImportModal: React.FC = () => {
   );
 
   const drawerFooter = (
-    <>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="text-slate-500 dark:text-zinc-400">Parsed:</span>
-          <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#282828] tabular-nums">
-            {parsedItems.length} Total
+    <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs font-mono">
+        <span className="text-slate-500 dark:text-zinc-400 text-[11px] font-sans">Summary:</span>
+        <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#282828] tabular-nums text-[11px]">
+          {parsedItems.length} Total
+        </span>
+        <span className="px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] font-medium border border-emerald-500/20 tabular-nums text-[11px]">
+          {newCount} New
+        </span>
+        {existingDbCount > 0 && (
+          <span className="px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium border border-amber-500/20 tabular-nums text-[11px]">
+            {existingDbCount} In DB
           </span>
-          <span className="px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] font-medium border border-emerald-500/20 tabular-nums">
-            {newCount} New
+        )}
+        {batchDupCount > 0 && (
+          <span className="px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium border border-amber-500/20 tabular-nums text-[11px]">
+            {batchDupCount} Dupes
           </span>
-          {existingDbCount > 0 && (
-            <span className="px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium border border-amber-500/20 tabular-nums">
-              {existingDbCount} In DB
-            </span>
-          )}
-          {batchDupCount > 0 && (
-            <span className="px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium border border-amber-500/20 tabular-nums">
-              {batchDupCount} Dupes
-            </span>
-          )}
-          {invalidCount > 0 && (
-            <span className="px-2 py-0.5 rounded-[4px] bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium border border-rose-500/20 tabular-nums">
-              {invalidCount} Invalid
-            </span>
-          )}
-        </div>
+        )}
+        {invalidCount > 0 && (
+          <span className="px-2 py-0.5 rounded-[4px] bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium border border-rose-500/20 tabular-nums text-[11px]">
+            {invalidCount} Invalid
+          </span>
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2 shrink-0">
         {rawText && (
           <button
             type="button"
@@ -695,19 +721,19 @@ export const BulkMasterDataImportModal: React.FC = () => {
           type="button"
           disabled={newCount === 0 || importing}
           onClick={handleExecuteImport}
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] font-semibold text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs min-h-[34px]"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] font-semibold text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs min-h-[34px] whitespace-nowrap"
         >
-          <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
+          <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5] shrink-0" />
           <span>
             {importing
               ? 'Importing Data...'
               : newCount === 0 && (existingDbCount > 0 || batchDupCount > 0)
-              ? `0 New (All ${existingDbCount + batchDupCount} Already in DB)`
+              ? `0 New (${existingDbCount + batchDupCount} in DB)`
               : `Import ${newCount} New ${currentConfig.label}`}
           </span>
         </button>
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -717,13 +743,13 @@ export const BulkMasterDataImportModal: React.FC = () => {
       title="Bulk Data Import"
       subtitle="Paste tabular CSV/TSV data or drop spreadsheet files to batch populate master records"
       badge={drawerBadge}
-      size="full"
+      size="2xl"
       footer={drawerFooter}
     >
       <div className="space-y-4 font-sans text-xs">
         {/* Supabase Classification Selector Tab Strip */}
-        <div className="p-1 rounded-[6px] bg-slate-100 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1 flex-wrap">
+        <div className="bg-slate-50 dark:bg-[#181818] p-2 rounded-[8px] border border-slate-200 dark:border-[#262626] space-y-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
             {(Object.keys(CLASSIFICATION_CONFIGS) as MasterClassification[]).map((key) => {
               const cfg = CLASSIFICATION_CONFIGS[key];
               const Icon = cfg.icon;
@@ -738,14 +764,14 @@ export const BulkMasterDataImportModal: React.FC = () => {
                     setRawText(savedDraft);
                     setResultMessage(null);
                   }}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-[6px] text-xs font-medium transition-colors cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-[6px] text-xs font-medium transition-all cursor-pointer select-none ${
                     isActive
-                      ? 'bg-white dark:bg-[#242424] text-slate-900 dark:text-white shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-200/50 dark:hover:bg-[#202020]'
+                      ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white shadow-xs font-semibold border border-slate-300/80 dark:border-[#383838]'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-200/50 dark:hover:bg-[#202020] border border-transparent'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#3ecf8e]' : 'text-slate-400'}`} />
-                  <span>{cfg.label}</span>
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#3ecf8e]' : 'text-slate-400'}`} />
+                  <span className="truncate">{cfg.label}</span>
                 </button>
               );
             })}
@@ -753,15 +779,18 @@ export const BulkMasterDataImportModal: React.FC = () => {
 
           {/* Showroom Target Branch Filter (for staff records) */}
           {activeType === 'staff' && (
-            <div className="flex items-center gap-2 min-w-[220px]">
-              <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono shrink-0">Assign Branch:</span>
-              <div className="flex-1">
+            <div className="pt-2 border-t border-slate-200/80 dark:border-[#262626] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-zinc-300 font-medium">
+                <Building2 className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0" />
+                <span>Assign Target Branch for Imported Staff:</span>
+              </div>
+              <div className="w-full sm:w-64">
                 <SearchableSelect
                   size="sm"
-                  options={branches.map((b) => ({
-                    value: b.branch_id,
-                    label: b.branch_code,
-                    sublabel: b.branch_name.replace(/^Asopalav\s*-\s*/i, ''),
+                  options={(branches || []).map((b) => ({
+                    value: b?.branch_id || '',
+                    label: b?.branch_code || b?.branch_id || '',
+                    sublabel: (b?.branch_name || '').replace(/^Asopalav\s*-\s*/i, ''),
                   }))}
                   value={targetBranch}
                   onChange={setTargetBranch}
@@ -779,30 +808,35 @@ export const BulkMasterDataImportModal: React.FC = () => {
           {/* Left Column (5 cols): File Upload & Raw Text Editor */}
           <div className="lg:col-span-5 space-y-3 flex flex-col">
             {/* Guide & Sample Auto-fill */}
-            <div className="p-3 bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] rounded-[6px] space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="p-3 bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] rounded-[8px] space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-slate-800 dark:text-zinc-200 font-medium">
-                  <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span>Expected Columns ({currentConfig.columns.length})</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleApplySample}
-                  className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-[#3ecf8e] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-[#3ecf8e] hover:underline font-medium cursor-pointer"
                 >
                   <Sparkles className="w-3 h-3" />
                   <span>Fill Sample Data</span>
                 </button>
               </div>
 
-              <div className="text-[11px] text-slate-500 dark:text-zinc-400 space-y-1">
-                <p className="font-mono text-[11px] text-slate-700 dark:text-zinc-300">
-                  {currentConfig.columns.join(' , ')}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  Delimiter: Comma (,), Tab (\t), Semicolon (;), or Pipe (|). One record per row.
-                </p>
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {currentConfig.columns.map((col, cIdx) => (
+                  <span
+                    key={cIdx}
+                    className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-slate-200/70 dark:bg-[#252525] text-slate-800 dark:text-zinc-200 font-mono text-[11px] font-medium border border-slate-300/60 dark:border-[#333333]"
+                  >
+                    {col}
+                  </span>
+                ))}
               </div>
+              <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                Supports comma (<code className="font-mono text-[10px] bg-slate-200/60 dark:bg-[#242424] px-1 rounded">,</code>), tab (<code className="font-mono text-[10px] bg-slate-200/60 dark:bg-[#242424] px-1 rounded">\t</code>), semicolon (<code className="font-mono text-[10px] bg-slate-200/60 dark:bg-[#242424] px-1 rounded">;</code>), or pipe (<code className="font-mono text-[10px] bg-slate-200/60 dark:bg-[#242424] px-1 rounded">|</code>). One record per line.
+              </p>
             </div>
 
             {/* File Drag-and-Drop Area */}

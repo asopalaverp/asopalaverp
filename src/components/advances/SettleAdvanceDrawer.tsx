@@ -211,7 +211,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
           onClick={handleClose}
           className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
         >
-          Cancel (ESC)
+          Cancel
         </button>
 
         <button
@@ -298,10 +298,10 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
           </div>
         </div>
 
-        {/* Quick 1-Tap Preset Strip */}
+        {/* 1-Tap Preset Strip */}
         <div className="space-y-1.5">
           <label className="block text-[11px] font-mono text-slate-500 dark:text-zinc-400">
-            Quick 1-Tap Settlement Presets:
+            Settlement Distribution Presets:
           </label>
           <div className="grid grid-cols-3 gap-2">
             <button

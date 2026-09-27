@@ -20,52 +20,52 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   badge,
   badgeColor = 'neutral',
   statusText,
-  statusDotColor,
   icon: Icon,
   className,
 }) => {
   const badgeClasses: Record<string, string> = {
-    emerald: 'badge-status-emerald',
-    amber: 'badge-status-amber',
-    blue: 'badge-status-blue',
-    rose: 'badge-status-rose',
-    neutral: 'badge-status-neutral',
+    emerald: 'bg-emerald-500/12 text-emerald-700 dark:text-[#3ecf8e] border-emerald-500/20',
+    amber: 'bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    blue: 'bg-blue-500/12 text-blue-700 dark:text-blue-400 border-blue-500/20',
+    rose: 'bg-rose-500/12 text-rose-700 dark:text-rose-400 border-rose-500/20',
+    neutral: 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-zinc-300 border-black/5 dark:border-white/10',
   };
 
   return (
     <div
       className={cn(
-        'p-3.5 sm:p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] shadow-xs space-y-1 font-sans transition-all',
+        'p-3.5 sm:p-4 rounded-[16px] sm:rounded-[18px] ios18-glass-card',
+        'space-y-1 font-sans transition-all duration-200 hover:shadow-md select-none min-w-0 overflow-hidden',
         className
       )}
     >
       {/* Top Header: Label & Icon / Badge */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-medium truncate">
+      <div className="flex items-center justify-between gap-1.5 min-w-0">
+        <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-wider text-[#8e8e93] dark:text-[#98989d] font-semibold truncate">
           {label}
         </span>
         {badge ? (
           <span
             className={cn(
-              'px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono border font-medium truncate',
+              'px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono border font-medium shrink-0 whitespace-nowrap',
               badgeClasses[badgeColor]
             )}
           >
             {badge}
           </span>
         ) : Icon ? (
-          <Icon className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
+          <Icon className="w-3.5 h-3.5 text-[#8e8e93] dark:text-[#98989d] shrink-0" />
         ) : null}
       </div>
 
-      {/* Main Metric Value: Strict Monochrome & Tabular Numbers */}
-      <div className="text-2xl font-medium font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+      {/* Main Metric Value */}
+      <div className="text-xl sm:text-2xl md:text-[26px] font-semibold font-mono text-[#1c1c1e] dark:text-white tabular-nums tracking-tight truncate">
         {value}
       </div>
 
       {/* Footer Meta / Status */}
       {(subValue || statusText) && (
-        <div className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans pt-0.5 truncate">
+        <div className="text-[10.5px] sm:text-[11px] text-[#8e8e93] dark:text-[#98989d] font-sans pt-0.5 truncate">
           {statusText || subValue}
         </div>
       )}

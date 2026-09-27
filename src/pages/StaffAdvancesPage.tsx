@@ -8,6 +8,7 @@ import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { differenceInDays } from 'date-fns';
 import { MetricCard } from '@/components/ui/MetricCard';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import { ThermalReceiptSlip } from '@/components/ui/ThermalReceiptSlip';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -67,7 +68,7 @@ type SortField =
   | 'status';
 type SortOrder = 'asc' | 'desc';
 type TableDensity = 'compact' | 'normal' | 'relaxed';
-type SubViewTab = 'grid' | 'analytics_staff' | 'analytics_dept';
+type SubViewTab = 'grid' | 'salary_payroll' | 'analytics_staff' | 'analytics_dept';
 
 type ColumnKey =
   | 'receipt_number'
@@ -196,6 +197,11 @@ export const StaffAdvancesPage: React.FC = () => {
     isSubmitting: false,
   });
 
+  // HR Payroll Sync State
+  const [selectedPayrollMonth, setSelectedPayrollMonth] = useState<string>('March 2026 Payroll (25th)');
+  const [selectedPayrollIds, setSelectedPayrollIds] = useState<Set<string>>(new Set());
+  const [isPayrollProcessing, setIsPayrollProcessing] = useState<boolean>(false);
+
   useScrollLock(Boolean(actionModal.type));
 
   const fetchAdvances = useCallback(async () => {
@@ -270,6 +276,123 @@ export const StaffAdvancesPage: React.FC = () => {
         isSubmitting: false,
         error: errMsg,
       }));
+    }
+  };
+
+  const handleExportHRPayrollCSV = () => {
+    try {
+      const csvContent = erpService.generateHRPayrollDeductionCSV(advances, selectedPayrollMonth);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `HR_Payroll_Deductions_${selectedPayrollMonth.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast({
+        type: 'success',
+        title: 'Payroll CSV Exported',
+        message: `HR Payroll deduction schedule downloaded for ${selectedPayrollMonth}`,
+      });
+      triggerHaptic('success');
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Export Failed',
+        message: err.message || 'Failed to generate payroll CSV',
+      });
+    }
+  };
+
+  const handleAutoFlag30DayOverdues = async () => {
+    setIsPayrollProcessing(true);
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const overdueAdvances = advances.filter(
+        (a) =>
+          a.status === 'Active_Unsettled' &&
+          Number(a.unsettled_balance) > 0 &&
+          new Date(a.advance_date) <= thirtyDaysAgo
+      );
+
+      if (overdueAdvances.length === 0) {
+        showToast({
+          type: 'info',
+          title: 'No 30+ Day Overdues',
+          message: 'All active advances are within the normal 30-day grace period.',
+        });
+        return;
+      }
+
+      const overdueIds = overdueAdvances.map((a) => a.id);
+      const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
+      const res = await erpService.batchFlagOverdueForSalaryDeduction(
+        overdueIds,
+        selectedPayrollMonth,
+        userName,
+        selectedBranchId
+      );
+
+      showToast({
+        type: 'success',
+        title: 'Overdue Advances Flagged',
+        message: `Flagged ${res.count} overdue advances totaling ${formatINR(res.totalAmount)} for salary deduction`,
+      });
+      triggerHaptic('success');
+      await fetchAdvances();
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Auto-Flag Failed',
+        message: err.message || 'Failed to auto-flag overdue advances',
+      });
+    } finally {
+      setIsPayrollProcessing(false);
+    }
+  };
+
+  const handleBatchClearPayrollDeductions = async () => {
+    if (selectedPayrollIds.size === 0) {
+      showToast({
+        type: 'warning',
+        title: 'No Rows Selected',
+        message: 'Select at least one advance to mark as cleared by HR payroll.',
+      });
+      return;
+    }
+
+    setIsPayrollProcessing(true);
+    try {
+      const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
+      const userRole = user?.role_code || 'Super_Admin';
+      const res = await erpService.batchClearSalaryDeductions(
+        Array.from(selectedPayrollIds),
+        userName,
+        userRole,
+        `HR Payroll processed for ${selectedPayrollMonth}`,
+        selectedBranchId
+      );
+
+      showToast({
+        type: 'success',
+        title: 'Payroll Deductions Cleared',
+        message: `Successfully marked ${res.count} advances (${formatINR(res.totalAmount)}) as Settled via Salary Deduction`,
+      });
+      setSelectedPayrollIds(new Set());
+      triggerHaptic('success');
+      await fetchAdvances();
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Clear Deductions Failed',
+        message: err.message || 'Failed to clear salary deductions',
+      });
+    } finally {
+      setIsPayrollProcessing(false);
     }
   };
 
@@ -817,8 +940,8 @@ export const StaffAdvancesPage: React.FC = () => {
         </div>
       )}
 
-      {/* 1. Staff Advances Header */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      {/* 1. Staff Advances Header (iOS 16 Frosted Glass) */}
+      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -827,7 +950,7 @@ export const StaffAdvancesPage: React.FC = () => {
                 <Receipt className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Staff Advances</span>
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] whitespace-nowrap inline-flex items-center">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center font-medium">
                 {filteredAdvances.length} records
               </span>
             </div>
@@ -838,40 +961,25 @@ export const StaffAdvancesPage: React.FC = () => {
 
           {/* Right Layer: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* Sub-View Switcher */}
-            <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
-              {[
-                { id: 'grid', label: 'All Advances', icon: Layers },
-                { id: 'analytics_staff', label: 'By Staff Member', icon: Users },
-                { id: 'analytics_dept', label: 'By Department', icon: Building2 },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeSubTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveSubTab(tab.id as SubViewTab)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-all cursor-pointer font-medium',
-                      isActive
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-300 dark:border-[#383838]'
-                        : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                    )}
-                  >
-                    <Icon className={cn('w-3 h-3', isActive ? 'text-[#3ecf8e]' : 'opacity-70')} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* Sub-View Switcher (iOS Segmented Control) */}
+            <IOSSegmentedControl
+              options={[
+                { id: 'grid', label: 'All Advances', icon: <Layers className="w-3.5 h-3.5" /> },
+                { id: 'salary_payroll', label: 'HR Payroll Sync', icon: <Flag className="w-3.5 h-3.5" /> },
+                { id: 'analytics_staff', label: 'By Staff', icon: <Users className="w-3.5 h-3.5" /> },
+                { id: 'analytics_dept', label: 'By Department', icon: <Building2 className="w-3.5 h-3.5" /> },
+              ]}
+              value={activeSubTab}
+              onChange={(val) => setActiveSubTab(val as SubViewTab)}
+              size="sm"
+            />
 
             {/* Export Menu */}
             <div className="relative" ref={exportRef}>
               <button
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-8.5 px-3 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
@@ -879,11 +987,11 @@ export const StaffAdvancesPage: React.FC = () => {
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] shadow-2xl p-1 z-40 space-y-0.5 text-xs font-mono">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 rounded-[14px] bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 shadow-2xl p-1.5 z-40 space-y-0.5 text-xs font-mono animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={handleExportCSV}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-[8px] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -893,31 +1001,17 @@ export const StaffAdvancesPage: React.FC = () => {
                   </button>
 
                   {isDeveloper && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleExportJSON}
-                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                          <span>Export JSON</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 dark:text-[#707070]">.json</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleExportSQL}
-                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Terminal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          <span>Export SQL</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 dark:text-[#707070]">.sql</span>
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={handleExportJSON}
+                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-[8px] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <span>Export JSON</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 dark:text-[#707070]">.json</span>
+                    </button>
                   )}
                 </div>
               )}
@@ -930,7 +1024,7 @@ export const StaffAdvancesPage: React.FC = () => {
                 triggerHaptic('selection');
                 setAdvanceModalOpen(true);
               }}
-              className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs select-none"
+              className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Give Advance</span>
@@ -942,7 +1036,7 @@ export const StaffAdvancesPage: React.FC = () => {
       {/* Main Container Area */}
       <main className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Filter Controls Bar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50 dark:bg-[#171717] p-2.5 rounded-[8px] border border-slate-200 dark:border-[#1f1f1f]">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/80 dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
             {/* Search Box */}
             <div className="relative flex-1 sm:w-64">
@@ -953,7 +1047,7 @@ export const StaffAdvancesPage: React.FC = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search advances by staff name, receipt..."
-                className="w-full pl-9 pr-12 py-1.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] font-mono transition-colors"
+                className="w-full pl-9 pr-12 py-2 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] font-mono transition-colors shadow-2xs"
               />
               {search ? (
                 <button
@@ -1303,7 +1397,6 @@ export const StaffAdvancesPage: React.FC = () => {
                     title="No staff advances found"
                     description="No records match your active search or filters."
                     actionLabel="Give Staff Advance"
-                    actionShortcut="F7"
                     onAction={() => setAdvanceModalOpen(true)}
                     className="py-8"
                   />
@@ -1849,7 +1942,6 @@ export const StaffAdvancesPage: React.FC = () => {
                               : 'No staff advances issued for this showroom branch yet.'
                           }
                           actionLabel="Issue Staff Advance"
-                          actionShortcut="F8"
                           onAction={() => setAdvanceModalOpen(true)}
                           secondaryActionLabel={
                             search || statusFilter !== 'ALL' || selectedDept !== 'ALL'
@@ -1930,7 +2022,353 @@ export const StaffAdvancesPage: React.FC = () => {
           </div>
         )}
 
-        {/* 6. Sub-View: By Staff Member */}
+        {/* 6. Sub-View: HR Payroll Sync & Salary Deduction Schedule */}
+        {activeSubTab === 'salary_payroll' && (
+          <div className="space-y-4">
+            {/* Top Payroll Control & Metric Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
+                    Flagged for Deduction
+                  </span>
+                  <span className="p-1.5 rounded-[4px] bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                    <Flag className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
+                  {formatINR(
+                    advances
+                      .filter((a) => a.status === 'Flagged_Salary_Deduction')
+                      .reduce((s, a) => s + (Number(a.unsettled_balance) || 0), 0)
+                  )}
+                </div>
+                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
+                  {advances.filter((a) => a.status === 'Flagged_Salary_Deduction').length} staff advances queued
+                </p>
+              </div>
+
+              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
+                    30+ Day Overdue (Eligible)
+                  </span>
+                  <span className="p-1.5 rounded-[4px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold font-mono text-rose-600 dark:text-rose-400">
+                  {formatINR(
+                    advances
+                      .filter(
+                        (a) =>
+                          a.status === 'Active_Unsettled' &&
+                          differenceInDays(new Date(), new Date(a.advance_date)) >= 30
+                      )
+                      .reduce((s, a) => s + (Number(a.unsettled_balance) || 0), 0)
+                  )}
+                </div>
+                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
+                  {
+                    advances.filter(
+                      (a) =>
+                        a.status === 'Active_Unsettled' &&
+                        differenceInDays(new Date(), new Date(a.advance_date)) >= 30
+                    ).length
+                  }{' '}
+                  unsettled over 30 days
+                </p>
+              </div>
+
+              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
+                    Cleared via Payroll
+                  </span>
+                  <span className="p-1.5 rounded-[4px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-600 dark:text-[#3ecf8e]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                  {formatINR(
+                    advances
+                      .filter((a) => a.status === 'Cleared_Salary_Deduction')
+                      .reduce((s, a) => s + (Number(a.advance_amount) || 0), 0)
+                  )}
+                </div>
+                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
+                  {advances.filter((a) => a.status === 'Cleared_Salary_Deduction').length} advances settled via HR
+                </p>
+              </div>
+            </div>
+
+            {/* Actions Bar & Cycle Selector */}
+            <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="w-64">
+                  <label className="text-[10px] uppercase font-mono text-slate-400 dark:text-[#707070] block mb-1">
+                    Payroll Deduction Cycle
+                  </label>
+                  <SearchableSelect
+                    size="sm"
+                    options={[
+                      'March 2026 Payroll (25th)',
+                      'April 2026 Payroll (25th)',
+                      'May 2026 Payroll (25th)',
+                      'June 2026 Payroll (25th)',
+                    ]}
+                    value={selectedPayrollMonth}
+                    onChange={(val) => setSelectedPayrollMonth(val)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                <button
+                  type="button"
+                  disabled={isPayrollProcessing}
+                  onClick={handleAutoFlag30DayOverdues}
+                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] hover:border-amber-500 text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Automatically flag all advances older than 30 days"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Auto-Flag 30+ Day Overdues</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={selectedPayrollIds.size === 0 || isPayrollProcessing}
+                  onClick={handleBatchClearPayrollDeductions}
+                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-purple-600 hover:bg-purple-700 text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 shadow-xs"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  <span>Mark Selected Cleared ({selectedPayrollIds.size})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportHRPayrollCSV}
+                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export HR Payroll CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Payroll Schedule Table */}
+            <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414] overflow-hidden shadow-xs">
+              <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-[#3ecf8e]" />
+                  <h3 className="text-xs font-mono font-medium text-slate-900 dark:text-white">
+                    HR Payroll Schedule — {selectedPayrollMonth}
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-slate-500 dark:text-[#888888]">
+                  {advances.filter((a) => a.status === 'Flagged_Salary_Deduction' || (a.status === 'Active_Unsettled' && differenceInDays(new Date(), new Date(a.advance_date)) >= 15)).length} eligible advances
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] text-slate-500 dark:text-[#707070] font-mono text-xs">
+                      <th className="py-2.5 px-3 w-10 text-center border-r border-slate-200 dark:border-[#242424]">
+                        <input
+                          type="checkbox"
+                          checked={
+                            advances
+                              .filter((a) => a.status === 'Flagged_Salary_Deduction')
+                              .length > 0 &&
+                            advances
+                              .filter((a) => a.status === 'Flagged_Salary_Deduction')
+                              .every((a) => selectedPayrollIds.has(a.id))
+                          }
+                          onChange={(e) => {
+                            const flagged = advances.filter(
+                              (a) => a.status === 'Flagged_Salary_Deduction'
+                            );
+                            if (e.target.checked) {
+                              setSelectedPayrollIds(new Set(flagged.map((a) => a.id)));
+                            } else {
+                              setSelectedPayrollIds(new Set());
+                            }
+                          }}
+                          className="rounded-[4px] border-slate-300 dark:border-[#383838] bg-white dark:bg-[#171717] text-[#3ecf8e] focus:ring-[#3ecf8e]"
+                        />
+                      </th>
+                      <th className="py-2.5 px-3 border-r border-slate-200 dark:border-[#242424] w-28">
+                        Receipt #
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424]">
+                        Staff Member
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] w-28">
+                        Advance Date
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center w-24">
+                        Ageing
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-28">
+                        Advance (₹)
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-28">
+                        Settled (₹)
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-32 font-semibold">
+                        Deduction Due (₹)
+                      </th>
+                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center w-40">
+                        Status / Cycle
+                      </th>
+                      <th className="py-2.5 px-3 text-right w-28">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1f1f1f] font-mono">
+                    {advances
+                      .filter(
+                        (a) =>
+                          a.status === 'Flagged_Salary_Deduction' ||
+                          (a.status === 'Active_Unsettled' &&
+                            differenceInDays(new Date(), new Date(a.advance_date)) >= 15)
+                      )
+                      .map((adv) => {
+                        const days = differenceInDays(new Date(), new Date(adv.advance_date));
+                        const isFlagged = adv.status === 'Flagged_Salary_Deduction';
+                        const isSelected = selectedPayrollIds.has(adv.id);
+
+                        return (
+                          <tr
+                            key={adv.id}
+                            className={cn(
+                              'hover:bg-slate-50/80 dark:hover:bg-[#1a1a1a] transition-colors',
+                              isSelected ? 'bg-purple-50/40 dark:bg-purple-950/20' : ''
+                            )}
+                          >
+                            <td className="py-2 px-3 text-center border-r border-slate-100 dark:border-[#1f1f1f]">
+                              {isFlagged ? (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    const next = new Set(selectedPayrollIds);
+                                    if (next.has(adv.id)) next.delete(adv.id);
+                                    else next.add(adv.id);
+                                    setSelectedPayrollIds(next);
+                                  }}
+                                  className="rounded-[4px] border-slate-300 dark:border-[#383838] bg-white dark:bg-[#171717] text-[#3ecf8e] focus:ring-[#3ecf8e]"
+                                />
+                              ) : (
+                                <span className="text-slate-300 dark:text-[#444444]">—</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 border-r border-slate-100 dark:border-[#1f1f1f] text-slate-800 dark:text-[#EDEDED] font-medium">
+                              {adv.receipt_number}
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f]">
+                              <div className="font-sans font-medium text-slate-900 dark:text-white">
+                                {adv.staff_name}
+                              </div>
+                              <div className="text-[11px] text-slate-400 dark:text-[#707070]">
+                                {adv.staff_code} • {adv.department_name}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1]">
+                              {formatDate(adv.advance_date)}
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-center">
+                              <span
+                                className={cn(
+                                  'px-2 py-0.5 rounded-[4px] text-[10px] font-mono',
+                                  days >= 30
+                                    ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20'
+                                    : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
+                                )}
+                              >
+                                {days}d overdue
+                              </span>
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right text-slate-900 dark:text-white tabular-nums">
+                              {formatINR(adv.advance_amount)}
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                              {formatINR(adv.bills_submitted_amount + adv.cash_returned_amount)}
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right font-bold text-rose-600 dark:text-rose-400 tabular-nums text-sm">
+                              {formatINR(adv.unsettled_balance)}
+                            </td>
+                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-center">
+                              {isFlagged ? (
+                                <span className="px-2 py-0.5 rounded-[4px] text-[10px] bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
+                                  {adv.salary_deduction_month || selectedPayrollMonth}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-[4px] text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                                  Eligible for Cut
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              {isFlagged ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedSlipAdvance(adv)}
+                                  className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222]"
+                                  title="View Slip"
+                                >
+                                  <Receipt className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActionModal({
+                                      type: 'flag_salary',
+                                      advance: adv,
+                                      reason: '',
+                                      month: selectedPayrollMonth,
+                                      isSubmitting: false,
+                                    });
+                                  }}
+                                  className="px-2 py-1 rounded-[4px] bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 hover:bg-purple-100 border border-purple-200 dark:border-purple-500/20 text-[11px]"
+                                >
+                                  Flag Cut
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                    {advances.filter(
+                      (a) =>
+                        a.status === 'Flagged_Salary_Deduction' ||
+                        (a.status === 'Active_Unsettled' &&
+                          differenceInDays(new Date(), new Date(a.advance_date)) >= 15)
+                    ).length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-slate-500 dark:text-[#888888] font-sans">
+                          <CheckCircle2 className="w-8 h-8 text-[#3ecf8e] mx-auto mb-2 opacity-80" />
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            No overdue or flagged salary deductions
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            All staff advances are currently settled or within the normal advance cycle.
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 7. Sub-View: By Staff Member */}
         {activeSubTab === 'analytics_staff' && (
           <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414] overflow-hidden shadow-xs">
             <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
@@ -2075,11 +2513,11 @@ export const StaffAdvancesPage: React.FC = () => {
           </div>
         )}
 
-        {/* 8. Action Confirmation Modal (Salary Deduction / Waive / Delete) */}
+        {/* 8. Action Confirmation Modal (Salary Deduction / Waive / Delete - iOS 16 Dialog) */}
         {actionModal.type && actionModal.advance && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
-            <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl p-5 space-y-4 text-xs font-sans">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#282828]">
+            <div className="w-full max-w-md bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/15 rounded-[18px] shadow-2xl p-5 space-y-4 text-xs font-sans">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-white/10">
                 <div
                   className={cn(
                     'flex items-center gap-2 font-mono font-medium',
@@ -2108,13 +2546,13 @@ export const StaffAdvancesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActionModal({ type: null, advance: null, reason: '', month: '', isSubmitting: false })}
-                  className="text-slate-400 dark:text-[#707070] hover:text-slate-900 dark:hover:text-white"
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] space-y-1.5 font-mono">
+              <div className="p-3 rounded-[12px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10 space-y-1.5 font-mono">
                 <div className="flex justify-between text-slate-500 dark:text-[#707070]">
                   <span>Staff:</span>
                   <span className="text-slate-900 dark:text-white font-sans font-medium">{actionModal.advance.staff_name}</span>
@@ -2166,22 +2604,22 @@ export const StaffAdvancesPage: React.FC = () => {
                           ? 'e.g. Approved by Showroom Director for festival bonus adjustment'
                           : 'e.g. Duplicate entry voided by Store Manager'
                       }
-                      className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] p-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] resize-none font-mono"
+                      className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] resize-none font-mono shadow-2xs"
                     />
                   </div>
                 )}
 
                 {actionModal.error && (
-                  <div className="p-2 rounded bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-mono">
+                  <div className="p-2.5 rounded-[10px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-mono border border-rose-200 dark:border-rose-500/20">
                     {actionModal.error}
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#282828]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/80 dark:border-white/10">
                   <button
                     type="button"
                     onClick={() => setActionModal({ type: null, advance: null, reason: '', month: '', isSubmitting: false })}
-                    className="px-3 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] border border-slate-200 dark:border-[#2e2e2e] hover:bg-slate-200 dark:hover:bg-[#282828] hover:text-slate-900 dark:hover:text-white cursor-pointer font-mono"
+                    className="px-3.5 py-2 rounded-[10px] bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/15 hover:text-slate-900 dark:hover:text-white cursor-pointer font-sans text-xs font-medium transition-all ios-press"
                   >
                     Cancel
                   </button>
@@ -2189,7 +2627,7 @@ export const StaffAdvancesPage: React.FC = () => {
                     type="submit"
                     disabled={actionModal.isSubmitting}
                     className={cn(
-                      'px-3.5 py-1.5 rounded-[6px] font-mono cursor-pointer transition-colors shadow-xs text-white',
+                      'px-4 py-2 rounded-[10px] font-sans text-xs font-semibold cursor-pointer transition-all shadow-xs text-white ios-press',
                       actionModal.type === 'delete'
                         ? 'bg-rose-600 hover:bg-rose-700'
                         : actionModal.type === 'waive'

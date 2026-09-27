@@ -95,7 +95,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
             className="px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
           >
             <Printer className="w-3.5 h-3.5 text-[#171717]" />
-            <span>Test Print (Ctrl+P)</span>
+            <span>Test Print</span>
           </button>
         </div>
       </div>

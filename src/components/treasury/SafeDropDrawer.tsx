@@ -149,7 +149,7 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
           disabled={submitting}
           className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
         >
-          Cancel (ESC)
+          Cancel
         </button>
         <button
           type="button"

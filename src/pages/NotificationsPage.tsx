@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { ERPNotification } from '@/types/database';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import {
   Bell,
@@ -184,8 +185,8 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-20 select-none flex flex-col">
-      {/* 1. Notifications Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      {/* 1. Notifications Header (iOS 16 Frosted Glass) */}
+      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-5xl mx-auto w-full">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -195,11 +196,11 @@ export const NotificationsPage: React.FC = () => {
                 <span>Alerts & Messages</span>
               </h1>
               {unreadCount > 0 ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 whitespace-nowrap inline-flex items-center">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 whitespace-nowrap inline-flex items-center font-medium">
                   {unreadCount} unread
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] whitespace-nowrap inline-flex items-center">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center font-medium">
                   All caught up
                 </span>
               )}
@@ -215,7 +216,7 @@ export const NotificationsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs select-none"
+                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
               >
                 <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
                 <span>Mark All as Read ({unreadCount})</span>
@@ -226,7 +227,7 @@ export const NotificationsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear All</span>
@@ -239,43 +240,17 @@ export const NotificationsPage: React.FC = () => {
       {/* 2. Main Studio Content Area */}
       <main className="px-4 lg:px-6 py-6 space-y-5 max-w-5xl mx-auto w-full flex-1">
         {/* TOP SUMMARY BAR */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/70 dark:bg-[#171717] border border-slate-200 dark:border-[#262626]">
+        <div className="relative z-30 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/80 dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] shadow-xs">
           {/* Category Tabs */}
-          <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] overflow-x-auto scrollbar-none">
-            {TABS.map((tab) => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setActiveTab(tab.id);
-                  }}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1 text-xs font-sans rounded-[4px] transition-colors cursor-pointer whitespace-nowrap font-medium',
-                    isSelected
-                      ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-300 dark:border-[#383838] shadow-xs'
-                      : 'text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                  )}
-                >
-                  <span>{tab.label}</span>
-                  {tab.count !== undefined && (
-                    <span
-                      className={cn(
-                        'text-[10px] font-mono px-1.5 py-0.2 rounded-[4px]',
-                        isSelected
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-[#3ecf8e]'
-                          : 'bg-slate-200/70 dark:bg-[#202020] text-slate-500 dark:text-zinc-400'
-                      )}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <IOSSegmentedControl
+            options={TABS.map((t) => ({
+              id: t.id,
+              label: t.count !== undefined ? `${t.label} (${t.count})` : t.label,
+            }))}
+            value={activeTab}
+            onChange={(val) => setActiveTab(val as NotificationCategoryFilter)}
+            size="sm"
+          />
 
           {/* Showroom Branch Filter */}
           <div className="flex items-center gap-1.5 text-xs min-w-[200px]">
@@ -311,15 +286,15 @@ export const NotificationsPage: React.FC = () => {
                 <div
                   key={notif.id}
                   className={cn(
-                    'p-4 rounded-[12px] border transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-4 shadow-2xs',
+                    'p-4 rounded-[12px] border transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-4 shadow-xs',
                     isRead
-                      ? 'bg-white dark:bg-[#171717] border-slate-200 dark:border-[#242424] opacity-85'
-                      : 'bg-slate-50/80 dark:bg-[#1a1a1a] border-emerald-500/40 dark:border-[#3ecf8e]/30 ring-1 ring-[#3ecf8e]/10'
+                      ? 'bg-white dark:bg-[#18181a] border-slate-200/80 dark:border-[#242424] opacity-85'
+                      : 'bg-white dark:bg-[#1a1a1c] border-emerald-500/40 dark:border-[#3ecf8e]/30 shadow-md ring-1 ring-[#3ecf8e]/10'
                   )}
                 >
                   {/* Left: Icon & Content */}
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-[6px] bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    <div className="w-9 h-9 rounded-[6px] bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                       {getNotifIcon(notif.type)}
                     </div>
 
@@ -336,7 +311,7 @@ export const NotificationsPage: React.FC = () => {
                         </span>
                       </div>
 
-                      <h3 className="text-sm font-medium text-slate-900 dark:text-white font-sans tracking-tight">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans tracking-tight">
                         {notif.title}
                       </h3>
                       <p className="text-xs text-slate-600 dark:text-zinc-300 font-sans leading-relaxed">
@@ -354,11 +329,11 @@ export const NotificationsPage: React.FC = () => {
                   </div>
 
                   {/* Right: Direct Action Button & Read Toggle */}
-                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-[#222222]">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-white/10">
                     <button
                       type="button"
                       onClick={() => handleToggleRead(notif.id, isRead)}
-                      className="p-1.5 rounded-[6px] text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer ios-press"
                       title={isRead ? 'Marked as read' : 'Mark as read'}
                     >
                       {isRead ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-[#3ecf8e]" />}
@@ -367,7 +342,7 @@ export const NotificationsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleNotificationAction(notif)}
-                      className="px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-800 dark:text-white text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      className="px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-white text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ios-press"
                     >
                       <span>Take Action</span>
                       <ArrowRight className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
@@ -377,10 +352,10 @@ export const NotificationsPage: React.FC = () => {
               );
             })
           ) : (
-            <div className="p-12 text-center rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-3">
+            <div className="p-12 text-center rounded-[12px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] space-y-3">
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto stroke-[1.5]" />
               <div className="space-y-1">
-                <h3 className="text-sm font-medium text-slate-900 dark:text-white font-sans">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
                   No notifications in this category
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans max-w-md mx-auto">

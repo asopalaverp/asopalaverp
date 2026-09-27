@@ -7,7 +7,6 @@ import { useBranchStore } from '@/store/branchStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { format } from 'date-fns';
 import bcrypt from 'bcryptjs';
-import { SEED_BRANCH_WALLETS, SEED_STAFF_ADVANCES, SEED_WALLET_LEDGER, SEED_VOUCHERS } from '@/lib/sampleSeedData';
 import { DEFAULT_BRANCHES, normalizeBranchCode, normalizeBranchId } from '@/lib/utils';
 import {
   BranchWallet,
@@ -200,25 +199,21 @@ class ERPService {
     if (local) return JSON.parse(local);
 
     if (canonicalId === 'ALL') {
-      const allWallets = Object.values(SEED_BRANCH_WALLETS);
       return {
         branch_id: 'ALL',
-        cash_balance: allWallets.reduce((s, w) => s + (Number(w.cash_balance) || 0), 0),
-        upi_balance: allWallets.reduce((s, w) => s + (Number(w.upi_balance) || 0), 0),
-      };
-    }
-
-    const seed =
-      SEED_BRANCH_WALLETS[canonicalId] ||
-      SEED_BRANCH_WALLETS[branchId] ||
-      SEED_BRANCH_WALLETS[`Aellp-${code}`] || {
-        branch_id: canonicalId,
         cash_balance: 0,
         upi_balance: 0,
       };
+    }
 
-    localStorage.setItem(`asopalav_wallet_${canonicalId}`, JSON.stringify(seed));
-    return seed;
+    const defaultWallet: BranchWallet = {
+      branch_id: canonicalId,
+      cash_balance: 0,
+      upi_balance: 0,
+    };
+
+    localStorage.setItem(`asopalav_wallet_${canonicalId}`, JSON.stringify(defaultWallet));
+    return defaultWallet;
   }
 
   async updateBranchWallet(wallet: BranchWallet) {
@@ -285,11 +280,7 @@ class ERPService {
       }
     }
 
-    const seedLedger = canonicalId !== 'ALL'
-      ? SEED_WALLET_LEDGER.filter((l) => normalizeBranchCode(l.branch_id) === code || normalizeBranchCode(l.branch_code) === code)
-      : SEED_WALLET_LEDGER;
-    localStorage.setItem(`asopalav_ledger_${canonicalId}`, JSON.stringify(seedLedger));
-    return seedLedger;
+    return [];
   }
 
   async appendLedgerEntry(entry: Omit<WalletLedger, 'id' | 'ledger_sequence' | 'created_at'> & { created_at?: string }) {
@@ -407,28 +398,31 @@ class ERPService {
 
   generateTallyExportCSV(vouchers: ExpenseVoucher[]): string {
     const headers = [
-      'Voucher Date',
+      'Voucher Date (DD-MM-YYYY)',
       'Voucher Type',
       'Voucher Number',
       'Debit Ledger (Expense Head)',
+      'Debit Amount (INR)',
       'Credit Ledger (Payment Source)',
+      'Credit Amount (INR)',
       'Cost Centre (Showroom Branch)',
-      'Amount (INR)',
       'Paid To (Beneficiary)',
       'Bill Reference No',
+      'Payment Mode',
       'Narration / Audit Remarks',
     ];
 
     const mapCategoryToDebitLedger = (category: string) => {
       const cat = (category || '').trim().toLowerCase();
-      if (cat.includes('stationery') || cat.includes('printing')) return 'Printing & Stationery A/c';
-      if (cat.includes('food') || cat.includes('welfare') || cat.includes('tea') || cat.includes('refreshment')) return 'Staff Welfare & Refreshment A/c';
-      if (cat.includes('repair') || cat.includes('maintenance')) return 'Repairs & Maintenance A/c';
-      if (cat.includes('courier') || cat.includes('postage') || cat.includes('dispatch')) return 'Postage & Courier Expenses A/c';
-      if (cat.includes('electricity') || cat.includes('power') || cat.includes('utility')) return 'Electricity & Utility Expenses A/c';
-      if (cat.includes('travel') || cat.includes('conveyance') || cat.includes('fuel')) return 'Conveyance & Travel Expenses A/c';
-      if (cat.includes('housekeeping') || cat.includes('cleaning') || cat.includes('pantry')) return 'Housekeeping & Cleaning A/c';
-      if (cat.includes('marketing') || cat.includes('ad')) return 'Advertisement & Publicity A/c';
+      if (cat.includes('stationery') || cat.includes('printing') || cat.includes('paper')) return 'Printing & Stationery A/c';
+      if (cat.includes('food') || cat.includes('welfare') || cat.includes('tea') || cat.includes('refreshment') || cat.includes('snacks')) return 'Staff Welfare & Refreshment A/c';
+      if (cat.includes('repair') || cat.includes('maintenance') || cat.includes('hardware')) return 'Repairs & Maintenance A/c';
+      if (cat.includes('courier') || cat.includes('postage') || cat.includes('dispatch') || cat.includes('parcel')) return 'Postage & Courier Expenses A/c';
+      if (cat.includes('electricity') || cat.includes('power') || cat.includes('utility') || cat.includes('water')) return 'Electricity & Utility Expenses A/c';
+      if (cat.includes('travel') || cat.includes('conveyance') || cat.includes('fuel') || cat.includes('petrol') || cat.includes('auto')) return 'Conveyance & Travel Expenses A/c';
+      if (cat.includes('housekeeping') || cat.includes('cleaning') || cat.includes('pantry') || cat.includes('sanitation')) return 'Housekeeping & Cleaning A/c';
+      if (cat.includes('marketing') || cat.includes('ad') || cat.includes('branding') || cat.includes('promotion')) return 'Advertisement & Publicity A/c';
+      if (cat.includes('advance') || cat.includes('imprest')) return 'Staff Imprest & Advance A/c';
       return `${category || 'General Expense'} A/c`;
     };
 
@@ -439,7 +433,21 @@ class ERPService {
       return `HDFC Bank Current A/c - ${branchCode || 'ASI'}`;
     };
 
-    const validVouchers = vouchers.filter((v) => v.status === 'Approved');
+    const formatTallyDate = (dateStr: string) => {
+      if (!dateStr) return format(new Date(), 'dd-MM-yyyy');
+      try {
+        const parts = dateStr.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          // YYYY-MM-DD -> DD-MM-YYYY
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      } catch {
+        return dateStr;
+      }
+    };
+
+    const validVouchers = vouchers.filter((v) => v.status === 'Approved' || v.status === undefined);
 
     const sanitizeCsvCell = (str: string) => {
       const sanitized = (str || '').replace(/"/g, '""');
@@ -453,21 +461,26 @@ class ERPService {
       const debitLedger = mapCategoryToDebitLedger(v.category_name);
       const creditLedger = mapPaymentToCreditLedger(v.payment_method, v.branch_code);
       const costCentre = `Showroom ${v.branch_code || 'ASI'}`;
-      const narration = sanitizeCsvCell(v.remarks || '');
       const payee = sanitizeCsvCell(v.recipient_name || '');
       const billRef = sanitizeCsvCell(v.bill_number || '');
+      const rawRemarks = v.remarks ? ` - ${v.remarks}` : '';
+      const billInfo = v.bill_number ? ` (Bill Ref: ${v.bill_number})` : '';
+      const formattedNarration = sanitizeCsvCell(`Being payment of INR ${v.total_amount} made to ${v.recipient_name} for ${v.category_name}${billInfo}${rawRemarks}`);
+      const formattedDate = formatTallyDate(v.payment_date);
 
       return [
-        `"${v.payment_date}"`,
+        `"${formattedDate}"`,
         `"Payment"`,
         `"${v.voucher_number}"`,
         `"${debitLedger}"`,
-        `"${creditLedger}"`,
-        `"${costCentre}"`,
         v.total_amount,
+        `"${creditLedger}"`,
+        v.total_amount,
+        `"${costCentre}"`,
         `"${payee}"`,
         `"${billRef}"`,
-        `"${narration}"`,
+        `"${v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI'}"`,
+        `"${formattedNarration}"`,
       ].join(',');
     });
 
@@ -587,20 +600,6 @@ class ERPService {
       // Ignore
     }
 
-    // 4. Query sample seed dataset
-    try {
-      SEED_VOUCHERS.forEach((v) => {
-        if (
-          normalizeBranchCode(v.branch_code) === code ||
-          normalizeBranchCode(v.branch_id) === code
-        ) {
-          processVoucherNumber(v.voucher_number);
-        }
-      });
-    } catch {
-      // Ignore
-    }
-
     const nextNum = maxNum > 0 ? maxNum + 1 : 1;
     return String(nextNum).padStart(5, '0');
   }
@@ -652,19 +651,6 @@ class ERPService {
               }
             });
           }
-        }
-      });
-    } catch {
-      // Ignore
-    }
-
-    try {
-      SEED_STAFF_ADVANCES.forEach((a) => {
-        if (
-          normalizeBranchCode(a.branch_code) === code ||
-          normalizeBranchCode(a.branch_id) === code
-        ) {
-          processReceiptNumber(a.receipt_number);
         }
       });
     } catch {
@@ -794,6 +780,44 @@ class ERPService {
       ...voucherDbRecord,
       is_high_value: isHighValue,
     };
+
+    // 2A. Primary Database Atomic RPC (Zero Race Conditions, Single Round-Trip)
+    try {
+      const allowNegative = useOverrideStore.getState().isNegativeWalletAllowed();
+      const { data: atomicData, error: rpcError } = await supabase.rpc('create_expense_voucher_atomic', {
+        p_voucher: voucherDbRecord,
+        p_splits: splits && splits.length > 0 ? splits : [],
+        p_user_name: userName,
+        p_user_role: userRole,
+        p_allow_negative: allowNegative,
+      });
+
+      if (!rpcError && atomicData) {
+        const atomicVoucher: ExpenseVoucher = {
+          ...(atomicData as ExpenseVoucher),
+          is_high_value: isHighValue,
+        };
+
+        useVoucherStore.getState().addVoucherLocally(atomicVoucher);
+        useVoucherStore.getState().invalidateVouchers(voucher.branch_id);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('asopalav:vouchers-updated', { detail: { action: 'INSERT', voucher: atomicVoucher } }));
+          window.dispatchEvent(new Event('asopalav:wallet-updated'));
+        }
+        return atomicVoucher;
+      }
+
+      if (rpcError) {
+        // If it's a specific constraint violation, bubble it up
+        if (rpcError.message && !rpcError.message.includes('function') && !rpcError.message.includes('not exist') && !rpcError.message.includes('PGRST202')) {
+          throw new Error(rpcError.message);
+        }
+      }
+    } catch (rpcEx: any) {
+      if (rpcEx?.message && !rpcEx.message.includes('function') && !rpcEx.message.includes('not exist') && !rpcEx.message.includes('PGRST202')) {
+        throw rpcEx;
+      }
+    }
 
     // 3. If Amount > 50,000: Mark Pending Approval (No immediate wallet deduction until approved)
     if (requiresSuperAdminApproval) {
@@ -1064,6 +1088,161 @@ class ERPService {
     }
 
     return updatedVoucher;
+  }
+
+  /**
+   * Fast Multi-Bill Batch Voucher Creation (Festival / EOM Rush Mode)
+   * Creates multiple individual expense vouchers in a single counter transaction with atomic drawer deduction
+   */
+  async createBatchVouchersWithLedger(params: {
+    branch_id: string;
+    branch_code: string;
+    payment_date: string;
+    payment_method: 'Physical_Cash' | 'Online_UPI';
+    items: {
+      voucher_number: string;
+      recipient_name: string;
+      category_name: string;
+      department_name?: string | null;
+      department_code?: string | null;
+      bill_number?: string | null;
+      amount: number;
+      remarks: string;
+    }[];
+    userName: string;
+    userRole: string;
+  }): Promise<{ createdVouchers: ExpenseVoucher[]; totalBatchAmount: number; newCashBalance: number }> {
+    const { branch_id, branch_code, payment_date, payment_method, items, userName, userRole } = params;
+
+    if (!items || items.length === 0) {
+      throw new Error('Batch must contain at least one voucher entry.');
+    }
+
+    // 1. Validate All Entries in Batch
+    let totalBatchAmount = 0;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.amount || item.amount <= 0) {
+        throw new Error(`Row #${i + 1} amount must be greater than zero.`);
+      }
+      if (!item.voucher_number || !item.voucher_number.trim()) {
+        throw new Error(`Row #${i + 1} voucher number is required.`);
+      }
+      if (!item.recipient_name || !item.recipient_name.trim()) {
+        throw new Error(`Row #${i + 1} payee/vendor name is required.`);
+      }
+      if (!item.category_name || !item.category_name.trim()) {
+        throw new Error(`Row #${i + 1} category is required.`);
+      }
+      totalBatchAmount += item.amount;
+    }
+
+    // 2. Period Lock Check
+    const isLocked = await this.checkIsPeriodLocked(payment_date);
+    if (isLocked && userRole !== 'Super_Admin' && userRole !== 'Developer') {
+      throw new Error(`Cannot record batch: Accounting period for date ${payment_date} is LOCKED.`);
+    }
+
+    // 3. Check Wallet Liquidity & Deduct Consolidated Batch Amount
+    const currentWallet = await this.getBranchWallet(branch_id);
+    const allowNegative = useOverrideStore.getState().isNegativeWalletAllowed();
+    let newRunningBalance = 0;
+
+    if (payment_method === 'Physical_Cash') {
+      if (currentWallet.cash_balance < totalBatchAmount && !allowNegative) {
+        throw new Error(
+          `Insufficient Cash Drawer Balance for Batch: Available ₹${currentWallet.cash_balance.toLocaleString('en-IN')}, required batch total ₹${totalBatchAmount.toLocaleString('en-IN')}. Please top up cash float.`
+        );
+      }
+      currentWallet.cash_balance -= totalBatchAmount;
+      newRunningBalance = currentWallet.cash_balance;
+    } else {
+      if (currentWallet.upi_balance < totalBatchAmount && !allowNegative) {
+        throw new Error(
+          `Insufficient UPI Balance for Batch: Available ₹${currentWallet.upi_balance.toLocaleString('en-IN')}, required batch total ₹${totalBatchAmount.toLocaleString('en-IN')}.`
+        );
+      }
+      currentWallet.upi_balance -= totalBatchAmount;
+      newRunningBalance = currentWallet.upi_balance;
+    }
+    await this.updateBranchWallet(currentWallet);
+
+    // 4. Append Single Consolidated Ledger Entry
+    const voucherNumsList = items.map((i) => i.voucher_number).join(', ');
+    await this.appendLedgerEntry({
+      branch_id,
+      branch_code,
+      wallet_type: payment_method === 'Physical_Cash' ? 'Cash' : 'UPI',
+      transaction_type: 'Expense_Voucher',
+      reference_number: `BATCH-${items[0].voucher_number}-${items[items.length - 1].voucher_number}`,
+      debit_amount: totalBatchAmount,
+      credit_amount: 0,
+      running_balance: newRunningBalance,
+      remarks: `Rush Mode Batch (${items.length} bills: ${voucherNumsList})`,
+      cashier_name: userName,
+    });
+
+    // 5. Insert All Individual Voucher Records
+    const createdVouchers: ExpenseVoucher[] = [];
+    for (const item of items) {
+      try {
+        await supabase.from('expense_categories').upsert([
+          { category_name: item.category_name, color_theme: 'Vanilla', is_active: true }
+        ]);
+      } catch (e) {
+        // Ignore category upsert errors
+      }
+
+      const vRecord: ExpenseVoucher = {
+        id: crypto.randomUUID(),
+        voucher_number: item.voucher_number,
+        branch_id,
+        branch_code,
+        payment_date,
+        payment_type: 'Shop_Vendor',
+        payment_method,
+        bank_utr_number: null,
+        total_amount: item.amount,
+        recipient_name: item.recipient_name,
+        category_name: item.category_name,
+        department_name: item.department_name || null,
+        department_code: item.department_code || null,
+        courier_partner_name: null,
+        requested_by_staff_code: null,
+        requested_by_staff_name: null,
+        vendor_splits: null,
+        remarks: item.remarks || '',
+        bill_number: item.bill_number || null,
+        bill_photo_urls: [],
+        created_by_name: userName,
+        is_high_value: item.amount > 10000,
+        status: 'Approved',
+        created_at: new Date().toISOString(),
+      };
+
+      await this.insertExpenseVoucherRecord(vRecord);
+      useVoucherStore.getState().addVoucherLocally(vRecord);
+      createdVouchers.push(vRecord);
+    }
+
+    // 6. Log Security Event
+    await logSecurityEvent({
+      userName,
+      userRole,
+      actionType: 'Create_Voucher',
+      targetEntity: 'expense_vouchers',
+      targetIdentifier: `BATCH-${items.length}-BILLS`,
+      eventDescription: `Created ${items.length} batch vouchers totaling ₹${totalBatchAmount} in Rush Mode`,
+      justification: 'High-speed counter multi-bill entry',
+    });
+
+    useVoucherStore.getState().invalidateVouchers(branch_id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('asopalav:vouchers-updated', { detail: { action: 'BATCH_INSERT', count: items.length } }));
+      window.dispatchEvent(new Event('asopalav:wallet-updated'));
+    }
+
+    return { createdVouchers, totalBatchAmount, newCashBalance: newRunningBalance };
   }
 
   async voidVoucher(voucher: ExpenseVoucher, reason: string, userName: string, userRole: string) {
@@ -1347,6 +1526,33 @@ class ERPService {
     if (!params.amount || params.amount <= 0) {
       throw new Error('Safe drop amount must be a positive number greater than zero.');
     }
+
+    // 1. Try atomic PostgreSQL RPC
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_safe_drop_atomic', {
+        p_branch_id: params.branchId,
+        p_branch_code: params.branchCode,
+        p_amount: params.amount,
+        p_dropped_by: params.transferredByName,
+        p_witnessed_by: params.verifiedByName || null,
+        p_remarks: params.reason || null,
+      });
+
+      if (!rpcError && rpcData) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('asopalav:ledger-updated'));
+          window.dispatchEvent(new Event('asopalav:wallet-updated'));
+        }
+        return {
+          dropNumber: rpcData.drop_number,
+          newCashBalance: Number(rpcData.new_cash_balance) || 0,
+        };
+      }
+    } catch (rpcEx) {
+      console.warn('Atomic safe drop RPC fallback to client workflow:', rpcEx);
+    }
+
+    // 2. Resilient Client Fallback
     const currentWallet = await this.getBranchWallet(params.branchId);
     if (currentWallet.cash_balance < params.amount) {
       throw new Error(
@@ -1357,7 +1563,26 @@ class ERPService {
     currentWallet.cash_balance -= params.amount;
     await this.updateBranchWallet(currentWallet);
 
-    const dropNumber = `DRP-${Date.now().toString().slice(-6)}`;
+    const dropNumber = `SD-${Date.now().toString().slice(-6)}`;
+
+    try {
+      await supabase.from('safe_drops').insert([
+        {
+          drop_number: dropNumber,
+          branch_id: params.branchId,
+          branch_code: params.branchCode,
+          amount: params.amount,
+          dropped_by_name: params.transferredByName,
+          witnessed_by_name: params.verifiedByName || null,
+          status: 'In_Safe',
+          remarks: params.reason || 'Safe Drop: Transferred excess cash from till to showroom vault',
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    } catch (e) {
+      console.warn('Safe drops table insert fallback:', e);
+    }
+
     await this.appendLedgerEntry({
       branch_id: params.branchId,
       branch_code: params.branchCode,
@@ -1424,11 +1649,7 @@ class ERPService {
       }
     }
 
-    const seedAdvances = !isAll
-      ? SEED_STAFF_ADVANCES.filter((a) => normalizeBranchCode(a.branch_id) === code || normalizeBranchCode(a.branch_code) === code)
-      : SEED_STAFF_ADVANCES;
-    localStorage.setItem(localKey, JSON.stringify(seedAdvances));
-    return seedAdvances;
+    return [];
   }
 
   async disburseStaffAdvance(params: DisburseAdvanceParams): Promise<StaffAdvance> {
@@ -1450,6 +1671,42 @@ class ERPService {
       status: 'Active_Unsettled',
       created_at: new Date().toISOString(),
     };
+
+    // 0. Primary Database Atomic RPC (Zero Race Conditions, Single Round-Trip)
+    try {
+      const allowNegative = useOverrideStore.getState().isNegativeWalletAllowed();
+      const { data: atomicData, error: rpcError } = await supabase.rpc('disburse_staff_advance_atomic', {
+        p_advance: fullAdvance,
+        p_user_name: userName,
+        p_user_role: userRole,
+        p_allow_negative: allowNegative,
+      });
+
+      if (!rpcError && atomicData) {
+        const atomicAdvance = atomicData as StaffAdvance;
+        const existing = await this.getStaffAdvances(params.advance.branch_id);
+        localStorage.setItem(
+          `asopalav_advances_${params.advance.branch_id}`,
+          JSON.stringify([atomicAdvance, ...existing])
+        );
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('asopalav:advances-updated'));
+          window.dispatchEvent(new Event('asopalav:wallet-updated'));
+        }
+        return atomicAdvance;
+      }
+
+      if (rpcError) {
+        if (rpcError.message && !rpcError.message.includes('function') && !rpcError.message.includes('not exist') && !rpcError.message.includes('PGRST202')) {
+          throw new Error(rpcError.message);
+        }
+      }
+    } catch (rpcEx: any) {
+      if (rpcEx?.message && !rpcEx.message.includes('function') && !rpcEx.message.includes('not exist') && !rpcEx.message.includes('PGRST202')) {
+        throw rpcEx;
+      }
+    }
 
     // 1. Deduct from Branch Wallet with Liquidity Guard (or SuperAdmin Overdraft Override)
     const currentWallet = await this.getBranchWallet(params.advance.branch_id);
@@ -1844,6 +2101,204 @@ class ERPService {
       window.dispatchEvent(new Event('asopalav:advances-updated'));
       window.dispatchEvent(new Event('asopalav:wallet-updated'));
     }
+  }
+
+  /**
+   * Batch flags multiple overdue advances for payroll deduction
+   */
+  async batchFlagOverdueForSalaryDeduction(
+    advanceIdsOrReceipts: string[],
+    month: string,
+    userName: string,
+    branchId: string = 'ALL'
+  ): Promise<{ count: number; totalAmount: number }> {
+    if (!advanceIdsOrReceipts || advanceIdsOrReceipts.length === 0) {
+      return { count: 0, totalAmount: 0 };
+    }
+
+    const advances = await this.getStaffAdvances(branchId);
+    const targetSet = new Set(advanceIdsOrReceipts);
+    let totalAmount = 0;
+    let count = 0;
+
+    const now = new Date().toISOString();
+    const updated = advances.map((a) => {
+      if (targetSet.has(a.id) || targetSet.has(a.receipt_number)) {
+        totalAmount += Number(a.unsettled_balance) || 0;
+        count++;
+        return {
+          ...a,
+          status: 'Flagged_Salary_Deduction' as const,
+          salary_deduction_month: month,
+          salary_deducted_at: now,
+          salary_deducted_by_name: userName,
+        };
+      }
+      return a;
+    });
+
+    if (branchId !== 'ALL') {
+      localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
+    }
+
+    try {
+      // Update by IDs or receipt numbers
+      const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
+      const field = isUUID ? 'id' : 'receipt_number';
+
+      const { error } = await supabase
+        .from('staff_advances')
+        .update({
+          status: 'Flagged_Salary_Deduction',
+          salary_deduction_month: month,
+          salary_deducted_at: now,
+          salary_deducted_by_name: userName,
+        })
+        .in(field, advanceIdsOrReceipts);
+
+      if (error) throw error;
+    } catch (e) {
+      console.warn('Batch flag salary deduction fallback:', e);
+    }
+
+    await logSecurityEvent({
+      userName,
+      userRole: 'Store_Manager',
+      actionType: 'Salary_Deduction_Tag',
+      targetEntity: 'staff_advances',
+      targetIdentifier: `BATCH-${count}-ADVANCES`,
+      eventDescription: `Batch flagged ${count} overdue advances (₹${totalAmount.toLocaleString('en-IN')}) for HR salary deduction in month ${month}`,
+      justification: 'Automated 30-day overdue payroll recovery sync',
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('asopalav:advances-updated'));
+    }
+    return { count, totalAmount };
+  }
+
+  /**
+   * Batch marks flagged salary deductions as cleared / recovered from employee pay
+   */
+  async batchClearSalaryDeductions(
+    advanceIdsOrReceipts: string[],
+    userName: string,
+    userRole: string = 'Super_Admin',
+    reason: string = 'HR Payroll processed',
+    branchId: string = 'ALL'
+  ): Promise<{ count: number; totalAmount: number }> {
+    if (!advanceIdsOrReceipts || advanceIdsOrReceipts.length === 0) {
+      return { count: 0, totalAmount: 0 };
+    }
+
+    const advances = await this.getStaffAdvances(branchId);
+    const targetSet = new Set(advanceIdsOrReceipts);
+    let totalAmount = 0;
+    let count = 0;
+
+    const updated = advances.map((a) => {
+      if (targetSet.has(a.id) || targetSet.has(a.receipt_number)) {
+        totalAmount += Number(a.unsettled_balance) || Number(a.advance_amount) || 0;
+        count++;
+        return {
+          ...a,
+          status: 'Cleared_Salary_Deduction' as const,
+          unsettled_balance: 0,
+        };
+      }
+      return a;
+    });
+
+    if (branchId !== 'ALL') {
+      localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
+    }
+
+    try {
+      const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
+      const field = isUUID ? 'id' : 'receipt_number';
+
+      const { error } = await supabase
+        .from('staff_advances')
+        .update({
+          status: 'Cleared_Salary_Deduction',
+          unsettled_balance: 0,
+        })
+        .in(field, advanceIdsOrReceipts);
+
+      if (error) throw error;
+    } catch (e) {
+      console.warn('Batch clear salary deduction fallback:', e);
+    }
+
+    await logSecurityEvent({
+      userName,
+      userRole,
+      actionType: 'Settle_Advance',
+      targetEntity: 'staff_advances',
+      targetIdentifier: `BATCH-${count}-PAYROLL-CLEARED`,
+      eventDescription: `Confirmed recovery of ${count} advances (₹${totalAmount.toLocaleString('en-IN')}) via HR Payroll deduction: ${reason}`,
+      justification: reason || 'Payroll payout clearance confirmed',
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('asopalav:advances-updated'));
+    }
+    return { count, totalAmount };
+  }
+
+  /**
+   * Generates a formal HR Payroll Deduction Schedule CSV for Tally Payroll & Excel
+   */
+  generateHRPayrollDeductionCSV(advances: StaffAdvance[], targetMonth?: string): string {
+    const sanitizeCsv = (str: any) => {
+      const sanitized = String(str || '').replace(/"/g, '""');
+      if (/^[=+\-@|\t\r]/.test(sanitized)) {
+        return `'${sanitized}`;
+      }
+      return sanitized;
+    };
+
+    const headers = [
+      'Staff Code',
+      'Staff Employee Name',
+      'Department',
+      'Showroom Branch',
+      'Advance Receipt Number',
+      'Advance Disbursal Date',
+      'Original Advance Amount (INR)',
+      'Bills Submitted Amount (INR)',
+      'Cash Returned Amount (INR)',
+      'Unsettled Amount to Deduct (INR)',
+      'Payroll Recovery Month',
+      'Deduction Status',
+      'Authorized By',
+      'Flagged At Timestamp',
+    ];
+
+    const targetList = targetMonth && targetMonth !== 'ALL'
+      ? advances.filter((a) => a.salary_deduction_month === targetMonth || a.status === 'Flagged_Salary_Deduction')
+      : advances.filter((a) => a.status === 'Flagged_Salary_Deduction' || a.status === 'Cleared_Salary_Deduction' || a.unsettled_balance > 0);
+
+    const rows = targetList.map((a) => {
+      return [
+        `"${sanitizeCsv(a.staff_code)}"`,
+        `"${sanitizeCsv(a.staff_name)}"`,
+        `"${sanitizeCsv(a.department_name || 'General')}"`,
+        `"${sanitizeCsv(a.branch_code || 'ASI')}"`,
+        `"${sanitizeCsv(a.receipt_number)}"`,
+        `"${sanitizeCsv(a.advance_date)}"`,
+        a.advance_amount,
+        a.bills_submitted_amount || 0,
+        a.cash_returned_amount || 0,
+        a.unsettled_balance,
+        `"${sanitizeCsv(a.salary_deduction_month || targetMonth || 'Current Month')}"`,
+        `"${sanitizeCsv(a.status === 'Cleared_Salary_Deduction' ? 'Deducted & Cleared' : a.status === 'Flagged_Salary_Deduction' ? 'Flagged for Payroll' : 'Pending Imprest')}"`,
+        `"${sanitizeCsv(a.salary_deducted_by_name || a.disbursed_by_name || 'Store Manager')}"`,
+        `"${sanitizeCsv(a.salary_deducted_at || a.created_at)}"`,
+      ].join(',');
+    });
+
+    return 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
   }
 
   // --------------------------------------------------------------------------

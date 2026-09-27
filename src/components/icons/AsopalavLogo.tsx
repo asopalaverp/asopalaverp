@@ -13,7 +13,7 @@ export const AsopalavLogo: React.FC<AsopalavLogoProps> = ({
   monochrome = false,
   ...props
 }) => {
-  const gradId = React.useId();
+  const gradId = 'asopalav-brand-gradient';
 
   return (
     <svg

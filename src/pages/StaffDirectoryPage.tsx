@@ -7,6 +7,7 @@ import { erpService } from '@/lib/erpService';
 import { AppUser, AppRole, RolePermissions, StaffMember } from '@/types/database';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import { showToast } from '@/components/ui/ToastContainer';
 import bcrypt from 'bcryptjs';
 import { logSecurityEvent } from '@/lib/audit';
@@ -274,15 +275,15 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
       <div
-        className="w-full max-w-md bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        className="w-full max-w-md bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/15 rounded-[18px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="reset-modal-title"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-[#222222] bg-slate-50/50 dark:bg-[#191919]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[8px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-[10px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center shrink-0">
               <Key className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div>
@@ -297,8 +298,8 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-[6px] text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#262626] transition-colors cursor-pointer"
-            title="Close modal (Esc)"
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+            title="Close modal"
           >
             <X className="w-4 h-4" />
           </button>
@@ -307,7 +308,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs font-sans">
           {/* Target User Info Card */}
-          <div className="flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2b2b2b]">
+          <div className="flex items-center justify-between p-3 rounded-[12px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-full bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-[#3ecf8e]/30 flex items-center justify-center font-bold font-mono text-sm shrink-0">
                 {user.avatar_initials || `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'}
@@ -317,7 +318,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                   <span className="font-semibold text-slate-900 dark:text-white truncate">
                     {user.first_name} {user.last_name}
                   </span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-[#2a2a2a] text-slate-700 dark:text-zinc-300">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-zinc-300 font-medium">
                     {user.role_code}
                   </span>
                 </div>
@@ -335,12 +336,12 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
           {/* Success State Card */}
           {successData ? (
-            <div className="p-4 rounded-[8px] bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-in fade-in duration-200">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-[#3ecf8e] font-medium">
+            <div className="p-4 rounded-[12px] bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-[#3ecf8e] font-semibold">
                 <Check className="w-4 h-4 stroke-[2.5]" />
                 <span>Password & PIN Reset Successfully!</span>
               </div>
-              <div className="p-3 rounded-[6px] bg-white dark:bg-[#141414] border border-emerald-500/20 font-mono text-xs space-y-1.5 text-slate-800 dark:text-zinc-200">
+              <div className="p-3 rounded-[10px] bg-white dark:bg-[#141414] border border-emerald-500/20 font-mono text-xs space-y-1.5 text-slate-800 dark:text-zinc-200">
                 <div>
                   <span className="text-slate-400 dark:text-zinc-500">Username: </span>
                   <strong className="text-slate-900 dark:text-white">@{user.username}</strong>
@@ -362,7 +363,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyCredentials}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-colors cursor-pointer shadow-xs"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs ios-press"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copied ? 'Copied to Clipboard!' : 'Copy Login Details'}</span>
@@ -370,7 +371,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="py-2 px-4 rounded-[6px] bg-slate-100 dark:bg-[#222] hover:bg-slate-200 dark:hover:bg-[#2a2a2a] text-slate-700 dark:text-zinc-300 font-medium transition-colors cursor-pointer"
+                  className="py-2.5 px-4 rounded-[10px] bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-300 font-medium transition-all cursor-pointer ios-press"
                 >
                   Done
                 </button>
@@ -383,7 +384,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={setStandardDefault}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-all cursor-pointer ios-press shadow-2xs"
                   title="Quick fill Admin@123 / PIN 1234"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -392,7 +393,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={generateRandomPassword}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-all cursor-pointer ios-press shadow-2xs"
                   title="Generate secure random password and PIN"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
@@ -411,7 +412,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Minimum 6 characters"
-                    className="w-full bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] pl-3 pr-9 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors min-h-[38px]"
+                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-3 pr-9 py-2.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
                     required
                     autoFocus
                   />
@@ -436,7 +437,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Re-type new password"
-                    className="w-full bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] pl-3 pr-9 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors min-h-[38px]"
+                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-3 pr-9 py-2.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
                     required
                   />
                   <button
@@ -471,7 +472,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                     4-Digit POS Counter Lock PIN <span className="text-slate-400 font-normal">(Optional)</span>
                   </label>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
-                    Used for F12 screen lock
+                    Used for Screen Lock PIN
                   </span>
                 </div>
                 <input
@@ -480,32 +481,32 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                   placeholder="e.g. 1234"
-                  className="w-36 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2 text-xs font-mono font-semibold tracking-widest text-center text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
+                  className="w-36 bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] px-3 py-2 text-xs font-mono font-semibold tracking-widest text-center text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
                 />
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-2.5 rounded-[6px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
+                <div className="p-3 rounded-[10px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Modal Footer Actions */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-[#222222]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-zinc-300 font-medium transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-[10px] border border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 font-medium transition-all cursor-pointer ios-press"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-50 ios-press"
                 >
                   {isSubmitting ? (
                     <>
@@ -958,14 +959,6 @@ export const StaffDirectoryPage: React.FC = () => {
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_users_${dateStr}.csv`, csv, 'text/csv');
-      } else if (format === 'sql') {
-        const sql = recordsToExport
-          .map(
-            (u) =>
-              `INSERT INTO app_users (username, first_name, last_name, role_code, email) VALUES (${esc(u.username)}, ${esc(u.first_name)}, ${esc(u.last_name)}, ${esc(u.role_code)}, ${esc(u.email)});`
-          )
-          .join('\n');
-        downloadBlob(`asopalav_users_${dateStr}.sql`, sql, 'text/plain');
       }
     } else {
       const recordsToExport = selectedIds.size > 0
@@ -988,14 +981,6 @@ export const StaffDirectoryPage: React.FC = () => {
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_staff_${dateStr}.csv`, csv, 'text/csv');
-      } else if (format === 'sql') {
-        const sql = recordsToExport
-          .map(
-            (s) =>
-              `INSERT INTO staff_members (staff_code, first_name, middle_name, last_name, mobile_number, department_name, designation, branch_code) VALUES (${esc(s.staff_code)}, ${esc(s.first_name)}, ${esc(s.middle_name)}, ${esc(s.last_name)}, ${esc(s.mobile_number)}, ${esc(s.department_name)}, ${esc(s.designation)}, ${esc(s.branch_code)});`
-          )
-          .join('\n');
-        downloadBlob(`asopalav_staff_${dateStr}.sql`, sql, 'text/plain');
       }
     }
   };
@@ -1008,8 +993,8 @@ export const StaffDirectoryPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16">
-      {/* 1. Staff Directory Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      {/* 1. Staff Directory Header (iOS 16 Frosted Glass) */}
+      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -1018,7 +1003,7 @@ export const StaffDirectoryPage: React.FC = () => {
                 <Users className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Staff Directory</span>
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e]">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
                 {activeTab === 'logins' ? filteredUsers.length : filteredStaff.length} accounts
               </span>
             </div>
@@ -1031,8 +1016,8 @@ export const StaffDirectoryPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setBulkImportOpen(true)}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              onClick={() => setBulkImportOpen(true, 'staff')}
+              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
               <span>Import CSV</span>
@@ -1045,7 +1030,7 @@ export const StaffDirectoryPage: React.FC = () => {
                 loadDirectory();
                 refresh();
               }}
-              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-xs"
+              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer shadow-xs"
               title="Refresh Directory"
             >
               <Users className="w-3.5 h-3.5" />
@@ -1056,41 +1041,31 @@ export const StaffDirectoryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsExportOpen(!isExportOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
                 <ChevronDown className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
               </button>
               {isExportOpen && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] rounded-[6px] shadow-xl py-1 z-40">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[12px] shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={() => handleExportData('csv')}
-                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-50 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     CSV format
                   </button>
                   {isDeveloper && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleExportData('json')}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-50 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
-                      >
-                        <Code className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
-                        JSON format
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExportData('sql')}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-50 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
-                      >
-                        <Terminal className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
-                        SQL statements
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => handleExportData('json')}
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                    >
+                      <Code className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+                      JSON format
+                    </button>
                   )}
                 </div>
               )}
@@ -1101,7 +1076,7 @@ export const StaffDirectoryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenCreateUser}
-                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs select-none"
+                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
               >
                 <UserPlus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Add New User</span>
@@ -1110,7 +1085,7 @@ export const StaffDirectoryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenCreateStaff}
-                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs select-none"
+                className="h-8.5 px-3.5 py-1.5 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Add New Staff</span>
@@ -1122,38 +1097,19 @@ export const StaffDirectoryPage: React.FC = () => {
 
       {/* 2. Main Studio Content */}
       <main className="px-4 lg:px-6 py-4 space-y-4">
-        {/* Studio Filter Controls Bar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50 dark:bg-[#171717] p-2.5 rounded-[8px] border border-slate-200 dark:border-[#1f1f1f]">
+        {/* Studio Filter Controls Bar (iOS 16 Inset Grouped) */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/80 dark:bg-[#1a1a1c]/80 backdrop-blur-md p-3 rounded-[14px] border border-slate-200/80 dark:border-white/10 shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
-            {/* Tabs: Cashier Logins / Floor Staff */}
-            <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
-              <button
-                type="button"
-                onClick={() => setActiveTab('logins')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-mono transition-all cursor-pointer',
-                  activeTab === 'logins'
-                    ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#383838]'
-                    : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                )}
-              >
-                <ShieldCheck className={cn("w-3.5 h-3.5", activeTab === 'logins' ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-slate-400 dark:text-[#707070]")} />
-                <span>Login Accounts & PINs ({usersList.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('staff')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-mono transition-all cursor-pointer',
-                  activeTab === 'staff'
-                    ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#383838]'
-                    : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                )}
-              >
-                <Users className={cn("w-3.5 h-3.5", activeTab === 'staff' ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-slate-400 dark:text-[#707070]")} />
-                <span>All Staff Members ({staff.length})</span>
-              </button>
-            </div>
+            {/* Tabs: Cashier Logins / Floor Staff (iOS Segmented Control) */}
+            <IOSSegmentedControl
+              options={[
+                { id: 'logins', label: `Login Accounts (${usersList.length})`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+                { id: 'staff', label: `All Staff (${staff.length})`, icon: <Users className="w-3.5 h-3.5" /> },
+              ]}
+              value={activeTab}
+              onChange={(val) => setActiveTab(val as 'logins' | 'staff')}
+              size="sm"
+            />
 
             {/* Branch Filter for Staff */}
             {activeTab === 'staff' && (

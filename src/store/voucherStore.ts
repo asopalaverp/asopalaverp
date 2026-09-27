@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import { SEED_VOUCHERS } from '@/lib/sampleSeedData';
 import { normalizeBranchCode, normalizeBranchId } from '@/lib/utils';
 import {
   ExpenseVoucher,
@@ -150,14 +149,7 @@ export const useVoucherStore = create<VoucherStoreState>((set, get) => ({
             }
           }
           if (voucherList.length === 0) {
-            voucherList = !isAll
-              ? SEED_VOUCHERS.filter(
-                  (v) =>
-                    normalizeBranchCode(v.branch_id) === code ||
-                    normalizeBranchCode(v.branch_code) === code
-                )
-              : SEED_VOUCHERS;
-            localStorage.setItem(`asopalav_vouchers_${cacheKey}`, JSON.stringify(voucherList));
+            voucherList = [];
           }
         }
 
@@ -175,13 +167,7 @@ export const useVoucherStore = create<VoucherStoreState>((set, get) => ({
         }));
       } catch (err) {
         console.warn('Error fetching vouchers:', err);
-        const fallbackList = !isAll
-          ? SEED_VOUCHERS.filter(
-              (v) =>
-                normalizeBranchCode(v.branch_id) === code ||
-                normalizeBranchCode(v.branch_code) === code
-            )
-          : SEED_VOUCHERS;
+        const fallbackList: ExpenseVoucher[] = [];
         set((state) => ({
           vouchers: {
             ...state.vouchers,

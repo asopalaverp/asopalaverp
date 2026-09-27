@@ -9,6 +9,8 @@ import { StaffAdvance, ExpenseVoucher } from '@/types/database';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
 import { MetricCard } from '@/components/ui/MetricCard';
+import { DatePicker } from '@/components/ui/DatePicker';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
@@ -282,20 +284,20 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
       {/* 1. Dashboard Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      <div className="px-4 lg:px-6 py-4 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Count Badge & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <LayoutDashboard className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Dashboard</span>
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] whitespace-nowrap inline-flex items-center">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center">
                 {filteredVouchers.length} bills
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-[#8e8e93] font-sans mt-0.5">
               Today's money, expenses, cash in box, and shop records in one place.
             </p>
           </div>
@@ -306,7 +308,7 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAdvanceModalOpen(true)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer ios-press"
               >
                 <HandCoins className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Give Advance</span>
@@ -317,7 +319,7 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleExportTally}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer ios-press"
                 title="Export all vouchers in Tally Prime compatible CSV format"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
@@ -329,7 +331,7 @@ export const DashboardPage: React.FC = () => {
               type="button"
               onClick={() => refresh()}
               disabled={loading}
-              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-xs"
+              className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer ios-press"
               title="Refresh Dashboard"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
@@ -341,91 +343,70 @@ export const DashboardPage: React.FC = () => {
       {/* 2. Main Studio Content Area */}
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Tier 2: Filter & Period Slicers Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-[8px] border border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#171717]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-[14px] border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-[#18181a]/70 ios-glass">
           {/* Time-Range Slicers */}
-          <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e]">
-            {(['today', 'week', 'month', 'quarter', 'all'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setTimeRange(t);
-                  setIsCustomDateOpen(false);
-                }}
-                className={cn(
-                  'px-2.5 py-1 text-xs font-sans rounded-[4px] transition-colors cursor-pointer font-medium',
-                  timeRange === t
-                    ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-semibold border border-slate-200 dark:border-[#383838] shadow-xs'
-                    : 'text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                )}
-              >
-                {t === 'today' ? 'Today' : t === 'week' ? 'Week' : t === 'month' ? 'Month' : t === 'quarter' ? 'Quarter' : 'All Time'}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                setTimeRange('custom');
-                setIsCustomDateOpen(!isCustomDateOpen);
+          <div className="overflow-x-auto no-scrollbar py-0.5">
+            <IOSSegmentedControl
+              size="sm"
+              options={[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'Week' },
+                { id: 'month', label: 'Month' },
+                { id: 'quarter', label: 'Quarter' },
+                { id: 'all', label: 'All Time' },
+                { id: 'custom', label: 'Custom' },
+              ]}
+              value={timeRange}
+              onChange={(val) => {
+                setTimeRange(val as typeof timeRange);
+                if (val === 'custom') setIsCustomDateOpen(true);
+                else setIsCustomDateOpen(false);
               }}
-              className={cn(
-                'px-2.5 py-1 text-xs font-sans rounded-[4px] transition-colors cursor-pointer font-medium',
-                timeRange === 'custom'
-                  ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-semibold border border-slate-200 dark:border-[#383838] shadow-xs'
-                  : 'text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-              )}
-            >
-              Custom Range
-            </button>
+            />
           </div>
 
           {/* Payment Mode Slicer */}
-          <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e]">
-            {(['ALL', 'Physical_Cash', 'Online_UPI'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setSelectedMode(m);
-                }}
-                className={cn(
-                  'px-2.5 py-1 text-xs font-sans rounded-[4px] transition-colors cursor-pointer font-medium',
-                  selectedMode === m
-                    ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-semibold border border-slate-200 dark:border-[#383838] shadow-xs'
-                    : 'text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                )}
-              >
-                {m === 'ALL' ? 'All Modes' : m === 'Physical_Cash' ? 'Cash' : 'UPI'}
-              </button>
-            ))}
+          <div className="w-auto">
+            <IOSSegmentedControl
+              size="sm"
+              options={[
+                { id: 'ALL', label: 'All Modes' },
+                { id: 'Physical_Cash', label: 'Cash' },
+                { id: 'Online_UPI', label: 'UPI' },
+              ]}
+              value={selectedMode}
+              onChange={(val) => setSelectedMode(val as typeof selectedMode)}
+            />
           </div>
         </div>
 
         {/* Custom Date Picker Drawer/Bar */}
         {isCustomDateOpen && (
-          <div className="p-3 bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[8px] flex flex-wrap items-center gap-3 animate-in fade-in duration-150">
+          <div className="p-3 bg-slate-50 dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 rounded-[12px] flex flex-wrap items-center gap-3 animate-in fade-in duration-150 shadow-xs relative z-30">
             <span className="text-xs text-slate-600 dark:text-[#A1A1A1] font-sans font-medium">Select Range:</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="h-8 px-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]"
-                placeholder="Start date"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-40 sm:w-44">
+                <DatePicker
+                  value={customStartDate}
+                  onChange={setCustomStartDate}
+                  placeholder="Start date"
+                  allowPastDatesOverride={true}
+                  size="sm"
+                />
+              </div>
               <span className="text-xs text-slate-400 dark:text-[#737373] font-mono">to</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="h-8 px-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]"
-                placeholder="End date"
-              />
+              <div className="w-40 sm:w-44">
+                <DatePicker
+                  value={customEndDate}
+                  onChange={setCustomEndDate}
+                  placeholder="End date"
+                  allowPastDatesOverride={true}
+                  size="sm"
+                />
+              </div>
             </div>
             {(customStartDate || customEndDate) && (
-              <span className="text-[11px] font-mono text-emerald-700 dark:text-[#3ecf8e] font-medium">
+              <span className="text-[11px] font-mono text-emerald-700 dark:text-[#3ecf8e] font-semibold">
                 Filtered: {filteredVouchers.length} vouchers
               </span>
             )}

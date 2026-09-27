@@ -16,17 +16,14 @@ import {
   ChevronsUpDown,
   Check,
   Lock,
-  Search,
-  Plus,
   X,
   LogOut,
   Sun,
   Moon,
-  ChevronRight,
   Keyboard,
   Clock,
-  Calculator,
   Store,
+  Bell,
 } from 'lucide-react';
 import {
   AppTableIcon,
@@ -64,13 +61,11 @@ export const Sidebar: React.FC = () => {
     theme,
     toggleTheme,
     setShortcutsModalOpen,
-    setCalculatorOpen,
   } = useUIStore();
   const { user, can, getAllowedBranches, lockScreen, logout, getSessionTimeRemainingFormatted } = useAuthStore();
   const { branches, selectedBranchId, setSelectedBranchId, getActiveBranch } = useBranchStore();
 
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
-  const [branchSearch, setBranchSearch] = useState('');
   const [isProfilePopoverOpen, setIsProfilePopoverOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const profilePopoverRef = useRef<HTMLDivElement | null>(null);
@@ -82,13 +77,6 @@ export const Sidebar: React.FC = () => {
   const activeBranch = getActiveBranch();
   const canViewAll = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer' || can('can_view_all_branches');
   const isBranchSwitcherEnabled = canViewAll || allowedBranches.length > 1;
-
-  const filteredBranches = allowedBranches.filter(
-    (b) =>
-      !branchSearch ||
-      b.branch_name.toLowerCase().includes(branchSearch.toLowerCase()) ||
-      b.branch_code.toLowerCase().includes(branchSearch.toLowerCase())
-  );
 
   // Close dropdowns on outside click or Escape
   useEffect(() => {
@@ -127,92 +115,88 @@ export const Sidebar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobileSidebarOpen, setMobileSidebarOpen]);
 
-  // Master Navigation Architecture
+  // Master Navigation Architecture (Supabase Studio Precision)
   const navSections: NavSection[] = [
     {
-      title: 'Shop Work',
+      title: 'CORE OPERATIONS',
       items: [
         {
           id: 'dashboard',
           label: 'Dashboard',
-          description: 'Today’s money & shop summary',
+          description: 'Money & shop summary',
           icon: LayoutGrid,
-          badge: 'F1',
         },
         {
           id: 'new-voucher',
           label: 'Add Expense',
-          description: 'Enter new bill or payment',
+          description: 'Enter new bill or voucher',
           icon: Receipt,
-          badge: 'F2',
           permission: 'can_create_voucher',
         },
         {
           id: 'expenses',
           label: 'All Expenses',
-          description: 'View & search all expense bills',
+          description: 'Search all expense bills',
           icon: AppTableIcon,
-          badge: 'F3',
         },
         {
           id: 'treasury',
           label: 'Cash Box & Bank',
-          description: 'Count cash notes & add money',
+          description: 'Cash drawer & safe drops',
           icon: Wallet,
-          badge: 'F4',
           permission: 'can_inject_float',
         },
         {
           id: 'advances',
           label: 'Staff Advances',
-          description: 'Staff money given & returned',
+          description: 'Disbursals & settlements',
           icon: HandCoins,
-          badge: 'F7',
           permission: 'can_disburse_advance',
         },
         {
           id: 'closing',
           label: 'Daily Cash Closing',
-          description: 'Count night cash & print slip',
+          description: 'Count night cash & reckon',
           icon: Coins,
-          badge: 'F9',
           permission: 'can_verify_f9_closing',
         },
       ],
     },
     {
-      title: 'Settings & Team',
+      title: 'MANAGEMENT & AUDIT',
       items: [
         {
           id: 'staff',
           label: 'Staff Directory',
-          description: 'Staff accounts, PINs & permissions',
+          description: 'Employees & PIN access',
           icon: Users,
-          badge: 'F10',
           permission: 'can_manage_users_roles',
         },
         {
           id: 'settings',
           label: 'Shop Settings',
-          description: 'Categories, shops & cash notes',
+          description: 'Categories & brand rules',
           icon: SlidersHorizontal,
-          badge: 'F11',
           permission: 'can_manage_periods',
-        },
-        {
-          id: 'profile',
-          label: 'My Profile & Security',
-          description: 'Profile photo, PIN, and password',
-          icon: ShieldCheck,
-          badge: 'F12',
         },
         {
           id: 'audit',
           label: 'Activity History',
-          description: 'Who did what and when',
+          description: 'Immutable security audit trail',
           icon: ShieldAlert,
-          badge: 'F8',
           permission: 'can_view_audit_logs',
+        },
+        {
+          id: 'notifications',
+          label: 'Alerts & Messages',
+          description: 'Cross-terminal announcements',
+          icon: Bell,
+        },
+        {
+          id: 'profile',
+          label: 'My Profile',
+          description: 'Security & user avatar',
+          icon: ShieldCheck,
         },
       ],
     },
@@ -223,7 +207,7 @@ export const Sidebar: React.FC = () => {
   const currentTitle = isAllShowrooms
     ? 'All Showrooms'
     : activeBranch?.branch_name || 'Asopalav - Satellite';
-  const currentSubtitle = isAllShowrooms ? 'All Branches Combined' : 'Active Showroom';
+  const currentSubtitle = isAllShowrooms ? 'Combined Enterprise' : 'Active Showroom';
 
   const userInitials =
     user?.avatar_initials ||
@@ -233,22 +217,30 @@ export const Sidebar: React.FC = () => {
 
   const sessionRemainingText = getSessionTimeRemainingFormatted();
 
-  const CASHIER_ALLOWED_PAGES = new Set<PageId>(['dashboard', 'new-voucher', 'expenses', 'advances', 'closing', 'profile']);
+  const CASHIER_ALLOWED_PAGES = new Set<PageId>([
+    'dashboard',
+    'new-voucher',
+    'expenses',
+    'advances',
+    'closing',
+    'profile',
+    'notifications',
+  ]);
 
   /* ========================================================================= */
   /* DESKTOP SIDEBAR CONTENT (lg: screens and above)                           */
   /* ========================================================================= */
   const desktopSidebarContent = (
-    <div
+    <aside
       className={cn(
-        'flex flex-col h-full select-none bg-white dark:bg-[#141414] border-r border-slate-200 dark:border-[#1f1f1f] text-slate-900 dark:text-[#EDEDED] font-sans transition-[width] duration-200 ease-out',
+        'flex flex-col h-full select-none bg-[#fafafa] dark:bg-[#171717] border-r border-[#dfdfdf] dark:border-[#242424] text-slate-900 dark:text-[#EDEDED] font-sans transition-[width] duration-200 ease-out shrink-0',
         isSidebarCollapsed ? 'w-16' : 'w-[240px]'
       )}
     >
       {/* 1. TOP HEADER: ACTIVE SHOWROOM SELECTOR */}
-      <div className="h-12 px-2.5 flex items-center border-b border-slate-200 dark:border-[#1f1f1f] shrink-0 bg-white dark:bg-[#141414]">
+      <div className="relative h-12 flex items-center border-b border-[#dfdfdf] dark:border-[#242424] shrink-0 bg-white dark:bg-[#141414]" ref={dropdownRef}>
         {!isSidebarCollapsed ? (
-          <div className="relative w-full" ref={dropdownRef}>
+          <div className="w-full h-full flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -259,21 +251,28 @@ export const Sidebar: React.FC = () => {
               disabled={!isBranchSwitcherEnabled}
               aria-label={`Current active showroom: ${currentTitle}`}
               className={cn(
-                "w-full flex items-center justify-between p-1.5 rounded-[6px] border border-transparent transition-all text-left group",
-                isBranchSwitcherEnabled ? "hover:bg-[#f4f4f5] dark:hover:bg-[#1f1f1f] cursor-pointer" : "cursor-default opacity-95"
+                'w-full h-full px-3.5 flex items-center justify-between transition-colors text-left group select-none',
+                isBranchSwitcherEnabled
+                  ? 'hover:bg-slate-50 dark:hover:bg-[#1c1c1c] cursor-pointer'
+                  : 'cursor-default opacity-95'
               )}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[6px] bg-emerald-500/10 dark:bg-[#3ecf8e]/10 border border-emerald-500/20 dark:border-[#3ecf8e]/20 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0 shadow-xs">
+                <div className="w-7 h-7 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
                   <Store className="w-3.5 h-3.5" />
                 </div>
                 <div className="truncate min-w-0">
-                  <p className="text-xs font-medium text-[#171717] dark:text-[#ededed] tracking-[-0.2px] truncate leading-tight font-sans">
+                  <p className="text-xs font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight font-sans">
                     {currentTitle}
                   </p>
-                  <p className="text-[10px] text-[#707070] dark:text-[#a1a1a1] font-sans truncate leading-tight mt-0.5">
-                    {currentSubtitle}
-                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] bg-emerald-500/10 px-1 rounded-[3px]">
+                      {currentBadgeCode}
+                    </span>
+                    <span className="text-[10px] text-[#707070] dark:text-[#8e8e8e] font-sans truncate leading-tight">
+                      {currentSubtitle}
+                    </span>
+                  </div>
                 </div>
               </div>
               {isBranchSwitcherEnabled && (
@@ -286,24 +285,10 @@ export const Sidebar: React.FC = () => {
               )}
             </button>
 
-            {/* Branch Switcher Popup */}
+            {/* Branch Switcher Popup - Covers exact sidebar width flush below header */}
             {isBranchDropdownOpen && isBranchSwitcherEnabled && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100 min-w-[220px]">
-                <div className="px-2.5 py-1.5 border-b border-slate-200 dark:border-[#282828]">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Find showroom outlet..."
-                      value={branchSearch}
-                      onChange={(e) => setBranchSearch(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none w-full font-sans"
-                    />
-                  </div>
-                </div>
-
-                <div className="max-h-56 overflow-y-auto p-1 space-y-0.5">
+              <div className="absolute left-0 top-full w-[240px] z-50 bg-white dark:bg-[#181818] border-b border-[#dfdfdf] dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+                <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
                   {canViewAll && (
                     <>
                       <button
@@ -311,13 +296,12 @@ export const Sidebar: React.FC = () => {
                         onClick={() => {
                           setSelectedBranchId('ALL');
                           setIsBranchDropdownOpen(false);
-                          setBranchSearch('');
                         }}
                         className={cn(
                           'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
                           selectedBranchId === 'ALL'
-                            ? 'bg-slate-100 dark:bg-[#242424] text-slate-900 dark:text-white font-medium'
-                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#202020]'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
+                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
                         )}
                       >
                         <div className="flex items-center gap-2 min-w-0">
@@ -325,7 +309,7 @@ export const Sidebar: React.FC = () => {
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-[-0.2px] truncate leading-tight">
+                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
                               All Showrooms
                             </div>
                             <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
@@ -337,11 +321,11 @@ export const Sidebar: React.FC = () => {
                           <Check className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0 stroke-[2.5]" />
                         )}
                       </button>
-                      <div className="border-t border-slate-100 dark:border-[#282828] my-1" />
+                      <div className="border-t border-slate-100 dark:border-[#262626] my-1" />
                     </>
                   )}
 
-                  {filteredBranches.map((b) => {
+                  {allowedBranches.map((b) => {
                     const isSelected = b.branch_id === selectedBranchId;
                     return (
                       <button
@@ -350,13 +334,12 @@ export const Sidebar: React.FC = () => {
                         onClick={() => {
                           setSelectedBranchId(b.branch_id);
                           setIsBranchDropdownOpen(false);
-                          setBranchSearch('');
                         }}
                         className={cn(
                           'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
                           isSelected
-                            ? 'bg-[#f4f4f5] dark:bg-[#242424] text-[#171717] dark:text-white font-medium'
-                            : 'text-slate-700 dark:text-zinc-300 hover:bg-[#f4f4f5] dark:hover:bg-[#202020]'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
+                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
                         )}
                       >
                         <div className="flex items-center gap-2 min-w-0">
@@ -364,11 +347,11 @@ export const Sidebar: React.FC = () => {
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-[-0.2px] truncate leading-tight">
+                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
                               {b.branch_name}
                             </div>
                             <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
-                              Active Showroom
+                              {b.branch_code} · Active Showroom
                             </div>
                           </div>
                         </div>
@@ -379,36 +362,104 @@ export const Sidebar: React.FC = () => {
                     );
                   })}
                 </div>
-
-                {can('can_manage_periods') && (
-                  <>
-                    <div className="border-t border-slate-100 dark:border-[#282828] my-0.5" />
-                    <div className="p-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActivePage('settings');
-                          setIsBranchDropdownOpen(false);
-                          setBranchSearch('');
-                        }}
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-[4px] text-slate-700 dark:text-zinc-300 hover:text-[#171717] dark:hover:text-white bg-[#f4f4f5] dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] transition-colors cursor-pointer font-medium"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Manage Showrooms</span>
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             )}
           </div>
         ) : (
-          <div
-            onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-            className="w-8 h-8 rounded-[6px] bg-[#007a4d] text-white flex items-center justify-center font-medium text-xs font-mono tracking-tight mx-auto cursor-pointer shadow-xs hover:opacity-90 transition-opacity"
-            title={`Active Showroom: ${currentTitle} (${currentBadgeCode})`}
-          >
-            {currentBadgeCode}
+          <div className="w-full flex justify-center items-center h-full">
+            <button
+              type="button"
+              onClick={() => {
+                if (isBranchSwitcherEnabled) {
+                  setIsBranchDropdownOpen(!isBranchDropdownOpen);
+                }
+              }}
+              disabled={!isBranchSwitcherEnabled}
+              className="w-8 h-8 rounded-[6px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center font-bold text-xs font-mono tracking-tight mx-auto cursor-pointer shadow-xs hover:opacity-90 transition-opacity"
+              title={`Active Showroom: ${currentTitle} (${currentBadgeCode})`}
+            >
+              {currentBadgeCode}
+            </button>
+
+            {/* Collapsed Flyout Dropdown */}
+            {isBranchDropdownOpen && isBranchSwitcherEnabled && (
+              <div className="absolute left-[calc(100%+4px)] top-1 w-64 z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-[#dfdfdf] dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+                <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+                  {canViewAll && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBranchId('ALL');
+                          setIsBranchDropdownOpen(false);
+                        }}
+                        className={cn(
+                          'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
+                          selectedBranchId === 'ALL'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
+                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
+                            <Store className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="truncate">
+                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                              All Showrooms
+                            </div>
+                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                              Combined View
+                            </div>
+                          </div>
+                        </div>
+                        {selectedBranchId === 'ALL' && (
+                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0 stroke-[2.5]" />
+                        )}
+                      </button>
+                      <div className="border-t border-slate-100 dark:border-[#262626] my-1" />
+                    </>
+                  )}
+
+                  {allowedBranches.map((b) => {
+                    const isSelected = b.branch_id === selectedBranchId;
+                    return (
+                      <button
+                        key={b.branch_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBranchId(b.branch_id);
+                          setIsBranchDropdownOpen(false);
+                        }}
+                        className={cn(
+                          'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
+                          isSelected
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
+                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
+                            <Store className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="truncate">
+                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                              {b.branch_name}
+                            </div>
+                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                              {b.branch_code} · Active Showroom
+                            </div>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0 stroke-[2.5]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -427,9 +478,9 @@ export const Sidebar: React.FC = () => {
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2.5 mt-1 border-t border-slate-100 dark:border-[#1e1e1e]')}>
+            <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2.5 mt-1 border-t border-[#ededed] dark:border-[#242424]')}>
               {!isSidebarCollapsed && (
-                <div className="px-2 pb-1 text-[10px] font-mono font-medium uppercase tracking-wider text-slate-400 dark:text-[#707070]">
+                <div className="px-2 pb-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#707070] dark:text-[#707070]">
                   {section.title}
                 </div>
               )}
@@ -453,11 +504,11 @@ export const Sidebar: React.FC = () => {
                       }
                       aria-label={item.label}
                       className={cn(
-                        'w-full flex items-center justify-between rounded-[6px] text-xs transition-all font-sans cursor-pointer group select-none',
-                        isSidebarCollapsed ? 'justify-center p-2 h-9' : 'px-2 py-1.5 h-8.5',
+                        'w-full flex items-center justify-between rounded-[9px] text-xs transition-all font-sans cursor-pointer group select-none active:scale-[0.98]',
+                        isSidebarCollapsed ? 'justify-center p-2 h-9' : 'px-2.5 py-1.5 h-8.5',
                         isActive
-                          ? 'bg-slate-100 dark:bg-[#202020] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#2e2e2e] shadow-xs'
-                          : 'text-slate-600 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#1a1a1a] border border-transparent'
+                          ? 'bg-emerald-500/10 dark:bg-[#3ecf8e]/15 text-emerald-800 dark:text-[#3ecf8e] font-semibold shadow-2xs'
+                          : 'text-[#212121] dark:text-[#a1a1a1] hover:text-[#171717] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
                       )}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -465,7 +516,7 @@ export const Sidebar: React.FC = () => {
                           className={cn(
                             'w-4 h-4 shrink-0 transition-colors stroke-[1.8]',
                             isActive
-                              ? 'text-slate-900 dark:text-white'
+                              ? 'text-emerald-600 dark:text-[#3ecf8e]'
                               : 'text-slate-400 dark:text-[#707070] group-hover:text-slate-900 dark:group-hover:text-white'
                           )}
                         />
@@ -478,9 +529,9 @@ export const Sidebar: React.FC = () => {
                       {!isSidebarCollapsed && item.badge && (
                         <kbd
                           className={cn(
-                            'text-[10px] font-mono px-1.5 py-0.2 rounded-[4px] transition-colors border',
+                            'text-[10px] font-mono px-1.5 py-0.2 rounded-[5px] transition-colors border',
                             isActive
-                              ? 'bg-black/5 dark:bg-white/10 text-slate-800 dark:text-zinc-200 font-medium border-black/10 dark:border-white/10'
+                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-[#3ecf8e] font-semibold border-emerald-500/20'
                               : 'text-slate-400 dark:text-[#606060] group-hover:text-slate-600 dark:group-hover:text-[#a1a1a1] border-transparent'
                           )}
                         >
@@ -497,7 +548,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* 3. BOTTOM UTILITIES & USER PROFILE */}
-      <div className="p-2 border-t border-slate-200 dark:border-[#242424] shrink-0 space-y-1.5 bg-white dark:bg-[#171717] relative">
+      <div className="p-2 border-t border-[#dfdfdf] dark:border-[#242424] shrink-0 space-y-1.5 bg-white dark:bg-[#141414] relative">
         {/* COLLAPSED MODE: Avatar with rich floating Popover */}
         {isSidebarCollapsed ? (
           <div className="relative flex justify-center" ref={profilePopoverRef}>
@@ -508,7 +559,7 @@ export const Sidebar: React.FC = () => {
               aria-label="User Account Menu"
               className={cn(
                 'w-9 h-9 rounded-full relative flex items-center justify-center cursor-pointer transition-all hover:ring-2 hover:ring-emerald-500/50',
-                isProfilePopoverOpen && 'ring-2 ring-emerald-500'
+                isProfilePopoverOpen && 'ring-2 ring-[#3ecf8e]'
               )}
             >
               {user?.avatar_url ? (
@@ -518,7 +569,7 @@ export const Sidebar: React.FC = () => {
                   className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shadow-xs"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-mono font-medium text-xs flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shadow-xs">
                   {userInitials}
                 </div>
               )}
@@ -528,9 +579,9 @@ export const Sidebar: React.FC = () => {
 
             {/* Collapsed Profile Flyout Popover */}
             {isProfilePopoverOpen && (
-              <div className="absolute left-[calc(100%+8px)] bottom-0 z-50 w-64 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl p-3 space-y-3 font-sans animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-[calc(100%+8px)] bottom-0 z-50 w-64 bg-white dark:bg-[#1a1a1a] border border-[#dfdfdf] dark:border-[#2e2e2e] rounded-[12px] shadow-2xl p-3 space-y-3 font-sans animate-in fade-in zoom-in-95 duration-150">
                 {/* User Info Header */}
-                <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-[#262626]">
+                <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#ededed] dark:border-[#262626]">
                   {user?.avatar_url ? (
                     <img
                       src={user.avatar_url}
@@ -538,7 +589,7 @@ export const Sidebar: React.FC = () => {
                       className="w-10 h-10 rounded-full object-cover border-2 border-[#3ecf8e] shadow-xs shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-medium text-sm flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-sm flex items-center justify-center shadow-xs shrink-0">
                       {userInitials}
                     </div>
                   )}
@@ -555,12 +606,12 @@ export const Sidebar: React.FC = () => {
                 </div>
 
                 {/* 4-Hour Session Security Pill */}
-                <div className="px-2.5 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-slate-200/80 dark:border-[#2e2e2e] flex items-center justify-between text-[11px] font-mono">
+                <div className="px-2.5 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-[#ededed] dark:border-[#2e2e2e] flex items-center justify-between text-[11px] font-mono">
                   <div className="flex items-center gap-1.5 text-slate-600 dark:text-[#a1a1a1]">
                     <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>4h Session Active</span>
                   </div>
-                  <span className="text-emerald-700 dark:text-[#3ecf8e] font-medium">{sessionRemainingText}</span>
+                  <span className="text-emerald-700 dark:text-[#3ecf8e] font-medium tabular-nums">{sessionRemainingText}</span>
                 </div>
 
                 {/* Popover Actions List */}
@@ -593,9 +644,6 @@ export const Sidebar: React.FC = () => {
                       <Lock className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
                       <span>Lock Screen</span>
                     </div>
-                    <kbd className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-500">
-                      F12
-                    </kbd>
                   </button>
 
                   <button
@@ -611,9 +659,6 @@ export const Sidebar: React.FC = () => {
                       <Keyboard className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
                       <span>Shortcuts</span>
                     </div>
-                    <kbd className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-500">
-                      ?
-                    </kbd>
                   </button>
 
                   <button
@@ -628,13 +673,10 @@ export const Sidebar: React.FC = () => {
                       <AppSidebarExpandIcon className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
                       <span>Expand Sidebar</span>
                     </div>
-                    <kbd className="text-[10px] font-mono px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-500">
-                      Ctrl+B
-                    </kbd>
                   </button>
                 </div>
 
-                <div className="border-t border-slate-100 dark:border-[#262626] pt-1.5">
+                <div className="border-t border-[#ededed] dark:border-[#262626] pt-1.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -662,10 +704,10 @@ export const Sidebar: React.FC = () => {
               title={`${user?.first_name || 'Admin'} ${user?.last_name || ''} - My Profile & Security`}
               aria-label="My Profile & Security"
               className={cn(
-                'w-full flex items-center p-2 rounded-[8px] text-xs transition-all font-sans cursor-pointer group select-none border text-left',
+                'w-full flex items-center p-2 rounded-[6px] text-xs transition-colors font-sans cursor-pointer group select-none border text-left',
                 activePage === 'profile'
-                  ? 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-[#3ecf8e]'
-                  : 'bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#202020] border-slate-200/80 dark:border-[#2a2a2a] text-slate-800 dark:text-zinc-200'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-[#3ecf8e]'
+                  : 'bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#202020] border-[#dfdfdf] dark:border-[#282828] text-slate-800 dark:text-zinc-200'
               )}
             >
               <div className="flex items-center gap-2.5 min-w-0 w-full">
@@ -676,7 +718,7 @@ export const Sidebar: React.FC = () => {
                     className="w-7 h-7 rounded-full object-cover border border-emerald-500/40 shrink-0 shadow-2xs"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-mono font-medium text-xs flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-7 h-7 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
                     {userInitials}
                   </div>
                 )}
@@ -688,7 +730,7 @@ export const Sidebar: React.FC = () => {
                   </div>
                   <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e] font-mono truncate leading-tight mt-0.5 flex items-center justify-between">
                     <span>{user?.role_code ? user.role_code.replace('_', ' ') : 'Super Admin'}</span>
-                    <span className="text-emerald-600 dark:text-[#3ecf8e] font-medium" title="4h Session Lifespan">
+                    <span className="text-emerald-600 dark:text-[#3ecf8e] font-medium tabular-nums" title="4h Session Lifespan">
                       {sessionRemainingText}
                     </span>
                   </div>
@@ -696,7 +738,7 @@ export const Sidebar: React.FC = () => {
               </div>
             </button>
 
-            {/* Quick Action Toolbar */}
+            {/* Quick Action Toolbar (6px square buttons) */}
             <div className="grid grid-cols-4 gap-1 pt-0.5">
               {/* Keyboard Shortcuts Trigger */}
               <button
@@ -705,9 +747,9 @@ export const Sidebar: React.FC = () => {
                   triggerHaptic('selection');
                   setShortcutsModalOpen(true);
                 }}
-                title="Keyboard Shortcuts (?)"
+                title="Keyboard Shortcuts"
                 aria-label="Keyboard Shortcuts"
-                className="h-7 rounded-[5px] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Keyboard className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
@@ -719,25 +761,32 @@ export const Sidebar: React.FC = () => {
                   triggerHaptic('warning');
                   lockScreen();
                 }}
-                title="Lock Terminal Screen (F12 / Alt+L)"
+                title="Lock Terminal Screen"
                 aria-label="Lock Screen"
-                className="h-7 rounded-[5px] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
 
-              {/* Collapse Sidebar */}
+              {/* Theme Mode Toggle */}
               <button
                 type="button"
-                onClick={toggleSidebarCollapse}
-                title="Collapse Sidebar (Ctrl+B)"
-                aria-label="Collapse Sidebar"
-                className="h-7 rounded-[5px] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  toggleTheme();
+                }}
+                title="Cycle Theme (Light / Dark)"
+                aria-label="Toggle Theme"
+                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
-                <AppSidebarCollapseIcon className="w-3.5 h-3.5" />
+                {theme === 'light' ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-zinc-300" />
+                )}
               </button>
 
-              {/* Sign Out */}
+              {/* Sign Out Trigger */}
               <button
                 type="button"
                 onClick={() => {
@@ -746,7 +795,7 @@ export const Sidebar: React.FC = () => {
                 }}
                 title="Sign Out"
                 aria-label="Sign Out"
-                className="h-7 rounded-[5px] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
@@ -754,7 +803,7 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 
   /* ========================================================================= */
@@ -768,19 +817,19 @@ export const Sidebar: React.FC = () => {
           triggerHaptic('light');
           setMobileSidebarOpen(false);
         }}
-        className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-md transition-opacity duration-200 animate-in fade-in"
+        className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
       />
 
-      {/* 2. Slide-In Sheet Container (Full Screen on Mobile) */}
-      <div className="relative w-full max-w-full h-full bg-white dark:bg-[#141414] shadow-2xl flex flex-col overflow-hidden z-10 animate-in slide-in-from-left duration-200">
+      {/* 2. Full-Screen Mobile Drawer Container */}
+      <div className="relative w-full h-full bg-white dark:bg-[#141414] shadow-2xl flex flex-col overflow-hidden z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
         {/* Drawer Header */}
-        <div className="h-14 px-4 flex items-center justify-between border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-[8px] bg-slate-100 dark:bg-[#202020] border border-slate-200 dark:border-[#2e2e2e] flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
-              <BrandLogo size={20} className="w-5 h-5 object-contain" />
+        <div className="h-12 px-4 flex items-center justify-between border-b border-[#dfdfdf] dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-[6px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center shadow-xs shrink-0 font-bold font-mono text-xs">
+              {currentBadgeCode}
             </div>
             <div className="min-w-0">
-              <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white font-sans truncate">
+              <span className="text-xs font-medium tracking-tight text-slate-900 dark:text-white font-sans truncate block">
                 {brandName} ERP
               </span>
             </div>
@@ -794,158 +843,14 @@ export const Sidebar: React.FC = () => {
               setMobileSidebarOpen(false);
             }}
             aria-label="Close navigation menu"
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#222222] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-zinc-200 flex items-center justify-center transition-transform active:scale-90 cursor-pointer border border-slate-200/80 dark:border-[#2e2e2e]"
+            className="w-7 h-7 rounded-[6px] bg-slate-100 dark:bg-[#222222] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-zinc-200 flex items-center justify-center transition-colors cursor-pointer border border-[#dfdfdf] dark:border-[#2e2e2e]"
           >
             <X className="w-4 h-4 stroke-[2]" />
           </button>
         </div>
 
-        {/* Unified Fluid Scrollable Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 py-3 space-y-4 pb-12 bg-slate-50/50 dark:bg-[#121212]">
-          {/* SECTION A: ACTIVE SHOWROOM OUTLET SWITCHER */}
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-400 dark:text-zinc-500 px-1">
-              Active Showroom
-            </div>
-            <div className="relative" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isBranchSwitcherEnabled) {
-                    triggerHaptic('selection');
-                    setIsBranchDropdownOpen(!isBranchDropdownOpen);
-                  }
-                }}
-                disabled={!isBranchSwitcherEnabled}
-                className={cn(
-                  "w-full flex items-center justify-between p-2.5 rounded-[10px] bg-white dark:bg-[#1a1a1a] border border-slate-200/90 dark:border-[#282828] text-left transition-colors shadow-xs",
-                  isBranchSwitcherEnabled ? "cursor-pointer active:scale-[0.99]" : "cursor-default opacity-95"
-                )}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 dark:bg-[#3ecf8e]/10 border border-emerald-500/20 dark:border-[#3ecf8e]/20 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0 shadow-2xs">
-                    <Store className="w-4 h-4" />
-                  </div>
-                  <div className="truncate">
-                    <span className="text-xs font-semibold text-slate-900 dark:text-white block leading-tight font-sans truncate">
-                      {currentTitle}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans block mt-0.5">
-                      {isBranchSwitcherEnabled ? 'Tap to switch branch' : 'Assigned Showroom'}
-                    </span>
-                  </div>
-                </div>
-                {isBranchSwitcherEnabled && (
-                  <ChevronsUpDown
-                    className={cn(
-                      'w-4 h-4 text-slate-400 dark:text-zinc-400 shrink-0 transition-transform duration-200',
-                      isBranchDropdownOpen && 'rotate-180 text-slate-900 dark:text-white'
-                    )}
-                  />
-                )}
-              </button>
-
-              {/* Showroom List Dropdown */}
-              {isBranchDropdownOpen && isBranchSwitcherEnabled && (
-                <div className="mt-1.5 rounded-[10px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-xl overflow-hidden py-1 text-xs font-sans animate-in fade-in duration-100">
-                  <div className="px-3 py-2 border-b border-slate-200 dark:border-[#282828]">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <input
-                        type="text"
-                        placeholder="Find showroom branch..."
-                        value={branchSearch}
-                        onChange={(e) => setBranchSearch(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none w-full"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="max-h-56 overflow-y-auto p-1 space-y-0.5">
-                    {canViewAll && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            triggerHaptic('selection');
-                            setSelectedBranchId('ALL');
-                            setIsBranchDropdownOpen(false);
-                            setBranchSearch('');
-                          }}
-                          className={cn(
-                            'w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
-                            selectedBranchId === 'ALL'
-                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-[#3ecf8e] font-medium'
-                              : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#202020]'
-                          )}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
-                              <Store className="w-3.5 h-3.5" />
-                            </div>
-                            <div>
-                              <div className="font-medium text-slate-900 dark:text-white leading-tight">
-                                All Showrooms
-                              </div>
-                              <div className="text-[10px] text-slate-500 dark:text-zinc-400">
-                                Combined View
-                              </div>
-                            </div>
-                          </div>
-                          {selectedBranchId === 'ALL' && (
-                            <Check className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0 stroke-[2.5]" />
-                          )}
-                        </button>
-                        <div className="border-t border-slate-100 dark:border-[#282828] my-0.5" />
-                      </>
-                    )}
-
-                    {filteredBranches.map((b) => {
-                      const isSelected = b.branch_id === selectedBranchId;
-                      return (
-                        <button
-                          key={b.branch_id}
-                          type="button"
-                          onClick={() => {
-                            triggerHaptic('selection');
-                            setSelectedBranchId(b.branch_id);
-                            setIsBranchDropdownOpen(false);
-                            setBranchSearch('');
-                          }}
-                          className={cn(
-                            'w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
-                            isSelected
-                              ? 'bg-emerald-500/15 text-emerald-800 dark:text-[#3ecf8e] font-medium'
-                              : 'text-slate-700 dark:text-zinc-300 hover:bg-[#f4f4f5] dark:hover:bg-[#202020]'
-                          )}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
-                              <Store className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="truncate">
-                              <div className="font-medium text-slate-900 dark:text-white leading-tight truncate">
-                                {b.branch_name}
-                              </div>
-                              <div className="text-[10px] text-slate-500 dark:text-zinc-400">
-                                Active Showroom
-                              </div>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-3.5 h-3.5 text-[#3ecf8e] shrink-0 stroke-[2.5]" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION B: APP NAVIGATION SECTIONS */}
+        {/* Scrollable Navigation List */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {navSections.map((section, sIdx) => {
             const visibleItems = section.items.filter((item) => {
               if (user?.role_code === 'Cashier') {
@@ -958,52 +863,39 @@ export const Sidebar: React.FC = () => {
             if (visibleItems.length === 0) return null;
 
             return (
-              <div key={sIdx} className="space-y-1">
-                <div className="px-1 text-[10px] font-mono font-medium uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+              <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2 mt-1 border-t border-[#ededed] dark:border-[#242424]')}>
+                <div className="px-2 pb-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#707070]">
                   {section.title}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {visibleItems.map((item, iIdx) => {
                     const Icon = item.icon;
                     const isActive = activePage === item.id;
 
                     return (
                       <button
-                        key={`mob-${sIdx}-${iIdx}-${item.label}`}
+                        key={`m-${sIdx}-${iIdx}-${item.label}`}
                         onClick={() => {
                           triggerHaptic('selection');
                           setActivePage(item.id);
                           setMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          'w-full flex items-center justify-between px-3 py-2.5 rounded-[10px] text-left transition-all font-sans cursor-pointer group select-none min-h-[44px] active:scale-[0.98]',
+                          'w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] text-xs transition-colors font-sans cursor-pointer',
                           isActive
-                            ? 'bg-emerald-500/12 dark:bg-[#3ecf8e]/15 border border-emerald-500/30 dark:border-[#3ecf8e]/30 text-emerald-900 dark:text-[#3ecf8e] shadow-xs font-semibold'
-                            : 'bg-white dark:bg-[#1a1a1a] border border-slate-200/80 dark:border-[#262626] text-slate-800 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#222222]'
+                            ? 'bg-emerald-500/10 text-emerald-800 dark:text-[#3ecf8e] font-medium border border-emerald-500/20'
+                            : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#202020]'
                         )}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={cn(
-                              'w-7 h-7 rounded-[6px] flex items-center justify-center shrink-0 transition-colors',
-                              isActive
-                                ? 'bg-emerald-500/20 dark:bg-[#3ecf8e]/20 text-emerald-700 dark:text-[#3ecf8e]'
-                                : 'bg-slate-100 dark:bg-[#222222] text-slate-600 dark:text-zinc-400 group-hover:text-slate-900 dark:group-hover:text-white'
-                            )}
-                          >
-                            <Icon className="w-4 h-4 stroke-[2]" />
-                          </div>
-                          <span className="text-xs font-medium block leading-tight font-sans truncate">
-                            {item.label}
-                          </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-emerald-600 dark:text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]')} />
+                          <span className="truncate">{item.label}</span>
                         </div>
-
-                        <ChevronRight
-                          className={cn(
-                            'w-3.5 h-3.5 opacity-50 shrink-0 transition-transform',
-                            isActive ? 'text-emerald-700 dark:text-[#3ecf8e] translate-x-0.5 opacity-90' : 'text-slate-400'
-                          )}
-                        />
+                        {item.badge && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-[#707070]">
+                            {item.badge}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1011,128 +903,49 @@ export const Sidebar: React.FC = () => {
               </div>
             );
           })}
+        </div>
 
-          {/* SECTION C: USER PROFILE & SESSION CONTROLS */}
-          <div className="space-y-1.5 pt-1">
-            <div className="px-1 text-[10px] font-mono font-medium uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-              Account & Security
+        {/* Mobile Drawer Footer */}
+        <div className="p-3 border-t border-[#dfdfdf] dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] space-y-2 shrink-0">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-[10px] flex items-center justify-center">
+                {userInitials}
+              </div>
+              <span className="font-medium text-slate-800 dark:text-zinc-200 truncate">
+                {user?.first_name || 'Admin'}
+              </span>
             </div>
-            <div className="p-3 rounded-[12px] bg-white dark:bg-[#1a1a1a] border border-slate-200/80 dark:border-[#262626] space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {user?.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.first_name || 'User'}
-                      className="w-9 h-9 rounded-full object-cover border-2 border-[#3ecf8e] shadow-xs shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-[#3ecf8e] text-[#171717] font-medium text-xs flex items-center justify-center font-mono shadow-xs shrink-0">
-                      {userInitials}
-                    </div>
-                  )}
-                  <div className="truncate">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white leading-tight font-sans truncate">
-                      {user?.first_name
-                        ? `${user.first_name} ${user.last_name || ''}`.trim()
-                        : user?.username || 'Admin'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono truncate mt-0.5">
-                      {user?.role_code ? user.role_code.replace('_', ' ') : 'Super Admin'}
-                    </p>
-                  </div>
-                </div>
+            <span className="text-[10px] font-mono text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+              {sessionRemainingText}
+            </span>
+          </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setActivePage('profile');
-                    setMobileSidebarOpen(false);
-                  }}
-                  className="px-2.5 py-1 text-xs font-sans font-medium rounded-[6px] bg-slate-100 dark:bg-[#242424] border border-slate-200 dark:border-[#333] text-slate-800 dark:text-zinc-200 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
-                >
-                  Profile
-                </button>
-              </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('warning');
+                setMobileSidebarOpen(false);
+                lockScreen();
+              }}
+              className="flex-1 h-8 rounded-[6px] bg-slate-100 dark:bg-[#222222] border border-[#dfdfdf] dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Lock Screen</span>
+            </button>
 
-              {/* 4h Session info row */}
-              <div className="px-2 py-1 rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-slate-100 dark:border-[#282828] flex items-center justify-between text-[10px] font-mono text-slate-600 dark:text-[#a1a1a1]">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3 h-3 text-emerald-500" />
-                  <span>4h Session:</span>
-                </div>
-                <span className="text-emerald-700 dark:text-[#3ecf8e] font-medium">{sessionRemainingText}</span>
-              </div>
-
-              {/* System Actions Grid */}
-              <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-slate-100 dark:border-[#242424]">
-                {/* Theme Switcher */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('light');
-                    toggleTheme();
-                  }}
-                  className="p-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] border border-slate-200/80 dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-300 flex flex-col items-center justify-center gap-1 text-[10px] font-sans cursor-pointer transition-colors active:scale-95 min-h-[44px]"
-                  title={`Theme: ${theme}`}
-                >
-                  {theme === 'light' ? (
-                    <Sun className="w-3.5 h-3.5 text-amber-500" />
-                  ) : (
-                    <Moon className="w-3.5 h-3.5 text-zinc-400" />
-                  )}
-                  <span className="capitalize text-[9px]">
-                    {theme === 'soft-dark' ? 'Soft' : theme}
-                  </span>
-                </button>
-
-                {/* Keyboard Shortcuts */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setMobileSidebarOpen(false);
-                    setShortcutsModalOpen(true);
-                  }}
-                  className="p-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] border border-slate-200/80 dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-300 flex flex-col items-center justify-center gap-1 text-[10px] font-sans cursor-pointer transition-colors active:scale-95 min-h-[44px]"
-                  title="Keyboard Shortcuts"
-                >
-                  <Keyboard className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-                  <span className="text-[9px]">Shortcuts</span>
-                </button>
-
-                {/* Screen Lock */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('warning');
-                    setMobileSidebarOpen(false);
-                    lockScreen();
-                  }}
-                  className="p-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] border border-slate-200/80 dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-300 flex flex-col items-center justify-center gap-1 text-[10px] font-sans cursor-pointer transition-colors active:scale-95 min-h-[44px]"
-                  title="Lock Screen"
-                >
-                  <Lock className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-                  <span className="text-[9px]">Lock</span>
-                </button>
-
-                {/* Sign Out */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('warning');
-                    setMobileSidebarOpen(false);
-                    logout();
-                  }}
-                  className="p-1.5 rounded-[6px] bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-200/80 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 flex flex-col items-center justify-center gap-1 text-[10px] font-sans cursor-pointer transition-colors active:scale-95 min-h-[44px]"
-                  title="Sign out of account"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                  <span className="text-[9px]">Sign Out</span>
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('warning');
+                setMobileSidebarOpen(false);
+                logout();
+              }}
+              className="h-8 px-3 rounded-[6px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>
@@ -1141,17 +954,9 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
-      {/* Desktop Sticky Sidebar (lg: screens and above) */}
-      <aside
-        className={cn(
-          'hidden lg:block shrink-0 sticky top-0 h-screen z-30 transition-[width] duration-200 ease-out',
-          isSidebarCollapsed ? 'w-16' : 'w-[240px]'
-        )}
-      >
+      <div className="hidden lg:block h-full shrink-0">
         {desktopSidebarContent}
-      </aside>
-
-      {/* Slide-Over Mobile Drawer */}
+      </div>
       {isMobileSidebarOpen && mobileSlideOverDrawer}
     </>
   );

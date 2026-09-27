@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { X, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
 import { animateDrawerOpen, animateDrawerClose } from '@/lib/animations';
 import { useScrollLock } from '@/hooks/useScrollLock';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
 
 export type DrawerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
@@ -50,13 +52,15 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { isSidebarCollapsed } = useUIStore();
+  const { isMobile, isTablet } = useDeviceType();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const handleClose = () => {
-    animateDrawerClose(panelRef.current, backdropRef.current, onClose);
+    animateDrawerClose(panelRef.current, backdropRef.current, onClose, isMobile);
   };
 
   useScrollLock(isOpen);
@@ -74,14 +78,14 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   useEffect(() => {
     if (isOpen) {
       setIsExpanded(false);
-      animateDrawerOpen(panelRef.current, backdropRef.current);
+      animateDrawerOpen(panelRef.current, backdropRef.current, isMobile);
     }
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   const handleCopyId = () => {
     if (!copyId) return;
@@ -92,32 +96,43 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
 
   if (!isOpen || !mounted) return null;
 
+  // Sidebar width offset on desktop
+  const sidebarOffset = isMobile ? 0 : (isSidebarCollapsed ? 64 : 240);
+
   // Determine current width class: full screen if user toggled expand, otherwise standard drawer size
   const currentSizeClass = isExpanded ? 'w-full max-w-full' : (sizeClasses[size] || sizeClasses.full);
 
   const drawerContent = (
-    <div className="fixed inset-0 z-[99999] w-screen h-screen overflow-hidden select-none font-sans flex justify-end">
-      {/* Backdrop */}
+    <div
+      className="fixed inset-y-0 right-0 z-[99999] overflow-hidden select-none font-sans flex justify-end transition-[left] duration-200 ease-out"
+      style={{ left: `${sidebarOffset}px` }}
+    >
+      {/* Backdrop covering main canvas touching sidebar */}
       <div
         ref={backdropRef}
-        className="fixed inset-0 w-screen h-screen bg-black/60 dark:bg-black/75 transition-opacity backdrop-blur-md z-0"
+        className="absolute inset-0 bg-black/60 dark:bg-black/75 transition-opacity backdrop-blur-md z-0"
         onClick={handleClose}
       />
 
       {/* Slide-over Panel Container */}
-      <div className="fixed inset-0 w-screen h-screen flex justify-end pointer-events-none z-10">
+      <div className={cn(
+        "absolute inset-0 pointer-events-none z-10 flex",
+        isMobile ? "items-end justify-center" : "justify-end"
+      )}>
         <div
           ref={panelRef}
           className={cn(
-            'w-full h-full pointer-events-auto bg-white dark:bg-[#141414] border-l border-slate-200 dark:border-[#222222] shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100 transition-all duration-300 ease-in-out',
-            currentSizeClass
+            'pointer-events-auto bg-white dark:bg-[#141414] shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100 transition-[width,max-width] duration-200 ease-out',
+            isMobile
+              ? 'w-full max-h-[92vh] rounded-t-[26px] border-t border-black/[0.08] dark:border-white/[0.12] pb-safe'
+              : cn('w-full h-full border-l border-slate-200 dark:border-[#222222]', currentSizeClass)
           )}
         >
-          {/* Mobile Android M3 Drag Handle */}
-          <div className="sm:hidden w-12 h-1.5 rounded-full bg-slate-300 dark:bg-zinc-700 mx-auto mt-2 -mb-1 shrink-0" />
+          {/* iOS 18 Sheet Grabber Handle */}
+          <div className="sm:hidden w-10 h-1.5 rounded-full bg-black/25 dark:bg-white/25 mx-auto mt-2.5 mb-1 shrink-0" />
 
-          {/* 1. Supabase Studio Header */}
-          <div className="px-5 py-3.5 border-b border-slate-200 dark:border-[#1f1f1f] flex items-center justify-between bg-white dark:bg-[#141414] shrink-0 z-10">
+          {/* 1. iOS 16 Frosted Header */}
+          <div className="px-5 py-3.5 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl shrink-0 z-10">
             <div className="flex items-center gap-2.5 min-w-0 pr-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -181,7 +196,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
                 type="button"
                 onClick={handleClose}
                 aria-label="Close drawer"
-                title="Close drawer (ESC)"
+                title="Close drawer"
                 className="p-1.5 rounded-[6px] text-slate-400 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242424] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -201,7 +216,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
 
           {/* 3. Sticky Enterprise Footer */}
           {footer && (
-            <div className="px-5 py-3.5 border-t border-slate-200 dark:border-[#1f1f1f] bg-slate-50/75 dark:bg-[#141414] shrink-0 mt-auto flex items-center justify-between gap-3 z-10">
+            <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-slate-200 dark:border-[#1f1f1f] bg-slate-50/95 dark:bg-[#141414]/95 backdrop-blur-md shrink-0 mt-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 z-10 pb-safe">
               {footer}
             </div>
           )}

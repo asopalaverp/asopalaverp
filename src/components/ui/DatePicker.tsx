@@ -35,6 +35,8 @@ export interface DatePickerProps {
   id?: string;
   'aria-label'?: string;
   allowPastDatesOverride?: boolean; // If true, bypasses cashier today lock for special admin tools
+  size?: 'sm' | 'md' | 'lg';
+  align?: 'left' | 'right';
 }
 
 export const DatePicker: React.FC<DatePickerProps> = ({
@@ -52,6 +54,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   id,
   'aria-label': ariaLabel,
   allowPastDatesOverride = false,
+  size = 'md',
+  align = 'left',
 }) => {
   const { user, can } = useAuthStore();
   const { isBackdatedAllowed } = useOverrideStore();
@@ -232,13 +236,14 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full min-h-[38px] px-3 py-2 rounded-[6px] border flex items-center justify-between gap-2.5 transition-colors cursor-pointer select-none text-xs font-sans',
+          'w-full rounded-[10px] border flex items-center justify-between gap-2 transition-all cursor-pointer select-none text-xs font-sans',
+          size === 'sm' ? 'min-h-[34px] h-[34px] px-2.5 py-1' : size === 'lg' ? 'min-h-[42px] px-3.5 py-2.5' : 'min-h-[38px] px-3 py-2',
           'bg-slate-50/60 dark:bg-[#121212] text-slate-900 dark:text-[#EDEDED]',
           isOpen
-            ? 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-1 ring-[#3ecf8e]/30 shadow-xs'
-            : 'border-slate-200 dark:border-[#262626] hover:border-slate-300 dark:hover:border-[#383838]',
+            ? 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-2 ring-[#3ecf8e]/20 shadow-xs'
+            : 'border-black/[0.08] dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-[#383838]',
           disabled && 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-[#1c1c1c]',
-          error && 'border-rose-500 ring-1 ring-rose-500/30'
+          error && 'border-rose-500 ring-2 ring-rose-500/20'
         )}
         aria-label={ariaLabel || label || 'Date picker'}
         role="button"
@@ -250,7 +255,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           }
         }}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <CalendarIcon className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 shrink-0" />
           {formattedDisplay ? (
             <span className="font-mono font-medium text-xs text-slate-900 dark:text-white tabular-nums truncate">
@@ -272,12 +277,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               className="p-1 rounded-[4px] text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
               title="Clear date"
             >
-              <X className="w-4 h-4 md:w-3.5 md:h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
           <span
             className={cn(
-              'text-[11px] md:text-[10px] font-mono font-medium px-2 md:px-1.5 py-0.5 md:py-0.2 rounded-[4px] border',
+              'text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-[4px] border',
               isCashierLockedToToday
                 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 flex items-center gap-1'
                 : 'bg-slate-100 dark:bg-[#222222] text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-[#2e2e2e]'
@@ -291,14 +296,17 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
       {/* Calendar Dropdown Popover */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 w-[300px] sm:w-[320px] rounded-[12px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-100 font-sans">
+        <div className={cn(
+          "absolute top-full mt-1.5 z-50 w-[300px] sm:w-[320px] rounded-[16px] bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-100 font-sans",
+          align === 'right' ? 'right-0 left-auto' : 'left-0'
+        )}>
           {/* Header Note for Cashiers */}
           {isCashierLockedToToday && (
             <div className="mb-2.5 p-2 rounded-[6px] bg-amber-500/10 border border-amber-500/20 flex items-start gap-2 text-left">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="text-[10px] text-amber-800 dark:text-amber-300 leading-tight">
                 <span className="font-semibold block font-mono">CASHIER DATE LOCK ACTIVE</span>
-                Only today's date ({format(today, 'dd-MMM-yyyy')}) can be selected. Super Admin can enable past-date entries in F12.
+                Only today's date ({format(today, 'dd-MMM-yyyy')}) can be selected. Super Admin can enable past-date entries in Profile & Security.
               </div>
             </div>
           )}

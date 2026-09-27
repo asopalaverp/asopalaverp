@@ -32,13 +32,14 @@ import { cn } from '@/lib/utils';
 
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 
 export const VoucherDetailDrawer: React.FC = () => {
   const { activeDrawerVoucher, closeDrawer, openLightbox } = useUIStore();
   const { user, can } = useAuthStore();
   const { isCashierVoidAllowed } = useOverrideStore();
 
-  const [activeTab, setActiveTab] = useState<'details' | 'thermal_slip' | 'developer'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'thermal_slip'>('details');
   const [activeAction, setActiveAction] = useState<'none' | 'void' | 'delete'>('none');
   const [actionReason, setActionReason] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
@@ -143,16 +144,6 @@ export const VoucherDetailDrawer: React.FC = () => {
     });
   };
 
-  const sqlInsertString = `INSERT INTO expense_vouchers (
-  id, voucher_number, branch_id, branch_code, payment_date, payment_method,
-  total_amount, recipient_name, category_name, department_name,
-  remarks, bill_number, created_by_name, status, created_at
-) VALUES (
-  '${v.id}', '${v.voucher_number}', '${v.branch_id}', '${v.branch_code}', '${v.payment_date}', '${v.payment_method}',
-  ${v.total_amount}, '${v.recipient_name.replace(/'/g, "''")}', '${v.category_name}', ${v.department_name ? `'${v.department_name}'` : 'NULL'},
-  ${v.remarks ? `'${v.remarks.replace(/'/g, "''")}'` : 'NULL'}, ${v.bill_number ? `'${v.bill_number}'` : 'NULL'}, '${v.created_by_name}', '${v.status}', '${v.created_at}'
-);`;
-
   const statusBadge = (
     <span
       className={cn(
@@ -225,46 +216,17 @@ export const VoucherDetailDrawer: React.FC = () => {
       footer={drawerFooter}
     >
       <div className="max-w-4xl mx-auto w-full space-y-4 text-xs font-sans">
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 p-0.5 rounded-[6px] bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e]">
-          <button
-            type="button"
-            onClick={() => setActiveTab('details')}
-            className={cn(
-              'flex-1 py-1.5 px-3 rounded-[4px] text-xs font-sans transition-colors cursor-pointer min-h-[30px]',
-              activeTab === 'details'
-                ? 'bg-white dark:bg-[#202020] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#2e2e2e]'
-                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-            )}
-          >
-            Bill Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('thermal_slip')}
-            className={cn(
-              'flex-1 py-1.5 px-3 rounded-[4px] text-xs font-sans transition-colors cursor-pointer min-h-[30px]',
-              activeTab === 'thermal_slip'
-                ? 'bg-white dark:bg-[#202020] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#2e2e2e]'
-                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-            )}
-          >
-            Print Slip (80mm)
-          </button>
-          {isDeveloper && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('developer')}
-              className={cn(
-                'flex-1 py-1.5 px-3 rounded-[4px] text-xs font-sans transition-colors cursor-pointer min-h-[30px]',
-                activeTab === 'developer'
-                  ? 'bg-white dark:bg-[#202020] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#2e2e2e]'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-              )}
-            >
-              Code Data
-            </button>
-          )}
+        {/* Navigation Tabs (iOS Segmented Control) */}
+        <div className="w-full">
+          <IOSSegmentedControl
+            options={[
+              { id: 'details', label: 'Bill Details' },
+              { id: 'thermal_slip', label: 'Print Slip (80mm)' },
+            ]}
+            value={activeTab}
+            onChange={(val) => setActiveTab(val as 'details' | 'thermal_slip')}
+            size="sm"
+          />
         </div>
 
         {/* Tab 1: Voucher Details */}
@@ -540,53 +502,6 @@ export const VoucherDetailDrawer: React.FC = () => {
             </div>
             <div className="max-w-xs mx-auto">
               <ThermalReceiptSlip voucher={v} />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Developer Enterprise (SQL / JSON) */}
-        {activeTab === 'developer' && (
-          <div className="space-y-4 font-sans">
-            {/* SQL Insert Preview */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <FileCode className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                  <span>PostgreSQL Insert Query</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(sqlInsertString, 'sql')}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono cursor-pointer"
-                >
-                  {copiedCode === 'sql' ? <Check className="w-3 h-3 text-[#3ecf8e] stroke-[2.5]" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedCode === 'sql' ? 'COPIED' : 'COPY SQL'}</span>
-                </button>
-              </div>
-              <pre className="p-3 rounded-[8px] bg-slate-100 dark:bg-[#121212] border border-slate-200 dark:border-[#2e2e2e] font-mono text-[11px] text-slate-800 dark:text-zinc-200 overflow-x-auto whitespace-pre-wrap leading-relaxed select-text">
-                {sqlInsertString}
-              </pre>
-            </div>
-
-            {/* JSON Object */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  <Code2 className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Raw Record JSON Object</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(JSON.stringify(v, null, 2), 'json')}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono cursor-pointer"
-                >
-                  {copiedCode === 'json' ? <Check className="w-3 h-3 text-[#3ecf8e] stroke-[2.5]" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedCode === 'json' ? 'COPIED' : 'COPY JSON'}</span>
-                </button>
-              </div>
-              <pre className="p-3 rounded-[8px] bg-slate-100 dark:bg-[#121212] border border-slate-200 dark:border-[#2e2e2e] font-mono text-[11px] text-emerald-600 dark:text-[#3ecf8e] overflow-x-auto select-text leading-relaxed">
-                {JSON.stringify(v, null, 2)}
-              </pre>
             </div>
           </div>
         )}

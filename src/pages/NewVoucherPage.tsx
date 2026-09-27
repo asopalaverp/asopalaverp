@@ -11,7 +11,9 @@ import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
 import { BillUploader } from '@/components/vouchers/BillUploader';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import { QuickFloatDrawer } from '@/components/vouchers/QuickFloatDrawer';
+import { MultiBillBatchModal } from '@/components/vouchers/MultiBillBatchModal';
 import { cn, formatINR, numberToWordsINR, printThermalVoucherSlip, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
@@ -38,7 +40,6 @@ import {
   ShieldAlert,
   Store,
   Truck,
-  Layers,
   HelpCircle,
   X,
   CreditCard,
@@ -48,31 +49,6 @@ import {
 
 // Fast Amount Increment Chips
 const AMOUNT_INCREMENTS = [50, 100, 500, 1000];
-
-interface VoucherDraft {
-  id: string;
-  label: string;
-  mode: VoucherMode;
-  isMultiVendor?: boolean;
-  selectedBranch: string;
-  paymentDate: string;
-  voucherDigits: string;
-  categoryName: string;
-  departmentName: string;
-  recipientName: string;
-  requestedByStaffCode?: string;
-  requestedByStaffName?: string;
-  billNumber: string;
-  amount: number | '';
-  splits: SplitItem[];
-  vendorSplits?: VendorSplitItem[];
-  courierCompany: string;
-  trackingNumber: string;
-  paymentMethod: 'Physical_Cash' | 'Online_UPI';
-  remarks: string;
-  photoUrls: string[];
-  updatedAt: number;
-}
 
 export const NewVoucherPage: React.FC = () => {
   const { setActivePage } = useUIStore();
@@ -216,289 +192,12 @@ export const NewVoucherPage: React.FC = () => {
   const formRef = useRef<HTMLFormElement | null>(null);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Quick Float (F6) Slide-Over Drawer State
+  // Quick Float Slide-Over Drawer State
   const [isQuickFloatOpen, setIsQuickFloatOpen] = useState<boolean>(false);
-
-  // Multi-Draft Workstation Tabs State
-  const [drafts, setDrafts] = useState<VoucherDraft[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('asopalav_pos_drafts_v1');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return [
-      {
-        id: 'draft-1',
-        label: 'Draft #1',
-        mode: 'Shop_Vendor',
-        isMultiVendor: false,
-        selectedBranch: selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : activeBranch.branch_id || 'Aellp-ASI',
-        paymentDate: format(new Date(), 'yyyy-MM-dd'),
-        voucherDigits: '',
-        categoryName: '',
-        departmentName: '',
-        recipientName: '',
-        requestedByStaffCode: '',
-        requestedByStaffName: '',
-        billNumber: '',
-        amount: '',
-        splits: [
-          {
-            staffCode: '',
-            staffName: '',
-            departmentName: '',
-            categoryName: '',
-            amount: 0,
-          },
-        ],
-        vendorSplits: [
-          {
-            vendor_name: '',
-            category_name: '',
-            department_name: '',
-            bill_number: '',
-            description: '',
-            amount: 0,
-          },
-        ],
-        courierCompany: '',
-        trackingNumber: '',
-        paymentMethod: 'Online_UPI',
-        remarks: '',
-        photoUrls: [],
-        updatedAt: Date.now(),
-      },
-    ];
-  });
-  const [activeDraftId, setActiveDraftId] = useState<string>(() => drafts[0]?.id || 'draft-1');
-
-  // Auto-save active draft into drafts state and localStorage
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    setDrafts((prev) => {
-      const updated = prev.map((d) => {
-        if (d.id === activeDraftId) {
-          return {
-            ...d,
-            mode,
-            isMultiVendor,
-            selectedBranch,
-            paymentDate,
-            voucherDigits,
-            categoryName,
-            departmentName,
-            recipientName,
-            requestedByStaffCode,
-            requestedByStaffName,
-            billNumber,
-            amount,
-            splits,
-            vendorSplits,
-            courierCompany,
-            trackingNumber,
-            paymentMethod,
-            remarks,
-            photoUrls,
-            updatedAt: Date.now(),
-          };
-        }
-        return d;
-      });
-      try {
-        localStorage.setItem('asopalav_pos_drafts_v1', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  }, [
-    activeDraftId,
-    mode,
-    isMultiVendor,
-    selectedBranch,
-    paymentDate,
-    voucherDigits,
-    categoryName,
-    departmentName,
-    recipientName,
-    requestedByStaffCode,
-    requestedByStaffName,
-    billNumber,
-    amount,
-    splits,
-    vendorSplits,
-    courierCompany,
-    trackingNumber,
-    paymentMethod,
-    remarks,
-    photoUrls,
-  ]);
-
-  // Draft Switching Handlers
-  const handleSwitchDraft = (targetId: string) => {
-    if (targetId === activeDraftId) return;
-    triggerHaptic('selection');
-    const target = drafts.find((d) => d.id === targetId);
-    if (target) {
-      setMode(target.mode);
-      setIsMultiVendor(Boolean(target.isMultiVendor));
-      setSelectedBranch(target.selectedBranch || activeBranch.branch_id || 'Aellp-ASI');
-      setPaymentDate(target.paymentDate || format(new Date(), 'yyyy-MM-dd'));
-      setVoucherDigits(target.voucherDigits || '');
-      setCategoryName(target.categoryName || '');
-      setDepartmentName(target.departmentName || '');
-      setRecipientName(target.recipientName || '');
-      setRequestedByStaffCode(target.requestedByStaffCode || '');
-      setRequestedByStaffName(target.requestedByStaffName || '');
-      setBillNumber(target.billNumber || '');
-      setAmount(target.amount ?? '');
-      setSplits(
-        target.splits && target.splits.length > 0
-          ? target.splits
-          : [
-              {
-                staffCode: '',
-                staffName: '',
-                departmentName: '',
-                categoryName: '',
-                amount: 0,
-              },
-            ]
-      );
-      setVendorSplits(
-        target.vendorSplits && target.vendorSplits.length > 0
-          ? target.vendorSplits
-          : [
-              {
-                vendor_name: '',
-                category_name: '',
-                department_name: '',
-                bill_number: '',
-                description: '',
-                amount: 0,
-              },
-            ]
-      );
-      setCourierCompany(target.courierCompany || '');
-      setTrackingNumber(target.trackingNumber || '');
-      setPaymentMethod(target.paymentMethod || 'Physical_Cash');
-      setRemarks(target.remarks || '');
-      setPhotoUrls(target.photoUrls || []);
-      setError(null);
-      setActiveDraftId(targetId);
-    }
-  };
-
-  const handleCreateNewDraft = () => {
-    triggerHaptic('selection');
-    const newId = `draft-${Date.now()}`;
-    const newDraft: VoucherDraft = {
-      id: newId,
-      label: `Draft #${drafts.length + 1}`,
-      mode: 'Shop_Vendor',
-      isMultiVendor: false,
-      selectedBranch: selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : activeBranch.branch_id || 'Aellp-ASI',
-      paymentDate: format(new Date(), 'yyyy-MM-dd'),
-      voucherDigits: '',
-      categoryName: '',
-      departmentName: '',
-      recipientName: '',
-      billNumber: '',
-      amount: '',
-      splits: [
-        {
-          staffCode: '',
-          staffName: '',
-          departmentName: '',
-          categoryName: '',
-          amount: 0,
-        },
-      ],
-      vendorSplits: [
-        {
-          vendor_name: '',
-          category_name: '',
-          department_name: '',
-          bill_number: '',
-          description: '',
-          amount: 0,
-        },
-      ],
-      courierCompany: '',
-      trackingNumber: '',
-      paymentMethod: 'Online_UPI',
-      remarks: '',
-      photoUrls: [],
-      updatedAt: Date.now(),
-    };
-
-    setDrafts((prev) => {
-      const next = [...prev, newDraft];
-      try {
-        localStorage.setItem('asopalav_pos_drafts_v1', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-
-    setMode(newDraft.mode);
-    setSelectedBranch(newDraft.selectedBranch);
-    setPaymentDate(newDraft.paymentDate);
-    setVoucherDigits('');
-    setCategoryName(newDraft.categoryName);
-    setDepartmentName(newDraft.departmentName);
-    setRecipientName('');
-    setBillNumber('');
-    setAmount('');
-    setSplits(newDraft.splits);
-    setCourierCompany('');
-    setTrackingNumber('');
-    setPaymentMethod('Online_UPI');
-    setRemarks('');
-    setPhotoUrls([]);
-    setError(null);
-    setActiveDraftId(newId);
-
-    showToast({
-      type: 'info',
-      title: 'New Voucher Tab Opened',
-      message: `Workstation tab #${drafts.length + 1} ready.`,
-    });
-  };
-
-  const handleCloseDraft = (draftId: string) => {
-    if (drafts.length <= 1) return;
-    triggerHaptic('light');
-    const filtered = drafts.filter((d) => d.id !== draftId);
-    setDrafts(filtered);
-    try {
-      localStorage.setItem('asopalav_pos_drafts_v1', JSON.stringify(filtered));
-    } catch {}
-
-    if (activeDraftId === draftId) {
-      const nextActive = filtered[0];
-      if (nextActive) {
-        handleSwitchDraft(nextActive.id);
-      }
-    }
-  };
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
 
   // Listen to Global Counter Custom Events
   useEffect(() => {
-    const handleApplyAmount = (e: Event) => {
-      const custom = e as CustomEvent<{ amount: number }>;
-      if (custom.detail?.amount) {
-        setAmount(custom.detail.amount);
-        if (amountInputRef.current) {
-          amountInputRef.current.focus();
-        }
-      }
-    };
     const handleSetMode = (e: Event) => {
       const custom = e as CustomEvent<VoucherMode>;
       if (custom.detail) {
@@ -512,13 +211,11 @@ export const NewVoucherPage: React.FC = () => {
       setIsQuickFloatOpen(true);
     };
 
-    window.addEventListener('asopalav:apply-voucher-amount', handleApplyAmount);
     window.addEventListener('asopalav:set-voucher-mode', handleSetMode);
     window.addEventListener('asopalav:trigger-disburse-f2', handleTriggerDisburse);
     window.addEventListener('asopalav:open-quick-float', handleOpenFloat);
 
     return () => {
-      window.removeEventListener('asopalav:apply-voucher-amount', handleApplyAmount);
       window.removeEventListener('asopalav:set-voucher-mode', handleSetMode);
       window.removeEventListener('asopalav:trigger-disburse-f2', handleTriggerDisburse);
       window.removeEventListener('asopalav:open-quick-float', handleOpenFloat);
@@ -723,7 +420,7 @@ export const NewVoucherPage: React.FC = () => {
         paymentMethod === 'Physical_Cash' ? 'Cash Drawer Till' : 'Bank UPI'
       } balance (${formatINR(availableBalance)} available, ${formatINR(
         finalCalculatedAmount
-      )} required). Press F6 to inject cash float from safe.`;
+      )} required). Use Quick Float to inject cash float from safe.`;
       setError(msg);
       showToast({
         type: 'error',
@@ -1061,17 +758,17 @@ export const NewVoucherPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-20 select-none flex flex-col">
       {/* 1. Add Expense Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414] px-4 lg:px-6 py-4">
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl px-4 lg:px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Add Expense</span>
               </h1>
             </div>
-            <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-[#8e8e93] font-sans mt-0.5">
               Record daily shop expenses, staff food, and courier bills.
             </p>
           </div>
@@ -1079,13 +776,13 @@ export const NewVoucherPage: React.FC = () => {
           {/* Right Layer: Live Balances & Actions */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <div className="flex items-center gap-1.5 font-mono text-xs">
-              <div className="h-8.5 px-2.5 flex items-center rounded-[6px] bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] shadow-xs">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] mr-1.5 font-sans">Cash:</span>
-                <span className="font-medium text-[#3ecf8e] tabular-nums">{formatINR(cashBalance)}</span>
+              <div className="h-9 px-3 flex items-center rounded-[10px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] shadow-xs">
+                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] mr-1.5 font-sans font-medium">Cash:</span>
+                <span className="font-bold text-[#3ecf8e] tabular-nums">{formatINR(cashBalance)}</span>
               </div>
-              <div className="h-8.5 px-2.5 flex items-center rounded-[6px] bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] shadow-xs">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] mr-1.5 font-sans">UPI:</span>
-                <span className="font-medium text-sky-500 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
+              <div className="h-9 px-3 flex items-center rounded-[10px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] shadow-xs">
+                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] mr-1.5 font-sans font-medium">UPI:</span>
+                <span className="font-bold text-sky-500 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
               </div>
             </div>
 
@@ -1095,7 +792,7 @@ export const NewVoucherPage: React.FC = () => {
                 triggerHaptic('selection');
                 setIsQuickFloatOpen(true);
               }}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-9 px-3.5 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
             >
               <Plus className="w-3.5 h-3.5 text-[#3ecf8e]" />
               <span>Add Cash</span>
@@ -1104,75 +801,12 @@ export const NewVoucherPage: React.FC = () => {
             <button
               type="button"
               onClick={handleResetForm}
-              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-xs"
+              className="h-9 w-9 flex items-center justify-center rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer shadow-xs ios-press"
               title="Clear Form"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* 1.5 Multi-Draft Workstation Tabs Strip (Hold Bills) */}
-      <div className="border-b border-slate-200 dark:border-[#1f1f1f] bg-slate-50/60 dark:bg-[#161616] px-4 lg:px-6 py-1.5 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[11px] font-mono font-medium text-slate-400 dark:text-[#707070] mr-1 flex items-center gap-1 shrink-0">
-            <Layers className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Bills:</span>
-          </span>
-          {drafts.map((draft, idx) => {
-            const isActive = draft.id === activeDraftId;
-            const draftTitle = draft.recipientName
-              ? `${draft.recipientName} (${draft.amount ? `₹${draft.amount}` : '₹0'})`
-              : draft.mode === 'Staff_Split'
-              ? `Staff Split (${draft.amount ? `₹${draft.amount}` : '₹0'})`
-              : draft.mode === 'Courier'
-              ? `Courier (${draft.courierCompany || 'Pending'})`
-              : `Draft #${idx + 1}`;
-
-            return (
-              <div
-                key={draft.id}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-sans transition-all cursor-pointer select-none shrink-0 group border',
-                  isActive
-                    ? 'bg-white dark:bg-[#202020] text-slate-900 dark:text-white border-slate-300 dark:border-[#383838] shadow-2xs font-medium'
-                    : 'bg-transparent text-slate-500 dark:text-[#888] border-transparent hover:bg-slate-200/60 dark:hover:bg-[#1a1a1a] hover:text-slate-800 dark:hover:text-[#ccc]'
-                )}
-                onClick={() => handleSwitchDraft(draft.id)}
-              >
-                <span className="truncate max-w-[130px] font-mono text-[11px]">{draftTitle}</span>
-                {drafts.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCloseDraft(draft.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-300 dark:hover:bg-[#333] text-slate-400 hover:text-rose-500 transition-opacity ml-0.5"
-                    title="Close Draft"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={handleCreateNewDraft}
-            className="flex items-center gap-1 px-2 py-1 rounded-[6px] text-[11px] font-medium text-slate-600 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-[#1f1f1f] border border-dashed border-slate-300 dark:border-[#333] transition-colors cursor-pointer shrink-0"
-            title="Open new empty bill (Hold current draft)"
-          >
-            <Plus className="w-3 h-3" />
-            <span>New Bill</span>
-          </button>
-        </div>
-
-        {/* Right Status Hint */}
-        <div className="hidden md:flex items-center gap-2 shrink-0 text-[11px] font-mono text-slate-400 dark:text-[#666]">
-          <span>Auto-Saved</span>
         </div>
       </div>
 
@@ -1182,7 +816,7 @@ export const NewVoucherPage: React.FC = () => {
         {error && (
           <div
             ref={errorBannerRef}
-            className="p-3.5 rounded-[12px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs"
+            className="p-3.5 rounded-[14px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs"
           >
             <div className="flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
@@ -1196,7 +830,7 @@ export const NewVoucherPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsQuickFloatOpen(true)}
-                className="px-3 py-1.5 rounded-[6px] border border-emerald-600/30 dark:border-[#3ecf8e]/30 bg-emerald-100/80 dark:bg-[#3ecf8e]/10 hover:bg-emerald-200 dark:hover:bg-[#3ecf8e]/20 text-emerald-900 dark:text-[#3ecf8e] font-sans font-medium flex items-center gap-1 text-xs cursor-pointer transition-colors shadow-2xs"
+                className="px-3.5 py-1.5 rounded-[8px] border border-emerald-600/30 dark:border-[#3ecf8e]/30 bg-emerald-100/80 dark:bg-[#3ecf8e]/10 hover:bg-emerald-200 dark:hover:bg-[#3ecf8e]/20 text-emerald-900 dark:text-[#3ecf8e] font-sans font-semibold flex items-center gap-1 text-xs cursor-pointer transition-all shadow-2xs ios-press"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Cash</span>
@@ -1207,7 +841,7 @@ export const NewVoucherPage: React.FC = () => {
 
         {/* Section 40A(3) Compliance Alert */}
         {sec40A3Check.exceeded && (
-          <div className="p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs">
+          <div className="p-3.5 rounded-[14px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs">
             <div className="flex items-start gap-2.5">
               <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -1222,7 +856,7 @@ export const NewVoucherPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setPaymentMethod('Online_UPI')}
-              className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-800 dark:text-white border border-slate-300 dark:border-[#2e2e2e] font-medium text-xs shrink-0 cursor-pointer shadow-xs transition-colors"
+              className="px-3.5 py-1.5 rounded-[8px] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-800 dark:text-white border border-slate-300 dark:border-[#2e2e2e] font-semibold text-xs shrink-0 cursor-pointer shadow-xs transition-all ios-press"
             >
               Pay via Bank UPI
             </button>
@@ -1230,66 +864,23 @@ export const NewVoucherPage: React.FC = () => {
         )}
 
         {/* Main Full-Width Single-Page Responsive Form Body */}
-        <form ref={formRef} onSubmit={handleSubmit} className="w-full space-y-3.5">
+        <form ref={formRef} onSubmit={handleSubmit} className="w-full space-y-4">
           {/* 1. COMPACT MODE SELECTION TABS (Shop Expense / Staff Expense / Courier) */}
-          <div className="flex items-center p-1 rounded-[10px] bg-slate-100 dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#282828] gap-1 shadow-xs">
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('selection');
-                setMode('Shop_Vendor');
-              }}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-[8px] text-xs font-semibold font-sans transition-all cursor-pointer select-none min-h-[38px]',
-                mode === 'Shop_Vendor'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-[#222222]'
-              )}
-            >
-              <Store className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>Shop Expense</span>
-              <kbd className="hidden sm:inline text-[9px] font-mono opacity-60 font-normal">Alt+1</kbd>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('selection');
-                setMode('Staff_Split');
-              }}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-[8px] text-xs font-semibold font-sans transition-all cursor-pointer select-none min-h-[38px]',
-                mode === 'Staff_Split'
-                  ? 'bg-white dark:bg-[#282828] text-emerald-600 dark:text-[#3ecf8e] shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-[#222222]'
-              )}
-            >
-              <Users className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>Staff Expense</span>
-              <kbd className="hidden sm:inline text-[9px] font-mono opacity-60 font-normal">Alt+2</kbd>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('selection');
-                setMode('Courier');
-              }}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-[8px] text-xs font-semibold font-sans transition-all cursor-pointer select-none min-h-[38px]',
-                mode === 'Courier'
-                  ? 'bg-white dark:bg-[#282828] text-amber-600 dark:text-amber-400 shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-[#222222]'
-              )}
-            >
-              <Truck className="w-4 h-4 shrink-0 stroke-[2]" />
-              <span>Courier & Parcel</span>
-              <kbd className="hidden sm:inline text-[9px] font-mono opacity-60 font-normal">Alt+3</kbd>
-            </button>
+          <div className="w-full">
+            <IOSSegmentedControl
+              options={[
+                { id: 'Shop_Vendor', label: 'Shop Expense', icon: <Store className="w-4 h-4 shrink-0" /> },
+                { id: 'Staff_Split', label: 'Staff Expense', icon: <Users className="w-4 h-4 shrink-0" /> },
+                { id: 'Courier', label: 'Courier & Parcel', icon: <Truck className="w-4 h-4 shrink-0" /> },
+              ]}
+              value={mode}
+              onChange={(val) => setMode(val as VoucherMode)}
+              size="md"
+            />
           </div>
 
           {/* CARD 1: TRANSACTION & BASIC INFO (Showroom, Date, Voucher #, Amount, Payment Method) */}
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] shadow-xs space-y-3.5">
+          <div className="p-4 sm:p-5 rounded-[16px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 shadow-xs space-y-4 ios-card">
             {/* Top Sub-Row: Showroom, Date, Bill Number */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Showroom / Branch */}
@@ -1332,7 +923,7 @@ export const NewVoucherPage: React.FC = () => {
                       {allowBackdated ? (
                         <>
                           <Zap className="w-2.5 h-2.5 text-[#3ecf8e]" />
-                          <span>F12 Backdate Mode</span>
+                          <span>Backdate Mode</span>
                         </>
                       ) : isBackdateRestricted ? (
                         <>
@@ -1863,7 +1454,7 @@ export const NewVoucherPage: React.FC = () => {
                       : 'Insufficient Cash: Add Cash First'
                     : isInsufficientBalance && allowNegative
                     ? 'Save & Pay (Overdraft Override)'
-                    : 'Save & Pay Expense (F2)'}
+                    : 'Save & Pay Expense'}
                 </span>
               </button>
             </div>
@@ -1875,6 +1466,20 @@ export const NewVoucherPage: React.FC = () => {
           isOpen={isQuickFloatOpen}
           onClose={() => setIsQuickFloatOpen(false)}
           branchId={selectedBranch}
+          currentCashBalance={cashBalance}
+          currentUpiBalance={upiBalance}
+          onSuccess={() => {
+            loadBalances();
+            refresh();
+          }}
+        />
+
+        {/* HIGH-SPEED MULTI-BILL BATCH ENTRY MODAL (ALT+B / RUSH MODE) */}
+        <MultiBillBatchModal
+          isOpen={isBatchModalOpen}
+          onClose={() => setIsBatchModalOpen(false)}
+          categories={categories}
+          departments={departments}
           currentCashBalance={cashBalance}
           currentUpiBalance={upiBalance}
           onSuccess={() => {

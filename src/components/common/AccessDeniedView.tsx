@@ -70,7 +70,7 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
             className="w-full min-h-[40px] px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium font-sans text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer shadow-xs"
           >
             <Home className="w-3.5 h-3.5" />
-            <span>Return to Dashboard (F1)</span>
+            <span>Return to Dashboard</span>
           </button>
         </div>
       </div>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Store, Users, Package, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Kbd } from '@/components/ui/Kbd';
 
 export type VoucherMode = 'Shop_Vendor' | 'Staff_Split' | 'Courier';
 
@@ -17,21 +16,18 @@ export const VoucherModeCards: React.FC<VoucherModeCardsProps> = ({ activeMode, 
       title: 'Showroom & Vendor Spends',
       description: 'Alterations, Bridal Silk Care, Tailor & Store Spends',
       icon: Store,
-      shortcut: 'Alt+1',
     },
     {
       id: 'Staff_Split' as VoucherMode,
       title: 'Staff Floor Meals & Tea',
       description: 'Showroom Floor Staff Evening Tea & Lunch Splits',
       icon: Users,
-      shortcut: 'Alt+2',
     },
     {
       id: 'Courier' as VoucherMode,
       title: 'Courier & Saree Dispatch',
       description: 'Maruti, DTDC, Bride Outstation Saree Courier',
       icon: Package,
-      shortcut: 'Alt+3',
     },
   ];
 

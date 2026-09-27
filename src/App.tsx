@@ -3,6 +3,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore, PageId } from '@/store/uiStore';
 import { useBrandStore } from '@/store/brandStore';
+import { usePrintConfigStore } from '@/store/printConfigStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { RolePermissions } from '@/types/database';
 import { useHotkeys } from '@/hooks/useHotkeys';
 
@@ -184,7 +186,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     // Purge any stale mock cache keys from browser localStorage
     if (typeof window !== 'undefined') {
-      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v3';
+      try {
+        localStorage.removeItem('asopalav_pos_drafts_v1');
+      } catch {}
+      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v4';
       if (!localStorage.getItem(FRESH_SLATE_KEY)) {
         const keysToPurge: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -197,6 +202,7 @@ export const App: React.FC = () => {
               k.startsWith('asopalav_ledger') ||
               k.startsWith('asopalav_audit') ||
               k.startsWith('asopalav-notifications') ||
+              k.startsWith('asopalav_pos_drafts') ||
               k.startsWith('asopalav_bulk_draft'))
           ) {
             keysToPurge.push(k);
@@ -208,6 +214,9 @@ export const App: React.FC = () => {
     }
 
     useBrandStore.getState().applyBrandToDocument();
+    useBrandStore.getState().fetchBrandSettings();
+    usePrintConfigStore.getState().fetchCloudPrintConfig();
+    useNotificationStore.getState().fetchCloudNotifications();
     fetchBranchesAndWallets(true);
     const cleanupRealtime = initRealtimeSync();
     prefetchCoreRoutes();
@@ -443,8 +452,8 @@ export const App: React.FC = () => {
           >
             {!isLocked && (
               <PageTransition pageKey={activePage}>
-                <AppErrorBoundary>
-                  <Suspense fallback={<PageLoadingSkeleton />}>
+                <AppErrorBoundary key={activePage}>
+                  <Suspense key={activePage} fallback={<PageLoadingSkeleton />}>
                     {renderActivePage()}
                   </Suspense>
                 </AppErrorBoundary>

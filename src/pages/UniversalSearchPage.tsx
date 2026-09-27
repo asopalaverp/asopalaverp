@@ -7,6 +7,7 @@ import { searchEngine, SearchResultItem, SearchCategory, SearchFilterOptions, Se
 import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import {
   Search,
   Receipt,
@@ -389,23 +390,23 @@ export const UniversalSearchPage: React.FC = () => {
   const selectedItem = searchData.results[selectedIndex] || null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
-      {/* 1. Universal Search Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414] px-4 lg:px-6 py-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0d0d0e] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
+      {/* 1. iOS 16 Frosted Header */}
+      <div className="sticky top-0 z-30 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80 px-4 lg:px-6 py-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-[1600px] mx-auto w-full">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] flex items-center gap-2">
                 <Search className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Search Everything</span>
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e]">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
                 Live Index
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
-              Search across all expense bills, staff advances, cash box, staff members, and shop settings.
+            <p className="text-xs text-slate-500 dark:text-[#8E8E93] mt-0.5">
+              Search across all expense bills, staff advances, cash till float, team members, and settings.
             </p>
           </div>
 
@@ -414,7 +415,7 @@ export const UniversalSearchPage: React.FC = () => {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-9 px-3.5 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#1C1C1E]/80 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-semibold flex items-center gap-1.5 shadow-xs ios-press transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export CSV</span>
@@ -423,7 +424,7 @@ export const UniversalSearchPage: React.FC = () => {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-9 px-3.5 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#1C1C1E]/80 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-semibold flex items-center gap-1.5 shadow-xs ios-press transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Reset</span>
@@ -433,20 +434,20 @@ export const UniversalSearchPage: React.FC = () => {
       </div>
 
       {/* Main Content Workspace Canvas */}
-      <div className="max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6 space-y-6 flex-1 flex flex-col">
+      <div className="max-w-[1600px] w-full mx-auto px-4 lg:px-6 py-6 space-y-5 flex-1 flex flex-col">
         {/* 2. Omnibar Search Control & Syntax Helper */}
         <div className="relative space-y-2">
           <div className="relative flex items-center">
-            <Search className="absolute left-4 w-5 h-5 text-slate-400 dark:text-zinc-500 pointer-events-none" />
+            <Search className="absolute left-4 w-5 h-5 text-slate-400 dark:text-[#707070] pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by bill number, person name, staff, amount, or shop branch..."
-              className="w-full pl-12 pr-28 py-3.5 bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#282828] rounded-[10px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] shadow-sm font-sans transition-all"
+              className="w-full pl-12 pr-28 py-3.5 bg-white/80 dark:bg-[#1C1C1E]/80 border border-slate-200/80 dark:border-white/10 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 shadow-xs font-sans transition-all"
             />
-            <div className="absolute right-3 flex items-center gap-1.5">
+            <div className="absolute right-3.5 flex items-center gap-1.5">
               {query && (
                 <button
                   type="button"
@@ -454,7 +455,7 @@ export const UniversalSearchPage: React.FC = () => {
                     setQuery('');
                     searchInputRef.current?.focus();
                   }}
-                  className="p-1 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-400 dark:text-zinc-400 transition-colors cursor-pointer"
+                  className="p-1 rounded-[6px] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-[#707070] transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -463,13 +464,13 @@ export const UniversalSearchPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowSyntaxHelp(!showSyntaxHelp)}
                 className={cn(
-                  'px-2 py-1 rounded-[5px] text-[11px] font-mono border transition-all cursor-pointer flex items-center gap-1',
+                  'px-2.5 py-1 rounded-[8px] text-[11px] font-mono border transition-all cursor-pointer flex items-center gap-1 ios-press',
                   showSyntaxHelp
                     ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30'
-                    : 'bg-slate-100 dark:bg-[#202020] text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-[#2a2a2a] hover:border-slate-300'
+                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-[#A1A1A1] border-slate-200/80 dark:border-white/10 hover:border-slate-300'
                 )}
               >
-                <Info className="w-3 h-3" />
+                <Info className="w-3.5 h-3.5" />
                 <span>Filters</span>
               </button>
             </div>
@@ -477,13 +478,13 @@ export const UniversalSearchPage: React.FC = () => {
 
           {/* Syntax Help Popover Drawer */}
           {showSyntaxHelp && (
-            <div className="p-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#282828] rounded-[8px] text-xs font-sans space-y-2 animate-in fade-in slide-in-from-top-2 duration-150 shadow-md">
+            <div className="p-4 ios-card rounded-[14px] text-xs font-sans space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-150 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                <span className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e]" />
                   Advanced Filter Syntax Quick-Insert
                 </span>
-                <span className="text-[11px] text-slate-500 dark:text-zinc-400">Click any chip to append to search</span>
+                <span className="text-[11px] text-slate-500 dark:text-[#8E8E93]">Click any chip to append to search</span>
               </div>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {[
@@ -501,7 +502,7 @@ export const UniversalSearchPage: React.FC = () => {
                     key={chip.text}
                     type="button"
                     onClick={() => insertSyntax(chip.text)}
-                    className="px-2 py-1 bg-white dark:bg-[#222222] hover:bg-slate-100 dark:hover:bg-[#2a2a2a] border border-slate-200 dark:border-[#333333] rounded-[5px] text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200/60 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 rounded-[8px] text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer ios-press"
                   >
                     + {chip.label}
                   </button>
@@ -511,8 +512,8 @@ export const UniversalSearchPage: React.FC = () => {
           )}
         </div>
 
-        {/* 3. 2x3 Diagnostic Matrix / Metric Fragments */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        {/* 3. Telemetry Matrix Fragments */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
           <MetricCard
             label="Total Matches"
             value={searchData.total.toLocaleString()}
@@ -539,52 +540,27 @@ export const UniversalSearchPage: React.FC = () => {
           />
         </div>
 
-        {/* 4. Multi-Faceted Filter Bar (Category Chips, Branch, Dates, Amounts, Sorting) */}
-        <div className="bg-slate-50/70 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[10px] p-3 space-y-3">
-          {/* Top Row: Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: 'all' as SearchCategory, label: 'All Records', count: searchData.categoryCounts.all, icon: Sparkles },
-              { id: 'vouchers' as SearchCategory, label: 'Expense Vouchers', count: searchData.categoryCounts.vouchers, icon: Receipt },
-              { id: 'advances' as SearchCategory, label: 'Staff Advances & IOUs', count: searchData.categoryCounts.advances, icon: HandCoins },
-              { id: 'staff' as SearchCategory, label: 'Staff & Cashiers', count: searchData.categoryCounts.staff, icon: Users },
-              { id: 'master' as SearchCategory, label: 'Master Data', count: searchData.categoryCounts.master, icon: Sliders },
-              { id: 'actions' as SearchCategory, label: 'Actions', count: searchData.categoryCounts.actions, icon: SlidersHorizontal },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isSelected = category === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setCategory(tab.id);
-                  }}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-[6px] text-xs font-sans transition-all cursor-pointer whitespace-nowrap border',
-                    isSelected
-                      ? 'bg-[#3ecf8e] text-[#171717] font-medium border-[#3ecf8e] shadow-2xs'
-                      : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-[#2a2a2a] hover:border-slate-300 dark:hover:border-[#383838]'
-                  )}
-                >
-                  <Icon className={cn('w-3.5 h-3.5', isSelected ? 'text-[#171717]' : 'text-slate-400 dark:text-zinc-400')} />
-                  <span>{tab.label}</span>
-                  <span
-                    className={cn(
-                      'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono font-medium',
-                      isSelected ? 'bg-black/20 text-[#171717]' : 'bg-slate-100 dark:bg-[#252525] text-slate-500 dark:text-zinc-400'
-                    )}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
+        {/* 4. Multi-Faceted Filter Bar */}
+        <div className="ios-card rounded-[16px] p-3.5 space-y-3">
+          {/* Top Row: Category Tabs (iOS Segmented Control) */}
+          <div className="w-full">
+            <IOSSegmentedControl
+              options={[
+                { id: 'all', label: 'All Records', badge: searchData.categoryCounts.all, icon: <Sparkles className="w-3.5 h-3.5" /> },
+                { id: 'vouchers', label: 'Expense Vouchers', badge: searchData.categoryCounts.vouchers, icon: <Receipt className="w-3.5 h-3.5" /> },
+                { id: 'advances', label: 'Staff Advances', badge: searchData.categoryCounts.advances, icon: <HandCoins className="w-3.5 h-3.5" /> },
+                { id: 'staff', label: 'Staff Directory', badge: searchData.categoryCounts.staff, icon: <Users className="w-3.5 h-3.5" /> },
+                { id: 'master', label: 'Master Data', badge: searchData.categoryCounts.master, icon: <Sliders className="w-3.5 h-3.5" /> },
+                { id: 'actions', label: 'Actions', badge: searchData.categoryCounts.actions, icon: <SlidersHorizontal className="w-3.5 h-3.5" /> },
+              ]}
+              value={category}
+              onChange={(val) => setCategory(val as SearchCategory)}
+              size="sm"
+            />
           </div>
 
           {/* Bottom Row: Granular Filters */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80 dark:border-[#222222] text-xs">
+          <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-slate-200/80 dark:border-white/10 text-xs">
             {/* Branch Filter */}
             <div className="w-48">
               <SearchableSelect
@@ -667,14 +643,14 @@ export const UniversalSearchPage: React.FC = () => {
 
         {/* 5. Master-Detail Interactive Search Results & Context Inspector */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1">
-          {/* LEFT: Search Results List (7 cols on lg) */}
-          <div className="lg:col-span-7 space-y-2">
-            <div className="flex items-center justify-between px-1 text-xs text-slate-500 dark:text-zinc-400 font-sans">
+          {/* LEFT: Search Results List */}
+          <div className="lg:col-span-7 space-y-2.5">
+            <div className="flex items-center justify-between px-1 text-xs text-slate-500 dark:text-[#8E8E93] font-sans">
               <span>Showing {searchData.results.length} results</span>
-              <span className="hidden sm:inline">Use ↑ ↓ to navigate · Enter to open</span>
+              <span className="hidden sm:inline font-mono text-[11px]">↑ ↓ navigate · Enter open · P print</span>
             </div>
 
-            <div ref={resultsContainerRef} className="space-y-2">
+            <div ref={resultsContainerRef} className="space-y-2.5">
               {searchData.results.map((item, idx) => {
                 const isSelected = selectedIndex === idx;
                 const isVoucher = item.category === 'vouchers';
@@ -688,17 +664,17 @@ export const UniversalSearchPage: React.FC = () => {
                     onClick={() => setSelectedIndex(idx)}
                     onDoubleClick={() => handleDirectOpen(item)}
                     className={cn(
-                      'p-3.5 rounded-[10px] border transition-all cursor-pointer relative group flex flex-col sm:flex-row sm:items-center justify-between gap-3',
+                      'p-4 rounded-[14px] border transition-all cursor-pointer relative group flex flex-col sm:flex-row sm:items-center justify-between gap-3 ios-press',
                       isSelected
-                        ? 'bg-slate-50 dark:bg-[#1f1f1f] border-emerald-500/50 dark:border-[#3ecf8e]/50 shadow-sm'
-                        : 'bg-white dark:bg-[#171717] border-slate-200 dark:border-[#262626] hover:border-slate-300 dark:hover:border-[#333333]'
+                        ? 'bg-slate-100/90 dark:bg-white/10 border-emerald-500/60 dark:border-[#3ecf8e]/60 shadow-xs'
+                        : 'ios-card hover:border-slate-300 dark:hover:border-white/20'
                     )}
                   >
                     {/* Left: Metadata & Titles */}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Category Icon & Label */}
-                        <span className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-zinc-300">
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
                           {isVoucher && <Receipt className="w-3.5 h-3.5 text-[#3ecf8e]" />}
                           {isAdvance && <HandCoins className="w-3.5 h-3.5 text-amber-500" />}
                           {isStaff && <Users className="w-3.5 h-3.5 text-blue-400" />}
@@ -708,47 +684,49 @@ export const UniversalSearchPage: React.FC = () => {
 
                         {/* Branch Code */}
                         {item.branchCode && (
-                          <span className="px-1.5 py-0.2 rounded-[3px] bg-slate-100 dark:bg-[#141414] text-[10px] font-mono text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-[#222222]">
+                          <span className="px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-white/5 text-[10px] font-mono text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10">
                             {item.branchCode}
                           </span>
                         )}
 
                         {/* Status Badge */}
-                        <span
-                          className={cn(
-                            'px-1.5 py-0.2 rounded-[3px] text-[10px] font-mono font-medium',
-                            item.badge.variant === 'emerald' && 'badge-status-emerald',
-                            item.badge.variant === 'amber' && 'badge-status-amber',
-                            item.badge.variant === 'rose' && 'badge-status-rose',
-                            item.badge.variant === 'blue' && 'badge-status-blue',
-                            item.badge.variant === 'neutral' && 'badge-status-neutral'
-                          )}
-                        >
-                          {item.badge.text}
-                        </span>
+                        {item.badge && (
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded-[6px] text-[10px] font-mono font-semibold',
+                              item.badge.variant === 'emerald' && 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20',
+                              item.badge.variant === 'amber' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+                              item.badge.variant === 'rose' && 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
+                              item.badge.variant === 'blue' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
+                              item.badge.variant === 'neutral' && 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10'
+                            )}
+                          >
+                            {item.badge.text}
+                          </span>
+                        )}
 
                         {item.date && (
-                          <span className="text-[11px] text-slate-400 dark:text-zinc-500 font-mono">
+                          <span className="text-[11px] text-slate-400 dark:text-[#707070] font-mono">
                             {item.date}
                           </span>
                         )}
                       </div>
 
                       {/* Main Title */}
-                      <h4 className="text-sm font-medium text-slate-900 dark:text-white truncate font-sans">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate font-sans">
                         {item.title}
                       </h4>
 
                       {/* Subtitle Description */}
-                      <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-1 font-sans">
+                      <p className="text-xs text-slate-500 dark:text-[#8E8E93] line-clamp-1 font-sans">
                         {item.subtitle}
                       </p>
                     </div>
 
                     {/* Right: Amount & Direct Action Triggers */}
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-[#222222]">
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-white/5">
                       {item.amount !== undefined && item.amount > 0 && (
-                        <span className="font-mono text-sm font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                        <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
                           {formatINR(item.amount)}
                         </span>
                       )}
@@ -760,7 +738,7 @@ export const UniversalSearchPage: React.FC = () => {
                             e.stopPropagation();
                             handleDirectOpen(item);
                           }}
-                          className="px-2 py-1 rounded-[5px] text-[11px] font-sans font-medium bg-[#3ecf8e] text-[#171717] hover:bg-[#34b27b] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                          className="px-2.5 py-1 rounded-[8px] text-[11px] font-sans font-semibold bg-[#3ecf8e] text-[#171717] hover:bg-[#3ecf8e]/90 transition-all cursor-pointer flex items-center gap-1 shadow-2xs ios-press"
                         >
                           <span>Open</span>
                           <CornerDownLeft className="w-2.5 h-2.5" />
@@ -774,7 +752,7 @@ export const UniversalSearchPage: React.FC = () => {
                               handlePrintSlip(item);
                             }}
                             title="Print Thermal Slip"
-                            className="p-1 rounded-[5px] text-slate-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#282828] transition-all cursor-pointer"
+                            className="p-1.5 rounded-[8px] text-slate-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer ios-press"
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
@@ -786,22 +764,22 @@ export const UniversalSearchPage: React.FC = () => {
               })}
 
               {searchData.results.length === 0 && !isLoading && (
-                <div className="py-16 text-center text-slate-400 dark:text-zinc-500 font-sans space-y-3 bg-white dark:bg-[#171717] rounded-[10px] border border-slate-200 dark:border-[#242424] p-6">
-                  <Search className="w-8 h-8 mx-auto text-slate-300 dark:text-zinc-600" />
+                <div className="py-16 text-center text-slate-400 dark:text-[#707070] font-sans space-y-3 ios-card rounded-[16px] p-6">
+                  <Search className="w-8 h-8 mx-auto text-slate-300 dark:text-[#555555]" />
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">
                       No matching records found for "{query}"
                     </p>
-                    <p className="text-xs text-slate-400 dark:text-zinc-500 max-w-md mx-auto">
-                      Try searching with voucher serial (e.g. ASI-6590), payee name, staff code (ASI-001), or clear filters.
+                    <p className="text-xs text-slate-400 dark:text-[#8E8E93] max-w-md mx-auto">
+                      Try searching with voucher serial (e.g. ASI-6590), payee name, staff code, or clear filters.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleResetFilters}
-                    className="px-3 py-1.5 rounded-[6px] text-xs font-sans font-medium text-emerald-600 dark:text-[#3ecf8e] bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-[10px] text-xs font-sans font-semibold text-emerald-600 dark:text-[#3ecf8e] bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer inline-flex items-center gap-1.5 ios-press"
                   >
-                    <RefreshCw className="w-3 h-3" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                     <span>Clear All Filters</span>
                   </button>
                 </div>
@@ -809,24 +787,24 @@ export const UniversalSearchPage: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT: Live Context Inspector Panel (5 cols on lg) */}
+          {/* RIGHT: Live Context Inspector Panel */}
           <div className="lg:col-span-5 sticky top-20">
             {selectedItem ? (
-              <div className="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-[12px] p-5 space-y-5 shadow-sm">
+              <div className="ios-card rounded-[18px] p-5 space-y-5 shadow-sm">
                 {/* Inspector Header */}
-                <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-[#242424] pb-4">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-white/10 pb-4">
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] text-[10px] font-mono font-medium text-[#3ecf8e] border border-slate-200 dark:border-[#2a2a2a]">
+                      <span className="px-2 py-0.5 rounded-[6px] bg-slate-100 dark:bg-white/10 text-[10px] font-mono font-semibold text-[#3ecf8e] border border-slate-200/80 dark:border-white/10">
                         {selectedItem.categoryLabel}
                       </span>
                       {selectedItem.branchCode && (
-                        <span className="px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] text-[10px] font-mono text-slate-600 dark:text-zinc-400">
+                        <span className="px-2 py-0.5 rounded-[6px] bg-slate-100 dark:bg-white/5 text-[10px] font-mono text-slate-600 dark:text-[#A1A1A1]">
                           Branch: {selectedItem.branchCode}
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-medium text-slate-900 dark:text-white truncate font-sans">
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate font-sans">
                       {selectedItem.title}
                     </h3>
                   </div>
@@ -835,7 +813,7 @@ export const UniversalSearchPage: React.FC = () => {
                     type="button"
                     onClick={() => handleCopyId(selectedItem.rawItem?.voucher_number || selectedItem.rawItem?.receipt_number || selectedItem.id)}
                     title="Copy Reference ID"
-                    className="p-1.5 rounded-[6px] text-slate-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] transition-all cursor-pointer shrink-0"
+                    className="p-2 rounded-[8px] text-slate-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 transition-all cursor-pointer shrink-0 ios-press"
                   >
                     {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
@@ -843,9 +821,9 @@ export const UniversalSearchPage: React.FC = () => {
 
                 {/* Amount Banner */}
                 {selectedItem.amount !== undefined && selectedItem.amount > 0 && (
-                  <div className="p-3.5 rounded-[8px] bg-emerald-500/5 dark:bg-[#3ecf8e]/5 border border-emerald-500/20 dark:border-[#3ecf8e]/20 flex items-center justify-between">
-                    <span className="text-xs text-slate-600 dark:text-zinc-400 font-sans">Total Transaction Value</span>
-                    <span className="text-lg font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                  <div className="p-3.5 rounded-[14px] bg-emerald-500/10 dark:bg-[#3ecf8e]/10 border border-emerald-500/20 dark:border-[#3ecf8e]/20 flex items-center justify-between">
+                    <span className="text-xs text-slate-600 dark:text-[#A1A1A1] font-sans font-medium">Total Transaction Value</span>
+                    <span className="text-lg font-mono font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
                       {formatINR(selectedItem.amount)}
                     </span>
                   </div>
@@ -853,16 +831,18 @@ export const UniversalSearchPage: React.FC = () => {
 
                 {/* Metadata Details Grid */}
                 <div className="space-y-2.5 text-xs font-sans">
-                  <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                    <span className="text-slate-400 dark:text-zinc-500">Status</span>
-                    <span className="font-mono font-medium text-slate-800 dark:text-zinc-200">
-                      {selectedItem.badge.text}
-                    </span>
-                  </div>
+                  {selectedItem.badge && (
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Status</span>
+                      <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
+                        {selectedItem.badge.text}
+                      </span>
+                    </div>
+                  )}
 
                   {selectedItem.date && (
-                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                      <span className="text-slate-400 dark:text-zinc-500">Date</span>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Date</span>
                       <span className="font-mono text-slate-800 dark:text-zinc-200">
                         {selectedItem.date}
                       </span>
@@ -870,17 +850,17 @@ export const UniversalSearchPage: React.FC = () => {
                   )}
 
                   {selectedItem.metadata?.category && (
-                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                      <span className="text-slate-400 dark:text-zinc-500">Expense Category</span>
-                      <span className="text-slate-800 dark:text-zinc-200 font-medium">
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Expense Category</span>
+                      <span className="text-slate-800 dark:text-zinc-200 font-semibold">
                         {selectedItem.metadata.category}
                       </span>
                     </div>
                   )}
 
                   {selectedItem.metadata?.department && (
-                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                      <span className="text-slate-400 dark:text-zinc-500">Department</span>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Department</span>
                       <span className="text-slate-800 dark:text-zinc-200">
                         {selectedItem.metadata.department}
                       </span>
@@ -888,8 +868,8 @@ export const UniversalSearchPage: React.FC = () => {
                   )}
 
                   {selectedItem.metadata?.payment_method && (
-                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                      <span className="text-slate-400 dark:text-zinc-500">Payment Mode</span>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Payment Mode</span>
                       <span className="text-slate-800 dark:text-zinc-200">
                         {selectedItem.metadata.payment_method === 'Physical_Cash' ? 'Cash Till Float' : 'Online Bank'}
                       </span>
@@ -897,8 +877,8 @@ export const UniversalSearchPage: React.FC = () => {
                   )}
 
                   {selectedItem.metadata?.created_by && (
-                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[#222222]">
-                      <span className="text-slate-400 dark:text-zinc-500">Recorded By</span>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
+                      <span className="text-slate-400 dark:text-[#707070]">Recorded By</span>
                       <span className="text-slate-800 dark:text-zinc-200">
                         {selectedItem.metadata.created_by}
                       </span>
@@ -906,15 +886,15 @@ export const UniversalSearchPage: React.FC = () => {
                   )}
 
                   {selectedItem.metadata?.purpose && (
-                    <div className="py-1.5 border-b border-slate-100 dark:border-[#222222] space-y-1">
-                      <span className="text-slate-400 dark:text-zinc-500 block">Advance Purpose</span>
+                    <div className="py-1.5 border-b border-slate-100 dark:border-white/5 space-y-1">
+                      <span className="text-slate-400 dark:text-[#707070] block font-medium">Advance Purpose</span>
                       <p className="text-slate-800 dark:text-zinc-200">{selectedItem.metadata.purpose}</p>
                     </div>
                   )}
 
                   {selectedItem.metadata?.remarks && (
-                    <div className="py-1.5 border-b border-slate-100 dark:border-[#222222] space-y-1">
-                      <span className="text-slate-400 dark:text-zinc-500 block">Notes & Purpose</span>
+                    <div className="py-1.5 border-b border-slate-100 dark:border-white/5 space-y-1">
+                      <span className="text-slate-400 dark:text-[#707070] block font-medium">Notes & Purpose</span>
                       <p className="text-slate-800 dark:text-zinc-200 italic">{selectedItem.metadata.remarks}</p>
                     </div>
                   )}
@@ -922,10 +902,10 @@ export const UniversalSearchPage: React.FC = () => {
                   {/* Attached Bill Receipt Thumbnail */}
                   {selectedItem.rawItem?.bill_image_url && (
                     <div className="py-2 space-y-1.5">
-                      <span className="text-slate-400 dark:text-zinc-500 block">Attached Bill Invoice</span>
+                      <span className="text-slate-400 dark:text-[#707070] block font-medium">Attached Bill Invoice</span>
                       <div
                         onClick={() => openLightbox(selectedItem.rawItem.bill_image_url)}
-                        className="relative w-full h-32 rounded-[8px] overflow-hidden border border-slate-200 dark:border-[#2a2a2a] cursor-pointer group"
+                        className="relative w-full h-32 rounded-[12px] overflow-hidden border border-slate-200/80 dark:border-white/10 cursor-pointer group"
                       >
                         <img
                           src={selectedItem.rawItem.bill_image_url}
@@ -933,7 +913,7 @@ export const UniversalSearchPage: React.FC = () => {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-[11px] font-sans font-medium text-white px-2 py-1 rounded-[4px] bg-black/60">
+                          <span className="text-[11px] font-sans font-semibold text-white px-2.5 py-1 rounded-[6px] bg-black/60 backdrop-blur-md">
                             Click to Enlarge
                           </span>
                         </div>
@@ -947,7 +927,7 @@ export const UniversalSearchPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleDirectOpen(selectedItem)}
-                    className="w-full py-2.5 px-4 rounded-[6px] bg-[#3ecf8e] text-[#171717] hover:bg-[#34b27b] text-xs font-sans font-medium transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                    className="w-full py-2.5 px-4 rounded-[10px] bg-[#3ecf8e] text-[#171717] hover:bg-[#3ecf8e]/90 text-xs font-sans font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs ios-press"
                   >
                     <span>Open Full Record in Drawer</span>
                     <CornerDownLeft className="w-3.5 h-3.5" />
@@ -957,7 +937,7 @@ export const UniversalSearchPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handlePrintSlip(selectedItem)}
-                      className="flex-1 py-2 px-3 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans font-medium text-slate-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2 px-3 rounded-[10px] border border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-sans font-semibold text-slate-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5 ios-press"
                     >
                       <Printer className="w-3.5 h-3.5" />
                       <span>Print Slip (P)</span>
@@ -966,7 +946,7 @@ export const UniversalSearchPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleCopyId(selectedItem.rawItem?.voucher_number || selectedItem.rawItem?.receipt_number || selectedItem.id)}
-                      className="flex-1 py-2 px-3 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans font-medium text-slate-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2 px-3 rounded-[10px] border border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-sans font-semibold text-slate-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5 ios-press"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>Copy ID</span>
@@ -975,9 +955,9 @@ export const UniversalSearchPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-50 dark:bg-[#171717] border border-dashed border-slate-200 dark:border-[#282828] rounded-[12px] p-8 text-center text-xs text-slate-400 dark:text-zinc-500 font-sans space-y-2">
-                <Search className="w-6 h-6 mx-auto text-slate-300 dark:text-zinc-600" />
-                <p className="font-medium">No Item Selected</p>
+              <div className="ios-card rounded-[18px] p-8 text-center text-xs text-slate-400 dark:text-[#707070] font-sans space-y-2">
+                <Search className="w-6 h-6 mx-auto text-slate-300 dark:text-[#555555]" />
+                <p className="font-semibold text-slate-700 dark:text-zinc-300">No Item Selected</p>
                 <p>Click on any search match in the list to inspect full live metadata and take actions.</p>
               </div>
             )}
@@ -987,3 +967,4 @@ export const UniversalSearchPage: React.FC = () => {
     </div>
   );
 };
+

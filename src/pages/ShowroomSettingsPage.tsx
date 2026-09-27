@@ -69,7 +69,6 @@ export type SettingsTabId =
   | 'broadcasts';
 
 type TableDensity = 'compact' | 'normal' | 'relaxed';
-type ViewMode = 'grid' | 'ddl';
 
 interface SettingsTabMeta {
   id: SettingsTabId;
@@ -202,13 +201,10 @@ export const ShowroomSettingsPage: React.FC = () => {
 
   // Active Tab State (Default to 'brand')
   const [activeTabId, setActiveTabId] = useState<SettingsTabId>('brand');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [density] = useState<TableDensity>('normal');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isLoading, setIsLoading] = useState(false);
-  const [isCopiedDdl, setIsCopiedDdl] = useState(false);
-  const [isMobileSubMenuOpen, setIsMobileSubMenuOpen] = useState(false);
 
   // Data Stores
   const [periods, setPeriods] = useState<AccountingPeriod[]>([]);
@@ -561,199 +557,6 @@ export const ShowroomSettingsPage: React.FC = () => {
     toast.success(`Exported JSON schema for ${currentTab.name}`);
   };
 
-  // Copy DDL definition to clipboard
-  const handleCopyDdl = (ddl: string) => {
-    navigator.clipboard.writeText(ddl);
-    setIsCopiedDdl(true);
-    triggerHaptic('light');
-    toast.success('PostgreSQL DDL schema copied to clipboard.');
-    setTimeout(() => setIsCopiedDdl(false), 2000);
-  };
-
-  // SQL DDL Schema generator
-  const getTableDdl = useMemo(() => {
-    switch (activeTabId) {
-      case 'brand':
-        return `-- Brand Identity Configuration Schema (Local & Remote Sync)
-CREATE TABLE public.brand_settings (
-  id VARCHAR(50) PRIMARY KEY DEFAULT 'primary_brand',
-  brand_name VARCHAR(100) NOT NULL DEFAULT 'Asopalav',
-  legal_entity_name VARCHAR(150) NOT NULL DEFAULT 'Asopalav Silk & Sarees',
-  tagline VARCHAR(200) DEFAULT 'Silk & Sarees Flagship',
-  monogram_text VARCHAR(10) DEFAULT 'ASI',
-  accent_color VARCHAR(20) DEFAULT '#3ecf8e',
-  gstin VARCHAR(20) DEFAULT '24ABVFA8046N1ZQ',
-  pan_number VARCHAR(20) DEFAULT 'ABVFA8046N',
-  logo_url TEXT,
-  logo_svg TEXT,
-  favicon_url TEXT,
-  address TEXT,
-  phone VARCHAR(30),
-  email VARCHAR(100),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.brand_settings ENABLE ROW LEVEL SECURITY;`;
-
-      case 'periods':
-        return `-- Table Definition: public.accounting_periods
-CREATE TABLE public.accounting_periods (
-  period_key VARCHAR(7) PRIMARY KEY, -- Format: YYYY-MM (e.g. '2026-09')
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  is_locked BOOLEAN NOT NULL DEFAULT FALSE,
-  locked_at TIMESTAMPTZ,
-  locked_by_name VARCHAR(100),
-  lock_reason TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- RLS & Security Policy
-ALTER TABLE public.accounting_periods ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow read to authenticated" ON public.accounting_periods FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Allow lock update to Store_Manager" ON public.accounting_periods FOR UPDATE TO authenticated USING (auth.jwt() ->> 'role_code' IN ('Store_Manager', 'Super_Admin', 'Developer'));`;
-
-      case 'branches':
-        return `-- Table Definition: public.branches
-CREATE TABLE public.branches (
-  branch_id VARCHAR(50) PRIMARY KEY, -- 'Aellp-ASI'
-  branch_code VARCHAR(10) UNIQUE NOT NULL, -- 'ASI'
-  branch_name VARCHAR(150) NOT NULL,
-  short_name VARCHAR(50) NOT NULL,
-  entity_company_name VARCHAR(150) NOT NULL DEFAULT 'Asopalav Endeavours LLP',
-  pan_number VARCHAR(20),
-  gstin VARCHAR(20) DEFAULT '24ABVFA8046N1ZQ',
-  accountant_name VARCHAR(100),
-  contact_phone VARCHAR(30),
-  contact_email VARCHAR(100),
-  city VARCHAR(50) NOT NULL DEFAULT 'Ahmedabad',
-  state VARCHAR(50) NOT NULL DEFAULT 'Gujarat',
-  address TEXT,
-  min_cash_threshold NUMERIC(12,2) NOT NULL DEFAULT 3000.00,
-  max_cash_ceiling NUMERIC(12,2) NOT NULL DEFAULT 25000.00,
-  max_upi_ceiling NUMERIC(12,2) NOT NULL DEFAULT 50000.00,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_branches_code ON public.branches(branch_code);
-ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;`;
-
-      case 'categories':
-        return `-- Table Definition: public.expense_categories
-CREATE TABLE public.expense_categories (
-  category_name VARCHAR(100) PRIMARY KEY,
-  color_theme VARCHAR(50) DEFAULT 'Vanilla',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_categories_active ON public.expense_categories(is_active);
-ALTER TABLE public.expense_categories ENABLE ROW LEVEL SECURITY;`;
-
-      case 'departments':
-        return `-- Table Definition: public.departments
-CREATE TABLE public.departments (
-  department_code VARCHAR(30) PRIMARY KEY,
-  department_name VARCHAR(100) NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;`;
-
-      case 'couriers':
-        return `-- Table Definition: public.courier_partners
-CREATE TABLE public.courier_partners (
-  partner_code VARCHAR(30) PRIMARY KEY,
-  partner_name VARCHAR(100) NOT NULL,
-  contact_phone VARCHAR(30),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.courier_partners ENABLE ROW LEVEL SECURITY;`;
-
-      case 'staff':
-        return `-- Table Definition: public.staff_members
-CREATE TABLE public.staff_members (
-  staff_code VARCHAR(30) PRIMARY KEY,
-  first_name VARCHAR(50) NOT NULL,
-  middle_name VARCHAR(50),
-  last_name VARCHAR(50) NOT NULL,
-  avatar_url TEXT,
-  mobile_number VARCHAR(20),
-  branch_id VARCHAR(50) REFERENCES public.branches(branch_id),
-  branch_code VARCHAR(10),
-  department_code VARCHAR(30),
-  department_name VARCHAR(100),
-  designation VARCHAR(100),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_staff_branch ON public.staff_members(branch_id);
-ALTER TABLE public.staff_members ENABLE ROW LEVEL SECURITY;`;
-
-      case 'roles':
-        return `-- Table Definition: public.app_roles & public.role_permissions
-CREATE TABLE public.app_roles (
-  role_code VARCHAR(50) PRIMARY KEY,
-  role_title VARCHAR(100) NOT NULL,
-  description TEXT,
-  is_system_role BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.app_roles ENABLE ROW LEVEL SECURITY;
-
-CREATE TABLE public.role_permissions (
-  role_code VARCHAR(50) PRIMARY KEY REFERENCES public.app_roles(role_code) ON DELETE CASCADE,
-  can_create_voucher BOOLEAN NOT NULL DEFAULT TRUE,
-  can_void_voucher BOOLEAN NOT NULL DEFAULT FALSE,
-  can_backdate_voucher BOOLEAN NOT NULL DEFAULT FALSE,
-  can_disburse_advance BOOLEAN NOT NULL DEFAULT FALSE,
-  can_settle_advance BOOLEAN NOT NULL DEFAULT FALSE,
-  max_advance_limit NUMERIC(12,2) NOT NULL DEFAULT 5000.00,
-  can_inject_float BOOLEAN NOT NULL DEFAULT FALSE,
-  can_verify_f9_closing BOOLEAN NOT NULL DEFAULT FALSE,
-  can_export_tally BOOLEAN NOT NULL DEFAULT FALSE,
-  can_download_hr_payroll BOOLEAN NOT NULL DEFAULT FALSE,
-  can_view_all_branches BOOLEAN NOT NULL DEFAULT FALSE,
-  can_view_audit_logs BOOLEAN NOT NULL DEFAULT FALSE,
-  can_manage_users_roles BOOLEAN NOT NULL DEFAULT FALSE,
-  can_manage_periods BOOLEAN NOT NULL DEFAULT FALSE,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;`;
-
-      case 'denominations':
-        return `-- Table Definition: public.currency_denominations
-CREATE TABLE public.currency_denominations (
-  denomination_value INTEGER PRIMARY KEY, -- 500, 200, 100, etc.
-  display_label VARCHAR(20) NOT NULL, -- '₹500 Note'
-  is_coin BOOLEAN NOT NULL DEFAULT FALSE,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.currency_denominations ENABLE ROW LEVEL SECURITY;`;
-
-      case 'broadcasts':
-        return `-- Table Definition: public.system_broadcasts
-CREATE TABLE public.system_broadcasts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  badge VARCHAR(30) NOT NULL DEFAULT 'NEW',
-  message TEXT NOT NULL,
-  link VARCHAR(255),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by VARCHAR(100),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
-
-      default:
-        return `-- Showroom Master Schema`;
-    }
-  }, [activeTabId]);
-
   // Filtering data rows
   const filteredPeriods = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -952,164 +755,76 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased overflow-hidden selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
       {/* ========================================================================= */}
-      {/* 1. MASTER TWO-COLUMN WORKSPACE                                            */}
+      {/* 1. TOP HEADER & UNIFIED SMART SECTION SELECTOR                            */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
-        {/* ----------------------------------------------------------------------- */}
-        {/* LEFT SUB-SIDEBAR: SETTINGS CATEGORIES & TABS                            */}
-        {/* ----------------------------------------------------------------------- */}
-        <div
-          className={cn(
-            'w-64 border-r border-slate-200 dark:border-[#242424] bg-slate-50/70 dark:bg-[#171717] flex flex-col shrink-0 overflow-y-auto no-scrollbar select-none z-20 transition-transform duration-200',
-            isMobileSubMenuOpen ? 'fixed inset-y-14 left-0 w-64 shadow-2xl z-40' : 'hidden lg:flex'
-          )}
-        >
-          {/* Sub-Sidebar Top Header */}
-          <div className="p-3.5 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#3ecf8e]" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-white font-mono">
-                Showroom Settings
-              </span>
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#161618]/90 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-6 lg:px-8 py-3.5">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-[6px] bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shadow-2xs">
+              <Sparkles className="w-4 h-4" />
             </div>
-            {isMobileSubMenuOpen && (
-              <button
-                type="button"
-                onClick={() => setIsMobileSubMenuOpen(false)}
-                className="lg:hidden text-slate-400 hover:text-slate-700 dark:hover:text-white"
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-semibold tracking-tight text-slate-900 dark:text-white font-sans">
+                  Showroom Settings &amp; Catalogues
+                </h1>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans hidden sm:block">
+                Centralized ERP configuration, brand customization, hardware printers, and master records
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Unified Smart Section Dropdown */}
+            <div className="relative min-w-[240px]">
+              <select
+                value={activeTabId}
+                onChange={(e) => {
+                  triggerHaptic('selection');
+                  setActiveTabId(e.target.value as SettingsTabId);
+                  setSearchQuery('');
+                }}
+                className="w-full px-3.5 py-2 rounded-[6px] bg-white dark:bg-[#202023] border border-slate-300/80 dark:border-white/15 text-xs font-semibold font-sans text-slate-900 dark:text-white shadow-xs focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 cursor-pointer transition-colors"
               >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Navigation Groups */}
-          <div className="p-2 space-y-5">
-            {/* GROUP 1: HARDWARE & PRINTING */}
-            <div className="space-y-1">
-              <div className="px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400 dark:text-[#666666]">
-                Brand &amp; Printing
-              </div>
-              {SETTINGS_TABS.filter((t) => t.group === 'HARDWARE & PRINTING').map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTabId === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setActiveTabId(tab.id);
-                      setIsMobileSubMenuOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-center justify-between px-2.5 py-1.5 rounded-[6px] text-xs font-sans transition-all text-left cursor-pointer select-none',
-                      isActive
-                        ? 'bg-slate-200/80 dark:bg-[#242424] text-slate-900 dark:text-white font-medium shadow-2xs'
-                        : 'text-slate-600 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1d1d1d]'
-                    )}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <Icon
-                        className={cn(
-                          'w-3.5 h-3.5 shrink-0',
-                          isActive ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#777]'
-                        )}
-                      />
-                      <span className="truncate">{tab.name}</span>
-                    </div>
-                  </button>
-                );
-              })}
+                <optgroup label="ERP Master Catalogues">
+                  {SETTINGS_TABS.filter(t => t.group === 'SHOWROOM MASTER DATA').map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({counts[t.id] ?? '–'})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Brand & Hardware Setup">
+                  {SETTINGS_TABS.filter(t => t.group === 'HARDWARE & PRINTING').map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
 
-            {/* GROUP 2: SHOWROOM MASTER DATA (ERP Catalogues) */}
-            <div className="space-y-1">
-              <div className="px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400 dark:text-[#666666]">
-                Master Catalogues
-              </div>
-              {SETTINGS_TABS.filter((t) => t.group === 'SHOWROOM MASTER DATA').map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTabId === tab.id;
-                const count = counts[tab.id];
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setActiveTabId(tab.id);
-                      setSearchQuery('');
-                      setIsMobileSubMenuOpen(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-center justify-between px-2.5 py-1.5 rounded-[6px] text-xs font-sans transition-all text-left cursor-pointer select-none',
-                      isActive
-                        ? 'bg-slate-200/80 dark:bg-[#242424] text-slate-900 dark:text-white font-medium shadow-2xs'
-                        : 'text-slate-600 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1d1d1d]'
-                    )}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <Icon
-                        className={cn(
-                          'w-3.5 h-3.5 shrink-0',
-                          isActive ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#777]'
-                        )}
-                      />
-                      <span className="truncate">{tab.name}</span>
-                    </div>
-                    {typeof count === 'number' && (
-                      <span
-                        className={cn(
-                          'px-1.5 py-0.2 rounded text-[10px] font-mono tabular-nums shrink-0',
-                          isActive
-                            ? 'bg-[#3ecf8e]/20 text-[#3ecf8e] font-semibold'
-                            : 'bg-slate-200/60 dark:bg-[#222] text-slate-500 dark:text-[#777]'
-                        )}
-                      >
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ----------------------------------------------------------------------- */}
-        {/* RIGHT MAIN CONTENT AREA                                                 */}
-        {/* ----------------------------------------------------------------------- */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-white dark:bg-[#141414]">
-          {/* Top Mobile Bar */}
-          <div className="lg:hidden p-3 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between bg-slate-50 dark:bg-[#171717]">
-            <button
-              type="button"
-              onClick={() => setIsMobileSubMenuOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-mono text-slate-800 dark:text-zinc-200"
-            >
-              <Menu className="w-3.5 h-3.5 text-[#3ecf8e]" />
-              <span>{currentTab.name}</span>
-            </button>
-            <span className="text-[10px] font-mono text-[#3ecf8e] bg-emerald-500/10 px-2 py-0.5 rounded border border-[#3ecf8e]/30">
+            <span className="text-[10px] font-mono text-[#3ecf8e] bg-emerald-500/10 px-2.5 py-1.5 rounded-full border border-[#3ecf8e]/30 font-medium shrink-0 hidden md:inline">
               Admin Protected
             </span>
           </div>
+        </div>
+      </div>
 
-          {/* Main Pane Header */}
-          <div className="p-4 sm:p-6 lg:p-8 pb-4 border-b border-slate-200 dark:border-[#242424]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-white font-sans flex items-center gap-2.5">
-                  <currentTab.icon className="w-5 h-5 text-[#3ecf8e]" />
-                  <span>{currentTab.name}</span>
-                </h1>
-                <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-1">
-                  {currentTab.description}
-                </p>
-              </div>
+      {/* ========================================================================= */}
+      {/* 2. MAIN FULL-WIDTH WORKSPACE                                              */}
+      {/* ========================================================================= */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-white dark:bg-[#141414]">
+        {/* Main Pane Header */}
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 border-b border-slate-200/80 dark:border-white/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-medium tracking-tight text-slate-900 dark:text-white font-sans flex items-center gap-2.5">
+                <currentTab.icon className="w-5 h-5 text-[#3ecf8e]" />
+                <span>{currentTab.name}</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-1">
+                {currentTab.description}
+              </p>
+            </div>
 
               {/* Master Data Header Actions */}
               {isMasterDataTable && (
@@ -1122,7 +837,7 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                       toast.info('Refreshing records...');
                     }}
                     disabled={isLoading}
-                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-colors cursor-pointer shadow-xs"
+                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-all cursor-pointer shadow-xs ios-press"
                     title="Refresh Records"
                   >
                     <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-[#3ecf8e]')} />
@@ -1132,8 +847,8 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                   {['branches', 'categories', 'departments', 'couriers', 'staff'].includes(activeTabId) && (
                     <button
                       type="button"
-                      onClick={() => setBulkImportOpen(true)}
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      onClick={() => setBulkImportOpen(true, activeTabId as any)}
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
                       <span>Import CSV</span>
@@ -1144,17 +859,17 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                   <div className="relative group">
                     <button
                       type="button"
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Export</span>
                       <ChevronDown className="w-3 h-3 text-slate-400" />
                     </button>
-                    <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] rounded-[6px] shadow-xl py-1 hidden group-hover:block z-40">
+                    <div className="absolute right-0 top-full mt-1.5 w-36 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[8px] shadow-2xl py-1.5 hidden group-hover:block z-40 animate-in fade-in zoom-in-95 duration-150">
                       <button
                         type="button"
                         onClick={handleExportCsv}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-50 dark:hover:bg-[#222] flex items-center gap-2 cursor-pointer font-mono"
+                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center gap-2 cursor-pointer font-mono transition-colors"
                       >
                         <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
                         <span>CSV format</span>
@@ -1162,7 +877,7 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                       <button
                         type="button"
                         onClick={handleExportJson}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-50 dark:hover:bg-[#222] flex items-center gap-2 cursor-pointer font-mono"
+                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center gap-2 cursor-pointer font-mono transition-colors"
                       >
                         <Code2 className="w-3.5 h-3.5 text-amber-500" />
                         <span>JSON format</span>
@@ -1175,7 +890,7 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                     <button
                       type="button"
                       onClick={handleOpenInsert}
-                      className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs select-none"
+                      className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>Add Record</span>
@@ -1187,7 +902,7 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
           </div>
 
           {/* Main Pane Body Container */}
-          <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex-1">
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
             {/* =================================================================== */}
             {/* VIEW 1: BRAND & IDENTITY STUDIO                                     */}
             {/* =================================================================== */}
@@ -1336,108 +1051,49 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                     )}
                   </div>
 
-                  {/* View Mode & Density Filters */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* View Mode Toggle (Data vs DDL) */}
-                    <div className="flex items-center bg-slate-100 dark:bg-[#141414] p-0.5 rounded-[6px] border border-slate-200 dark:border-[#262626]">
-                      <button
-                        type="button"
-                        onClick={() => setViewMode('grid')}
-                        className={cn(
-                          'flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-colors cursor-pointer',
-                          viewMode === 'grid'
-                            ? 'bg-white dark:bg-[#222222] text-emerald-700 dark:text-[#3ecf8e] shadow-xs font-medium'
-                            : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                        )}
-                      >
-                        <TableIcon className="w-3.5 h-3.5" />
-                        <span>Data</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode('ddl')}
-                        className={cn(
-                          'flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-colors cursor-pointer',
-                          viewMode === 'ddl'
-                            ? 'bg-white dark:bg-[#222222] text-emerald-700 dark:text-[#3ecf8e] shadow-xs font-medium'
-                            : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                        )}
-                      >
-                        <Code2 className="w-3.5 h-3.5" />
-                        <span>SQL Schema</span>
-                      </button>
-                    </div>
-
-                    {/* Status Filter */}
-                    <div className="flex items-center bg-slate-100 dark:bg-[#141414] p-0.5 rounded-[6px] border border-slate-200 dark:border-[#262626]">
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('all')}
-                        className={cn(
-                          'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
-                          statusFilter === 'all'
-                            ? 'bg-white dark:bg-[#222222] text-slate-900 dark:text-[#EDEDED] font-medium shadow-xs'
-                            : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
-                        )}
-                      >
-                        All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('active')}
-                        className={cn(
-                          'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
-                          statusFilter === 'active'
-                            ? 'bg-white dark:bg-[#222222] text-emerald-600 dark:text-emerald-400 font-medium shadow-xs'
-                            : 'text-slate-500 dark:text-[#707070] hover:text-emerald-600 dark:hover:text-emerald-400'
-                        )}
-                      >
-                        {activeTabId === 'periods' ? 'Open' : 'Active'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('inactive')}
-                        className={cn(
-                          'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
-                          statusFilter === 'inactive'
-                            ? 'bg-white dark:bg-[#222222] text-amber-600 dark:text-amber-400 font-medium shadow-xs'
-                            : 'text-slate-500 dark:text-[#707070] hover:text-amber-600 dark:hover:text-amber-400'
-                        )}
-                      >
-                        {activeTabId === 'periods' ? 'Locked' : 'Inactive'}
-                      </button>
-                    </div>
+                  {/* Status Filter */}
+                  <div className="flex items-center bg-slate-100 dark:bg-[#141414] p-0.5 rounded-[6px] border border-slate-200 dark:border-[#262626]">
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('all')}
+                      className={cn(
+                        'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
+                        statusFilter === 'all'
+                          ? 'bg-white dark:bg-[#222222] text-slate-900 dark:text-[#EDEDED] font-medium shadow-xs'
+                          : 'text-slate-500 dark:text-[#707070] hover:text-slate-900 dark:hover:text-[#EDEDED]'
+                      )}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('active')}
+                      className={cn(
+                        'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
+                        statusFilter === 'active'
+                          ? 'bg-white dark:bg-[#222222] text-emerald-600 dark:text-emerald-400 font-medium shadow-xs'
+                          : 'text-slate-500 dark:text-[#707070] hover:text-emerald-600 dark:hover:text-emerald-400'
+                      )}
+                    >
+                      {activeTabId === 'periods' ? 'Open' : 'Active'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('inactive')}
+                      className={cn(
+                        'px-2 py-1 rounded-[4px] text-[11px] font-mono transition-colors cursor-pointer',
+                        statusFilter === 'inactive'
+                          ? 'bg-white dark:bg-[#222222] text-amber-600 dark:text-amber-400 font-medium shadow-xs'
+                          : 'text-slate-500 dark:text-[#707070] hover:text-amber-600 dark:hover:text-amber-400'
+                      )}
+                    >
+                      {activeTabId === 'periods' ? 'Locked' : 'Inactive'}
+                    </button>
                   </div>
                 </div>
 
-                {/* DDL View */}
-                {viewMode === 'ddl' && (
-                  <div className="bg-slate-50 dark:bg-[#171717] rounded-[12px] border border-slate-200 dark:border-[#242424] overflow-hidden shadow-xs">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414]">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="w-4 h-4 text-[#3ecf8e]" />
-                        <span className="text-xs font-mono text-slate-900 dark:text-[#EDEDED]">
-                          PostgreSQL DDL Definition &middot; <span className="text-[#3ecf8e]">{currentTab.tableName}</span>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyDdl(getTableDdl)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-mono transition-colors cursor-pointer"
-                      >
-                        {isCopiedDdl ? <Check className="w-3.5 h-3.5 text-[#3ecf8e]" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{isCopiedDdl ? 'Copied' : 'Copy DDL'}</span>
-                      </button>
-                    </div>
-                    <pre className="p-4 text-xs font-mono text-emerald-400 bg-slate-900 overflow-x-auto leading-relaxed">
-                      <code>{getTableDdl}</code>
-                    </pre>
-                  </div>
-                )}
-
                 {/* Data Grid View */}
-                {viewMode === 'grid' && (
-                  <div className="bg-white dark:bg-[#1a1a1a] rounded-[12px] border border-slate-200 dark:border-[#242424] overflow-hidden shadow-xs">
+                <div className="bg-white dark:bg-[#1a1a1a] rounded-[12px] border border-slate-200 dark:border-[#242424] overflow-hidden shadow-xs">
                     {currentFilteredCount === 0 ? (
                       <div className="py-14">
                         <EmptyState
@@ -1816,12 +1472,10 @@ ALTER TABLE public.system_broadcasts ENABLE ROW LEVEL SECURITY;`;
                       </div>
                     )}
                   </div>
-                )}
               </div>
             )}
           </div>
         </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* MASTER DATA MODAL DRAWER                                                  */}

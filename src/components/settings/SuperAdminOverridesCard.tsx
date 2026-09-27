@@ -271,7 +271,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
               <div className="space-y-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                    Cashier Date Selection Restriction (F2 & All Date Pickers)
+                    Cashier Date Selection Restriction
                   </h3>
                   <span
                     className={cn(
@@ -287,7 +287,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                 <p className="text-xs text-slate-600 dark:text-[#a1a1a1] leading-relaxed max-w-xl">
                   {policies.allowBackdatedEntries
                     ? '⚠️ Cashiers can currently select yesterday or older past dates to record retroactive vouchers.'
-                    : '🔒 Cashiers are strictly restricted to Today\'s date only in F2 (Add Expense) and all transaction date pickers. Super Admin and Developer accounts can always select any date.'}
+                    : '🔒 Cashiers are strictly restricted to Today\'s date only in Add Expense and all transaction date pickers. Super Admin and Developer accounts can always select any date.'}
                 </p>
               </div>
             </div>

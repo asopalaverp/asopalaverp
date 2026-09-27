@@ -425,8 +425,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
-      {/* 1. Cash Box & Bank Header */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      {/* 1. Cash Box & Bank Header (iOS 16 Frosted Glass) */}
+      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -435,7 +435,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <Wallet className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Cash Box & Bank</span>
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] tabular-nums font-mono bg-slate-100 dark:bg-[#202020] text-emerald-700 dark:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e]">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
                 {filteredAllocations.length} records
               </span>
             </div>
@@ -452,7 +452,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 triggerHaptic('selection');
                 setIsSafeDropOpen(true);
               }}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-8.5 px-3.5 py-1.5 rounded-[10px] border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
               title="Transfer excess cash from box to showroom safe"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
@@ -463,7 +463,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               type="button"
               onClick={loadTreasuryData}
               disabled={loading}
-              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-xs"
+              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer shadow-xs"
               title="Refresh Cash Box"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
@@ -474,7 +474,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
@@ -482,34 +482,24 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] rounded-[6px] shadow-xl py-1 z-40">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[12px] shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={() => handleExportLedger('csv')}
-                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     CSV format
                   </button>
                   {isDeveloper && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleExportLedger('json')}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
-                      >
-                        <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        JSON format
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExportLedger('sql')}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono"
-                      >
-                        <Terminal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                        SQL statements
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => handleExportLedger('json')}
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                    >
+                      <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      JSON format
+                    </button>
                   )}
                 </div>
               )}
@@ -521,7 +511,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       {/* 2. Main Studio Content Area */}
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Tier 2: Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-[8px] border border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#171717]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[12px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#18181a] backdrop-blur-md shadow-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -532,7 +522,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 value={ledgerSearch}
                 onChange={(e) => setLedgerSearch(e.target.value)}
                 placeholder="Search ledger entries (/)..."
-                className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] pl-8 pr-8 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-[#737373] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors font-sans"
+                className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[6px] pl-8 pr-8 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-[#737373] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors font-sans shadow-2xs"
               />
               {ledgerSearch ? (
                 <button
@@ -632,7 +622,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               triggerHaptic('selection');
               setIsSafeDropOpen(true);
             }}
-            className="px-3.5 py-2 rounded-[6px] bg-amber-500 hover:bg-amber-400 text-[#171717] font-semibold text-xs font-sans flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
+            className="px-3.5 py-2 rounded-[10px] bg-amber-500 hover:bg-amber-400 text-[#171717] font-semibold text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ios-press"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
             <span>Move to Safe ({formatINR(Math.max(0, currentCashBalance - 40000))})</span>
@@ -640,12 +630,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] flex flex-col justify-between shadow-xs">
+      {/* 2. Top Metric Cards (iOS 16 Inset Grouped) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Cash in Box</span>
-            <div className="w-7 h-7 rounded-[6px] bg-emerald-50 dark:bg-[#1f1f1f] text-emerald-600 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#2e2e2e] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-[8px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center">
               <Wallet className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -659,10 +649,10 @@ export const CashDrawerTreasuryPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] flex flex-col justify-between shadow-xs">
+        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Bank & UPI Balance</span>
-            <div className="w-7 h-7 rounded-[6px] bg-sky-50 dark:bg-[#1f1f1f] text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-[#2e2e2e] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-[8px] bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 flex items-center justify-center">
               <Building2 className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -676,10 +666,10 @@ export const CashDrawerTreasuryPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] flex flex-col justify-between shadow-xs">
+        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Total Available Money</span>
-            <div className="w-7 h-7 rounded-[6px] bg-emerald-50 dark:bg-[#1f1f1f] text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-[#2e2e2e] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-[8px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center">
               <Coins className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -698,23 +688,23 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Column: Add Cash Form (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          <form onSubmit={handleTopupSubmit} className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-4 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424] gap-2">
+          <form onSubmit={handleTopupSubmit} className="stagger-card p-5 rounded-[16px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md space-y-4 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-white/10 gap-2">
               <div className="flex items-center gap-2">
-                <Coins className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <h2 className="text-xs font-medium text-slate-900 dark:text-white font-sans">
+                <Coins className="w-4 h-4 text-[#3ecf8e]" />
+                <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
                   Add Money to Cash Box / Bank
                 </h2>
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#171717] border border-slate-200 dark:border-[#2e2e2e]">
+                <div className="inline-flex rounded-[10px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200/80 dark:border-white/10">
                   <button
                     type="button"
                     onClick={() => setWalletType('Cash')}
                     className={cn(
-                      'px-2.5 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
+                      'px-3 py-1 rounded-[8px] text-xs font-sans transition-all cursor-pointer font-medium',
                       walletType === 'Cash'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-300 dark:border-[#383838] shadow-xs'
+                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200/80 dark:border-white/10 shadow-xs'
                         : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
                     )}
                   >
@@ -724,9 +714,9 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     type="button"
                     onClick={() => setWalletType('UPI')}
                     className={cn(
-                      'px-2.5 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
+                      'px-3 py-1 rounded-[8px] text-xs font-sans transition-all cursor-pointer font-medium',
                       walletType === 'UPI'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-300 dark:border-[#383838] shadow-xs'
+                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200/80 dark:border-white/10 shadow-xs'
                         : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
                     )}
                   >
@@ -737,7 +727,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="h-7 w-7 flex items-center justify-center rounded-[6px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] border border-slate-200 dark:border-[#2e2e2e] transition-colors cursor-pointer shadow-xs shrink-0"
+                  className="h-8 w-8 flex items-center justify-center rounded-[10px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 transition-all cursor-pointer shadow-xs shrink-0 ios-press"
                   title="Reset Form"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -768,7 +758,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     value={amount}
                     onChange={(e) => setAmount(parseFloat(e.target.value) || '')}
                     placeholder="e.g. 10000"
-                    className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] pl-8 pr-3 py-2 text-sm font-mono font-bold tabular-nums text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]"
+                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-8 pr-3 py-2.5 text-sm font-mono font-bold tabular-nums text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] shadow-2xs"
                   />
                 </div>
 
@@ -782,7 +772,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                         triggerHaptic('selection');
                         setAmount((prev) => (Number(prev) || 0) + quickAmt);
                       }}
-                      className="px-2.5 py-1 rounded-[5px] bg-slate-100 dark:bg-[#1a1a1a] hover:bg-slate-200 dark:hover:bg-[#222222] border border-slate-200 dark:border-[#2e2e2e] text-xs font-medium text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                      className="px-3 py-1.5 rounded-[8px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 text-xs font-medium text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer ios-press shadow-2xs"
                     >
                       +₹{quickAmt >= 1000 ? `${(quickAmt / 1000).toLocaleString('en-IN')}k` : quickAmt}
                     </button>
@@ -794,7 +784,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                         triggerHaptic('light');
                         setAmount('');
                       }}
-                      className="px-2.5 py-1 rounded-[5px] text-xs font-mono text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-[8px] text-xs font-mono text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
                     >
                       Clear
                     </button>
@@ -810,7 +800,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                   Entry / Inflow Date
                 </label>
                 {entryDate !== formatDateFns(new Date(), 'yyyy-MM-dd') && (
-                  <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
+                  <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-[6px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
                     Historical Entry ({entryDate})
                   </span>
                 )}
@@ -833,14 +823,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 value={referenceNotes}
                 onChange={(e) => setReferenceNotes(e.target.value)}
                 placeholder="e.g. Morning opening cash from safe / Owner cash"
-                className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]"
+                className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] shadow-2xs"
               />
             </div>
 
             {/* Feedback Alert */}
             {feedback && (
               <div
-                className={`p-3 rounded-[6px] border font-sans text-xs font-medium ${
+                className={`p-3 rounded-[10px] border font-sans text-xs font-medium ${
                   feedback.type === 'success'
                     ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 border-emerald-200 dark:border-[#3ecf8e]/30 text-emerald-700 dark:text-[#3ecf8e]'
                     : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400'
@@ -851,7 +841,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             )}
 
             {/* Action Footer with Total & Reset & Emerald CTA */}
-            <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-[#242424]">
+            <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200/80 dark:border-white/10">
               <div className="text-xs text-slate-600 dark:text-[#A1A1A1] font-mono flex items-center justify-between sm:justify-start gap-2">
                 <span>Total to Add:</span>
                 <span className="font-bold text-slate-900 dark:text-white tabular-nums text-sm">
@@ -862,7 +852,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="h-10 w-10 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-xs shrink-0"
+                  className="h-10 w-10 flex items-center justify-center rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer shadow-xs shrink-0 ios-press"
                   title="Reset Form"
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -871,7 +861,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 sm:flex-none h-10 px-5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer select-none shadow-xs"
+                  className="flex-1 sm:flex-none h-10 px-5 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none shadow-xs ios-press"
                 >
                   <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
                   <span>
@@ -889,21 +879,21 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
         {/* Right Column: Cash History Ledger */}
         <div className="lg:col-span-5 space-y-3">
-          <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-3 shadow-xs">
+          <div className="stagger-card p-4 rounded-[16px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md space-y-3 shadow-xs">
             {/* Header with Title & Count Badge */}
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200 dark:border-[#242424]">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-white/10">
               <div className="flex items-center gap-2">
                 <History className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <h2 className="text-xs font-medium text-slate-900 dark:text-white font-sans">
+                <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
                   Treasury Statement &amp; History
                 </h2>
-                <span className="px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono font-bold bg-slate-100 dark:bg-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1] border border-slate-200 dark:border-[#2e2e2e]">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10">
                   {filteredAllocations.length}
                 </span>
               </div>
 
               {/* View Switch: Statement Table vs Timeline Cards */}
-              <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#2e2e2e]">
+              <div className="inline-flex rounded-[8px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => {
@@ -911,7 +901,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     setLedgerViewMode('statement');
                   }}
                   className={cn(
-                    'px-2 py-0.5 rounded-[4px] text-[11px] font-sans flex items-center gap-1 transition-all cursor-pointer',
+                    'px-2.5 py-1 rounded-[6px] text-[11px] font-sans flex items-center gap-1 transition-all cursor-pointer',
                     ledgerViewMode === 'statement'
                       ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs'
                       : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
@@ -928,7 +918,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     setLedgerViewMode('timeline');
                   }}
                   className={cn(
-                    'px-2 py-0.5 rounded-[4px] text-[11px] font-sans flex items-center gap-1 transition-all cursor-pointer',
+                    'px-2.5 py-1 rounded-[6px] text-[11px] font-sans flex items-center gap-1 transition-all cursor-pointer',
                     ledgerViewMode === 'timeline'
                       ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs'
                       : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
@@ -943,25 +933,25 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
             {/* Quick Flow Summary Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-              <div className="p-2.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626]">
+              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
                 <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">Cash Inflow:</span>
                 <span className="text-emerald-600 dark:text-[#3ecf8e] font-semibold text-xs tabular-nums block mt-0.5">
                   +{formatINR(treasurySummary.totalCashIn)}
                 </span>
               </div>
-              <div className="p-2.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626]">
+              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
                 <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">Cash Outflow:</span>
                 <span className="text-rose-600 dark:text-rose-400 font-semibold text-xs tabular-nums block mt-0.5">
                   -{formatINR(treasurySummary.totalCashOut)}
                 </span>
               </div>
-              <div className="p-2.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626]">
+              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
                 <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">UPI Inflow:</span>
                 <span className="text-sky-600 dark:text-sky-400 font-semibold text-xs tabular-nums block mt-0.5">
                   +{formatINR(treasurySummary.totalUpiIn)}
                 </span>
               </div>
-              <div className="p-2.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626]">
+              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
                 <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">UPI Outflow:</span>
                 <span className="text-rose-600 dark:text-rose-400 font-semibold text-xs tabular-nums block mt-0.5">
                   -{formatINR(treasurySummary.totalUpiOut)}

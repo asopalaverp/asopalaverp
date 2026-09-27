@@ -227,7 +227,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Add New Expense',
         categoryLabel: 'SHOP WORK',
         subtitle: 'Pay bill from cash box or shop bank UPI',
-        badge: { text: 'F2', variant: 'neutral' as const },
         relevanceScore: 100,
         actionType: 'navigate' as const,
         actionPayload: { page: 'new-voucher' },
@@ -238,7 +237,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Daily Cash Closing',
         categoryLabel: 'SHOP WORK',
         subtitle: 'Count cash notes in box & match with accounts',
-        badge: { text: 'F9', variant: 'neutral' as const },
         relevanceScore: 95,
         actionType: 'navigate' as const,
         actionPayload: { page: 'closing' },
@@ -249,7 +247,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Cash Box & Bank',
         categoryLabel: 'SHOP WORK',
         subtitle: 'Check cash in box, bank UPI balance & move cash to safe',
-        badge: { text: 'F4', variant: 'neutral' as const },
         relevanceScore: 90,
         actionType: 'navigate' as const,
         actionPayload: { page: 'treasury' },
@@ -260,7 +257,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Staff Advances',
         categoryLabel: 'SHOP WORK',
         subtitle: 'Give staff advances & clear with bills or cash returns',
-        badge: { text: 'F7', variant: 'neutral' as const },
         relevanceScore: 85,
         actionType: 'navigate' as const,
         actionPayload: { page: 'advances' },
@@ -271,7 +267,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'All Expenses',
         categoryLabel: 'RECORDS & REGISTERS',
         subtitle: 'Browse all shop expense bills with filters & export',
-        badge: { text: 'F3', variant: 'neutral' as const },
         relevanceScore: 80,
         actionType: 'navigate' as const,
         actionPayload: { page: 'expenses' },
@@ -282,7 +277,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Staff Directory',
         categoryLabel: 'RECORDS & REGISTERS',
         subtitle: 'Manage staff logins, PINs & team members',
-        badge: { text: 'F10', variant: 'neutral' as const },
         relevanceScore: 75,
         actionType: 'navigate' as const,
         actionPayload: { page: 'staff' },
@@ -293,7 +287,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Shop Settings',
         categoryLabel: 'SETTINGS & TEAM',
         subtitle: 'Set up branches, expense types & accounting locks',
-        badge: { text: 'F11', variant: 'neutral' as const },
         relevanceScore: 70,
         actionType: 'navigate' as const,
         actionPayload: { page: 'settings' },
@@ -304,7 +297,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Activity History',
         categoryLabel: 'SETTINGS & TEAM',
         subtitle: 'View history of who did what and when',
-        badge: { text: 'F8', variant: 'neutral' as const },
         relevanceScore: 65,
         actionType: 'navigate' as const,
         actionPayload: { page: 'audit' },
@@ -315,7 +307,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Alerts & Messages',
         categoryLabel: 'SYSTEM & TOOLS',
         subtitle: 'Safe drop alerts, overdue advances & closing warnings',
-        badge: { text: 'Alerts', variant: 'neutral' as const },
         relevanceScore: 60,
         actionType: 'navigate' as const,
         actionPayload: { page: 'notifications' },
@@ -326,7 +317,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Keyboard Shortcuts',
         categoryLabel: 'SYSTEM & TOOLS',
         subtitle: 'View all keyboard shortcuts and POS hotkeys',
-        badge: { text: 'F1', variant: 'neutral' as const },
         relevanceScore: 55,
         actionType: 'navigate' as const,
         actionPayload: { page: 'dashboard' },
@@ -337,7 +327,6 @@ export const GlobalSearchModal: React.FC = () => {
         title: 'Lock Screen',
         categoryLabel: 'SYSTEM & TOOLS',
         subtitle: 'Instantly lock screen with PIN protection',
-        badge: { text: 'F12', variant: 'neutral' as const },
         relevanceScore: 50,
         actionType: 'navigate' as const,
         actionPayload: { page: 'dashboard' },
@@ -451,105 +440,116 @@ export const GlobalSearchModal: React.FC = () => {
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden text-slate-900 dark:text-zinc-100 font-sans flex flex-col max-h-[80vh]"
+        className="w-full max-w-xl ios18-glass-card rounded-[22px] shadow-2xl overflow-hidden text-slate-900 dark:text-zinc-100 font-sans flex flex-col max-h-[82vh] transition-all"
       >
-        {/* Top Search Input Header (Supabase Studio cmdk) */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-200 dark:border-[#262626] bg-white dark:bg-[#1a1a1a] shrink-0">
-          <Search className="w-4 h-4 text-slate-400 dark:text-[#707070] shrink-0 stroke-[2]" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search expenses, staff, cash box, or run a command..."
-            className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none font-sans"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-              className="p-1 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-400 dark:text-zinc-400 transition-colors cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <Kbd size="xs" className="shrink-0">ESC</Kbd>
+        {/* iOS 16 Sheet Handle (Mobile visual indicator) */}
+        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
+          <div className="w-9 h-1 rounded-full bg-black/20 dark:bg-white/20" />
         </div>
 
-        {/* Scrollable Results List */}
-        <div ref={listRef} className="overflow-y-auto max-h-[50vh] p-1.5 space-y-3">
+        {/* Top Search Input Header (iOS 16 Cupertino Search Bar) */}
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200/70 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
+          <div className="flex-1 flex items-center gap-2.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] rounded-[10px] px-3 py-2">
+            <Search className="w-4 h-4 text-slate-400 dark:text-[#8e8e93] shrink-0 stroke-[2.2]" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search expenses, staff, cash box, or run a command..."
+              className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#8e8e93] focus:outline-none font-sans"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  inputRef.current?.focus();
+                }}
+                className="p-1 rounded-full bg-black/10 dark:bg-white/15 hover:bg-black/20 dark:hover:bg-white/25 text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer active:scale-90"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <Kbd size="xs" className="shrink-0 hidden sm:inline-flex rounded-[6px]">ESC</Kbd>
+        </div>
+
+        {/* Scrollable Results List (iOS 16 Inset Grouped) */}
+        <div ref={listRef} className="overflow-y-auto max-h-[50vh] p-2 space-y-3">
           {groupedSections.map((sec) => (
-            <div key={sec.title} className="space-y-0.5">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-[#707070] px-3 pt-2 pb-1 font-medium">
+            <div key={sec.title} className="space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-[#8e8e93] px-3 pt-2 pb-0.5 font-semibold">
                 {sec.title}
               </div>
 
-              {sec.items.map((item) => {
-                const itemIdx = itemCounter++;
-                const isSelected = selectedIndex === itemIdx;
-                const Icon = getItemIcon(item as SearchResultItem);
+              <div className="space-y-0.5">
+                {sec.items.map((item) => {
+                  const itemIdx = itemCounter++;
+                  const isSelected = selectedIndex === itemIdx;
+                  const Icon = getItemIcon(item as SearchResultItem);
 
-                return (
-                  <div
-                    key={item.id}
-                    ref={isSelected ? activeItemRef : undefined}
-                    onClick={() => {
-                      if (item.id === 'cmd-shortcuts') {
-                        handleClose();
-                        setShortcutsModalOpen(true);
-                      } else if (item.id === 'cmd-lock') {
-                        handleClose();
-                        useAuthStore.getState().lockScreen();
-                      } else {
-                        handleExecuteResult(item as SearchResultItem);
-                      }
-                    }}
-                    onMouseEnter={() => setSelectedIndex(itemIdx)}
-                    className={cn(
-                      'px-3 py-2 rounded-[6px] flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none',
-                      isSelected
-                        ? 'bg-slate-100 dark:bg-[#282828] text-slate-900 dark:text-white'
-                        : 'text-slate-700 dark:text-[#a1a1a1] hover:bg-slate-50 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white'
-                    )}
-                  >
-                    {/* Left: Icon & Title */}
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <Icon className={cn(
-                        'w-4 h-4 shrink-0 transition-colors stroke-[1.8]',
-                        isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-[#707070]'
-                      )} />
-                      <div className="truncate min-w-0">
-                        <span className="font-normal text-xs truncate block font-sans">
-                          {item.title}
-                        </span>
-                        {item.subtitle && !item.id.startsWith('cmd-') && (
-                          <span className="text-[11px] text-slate-400 dark:text-[#707070] truncate block font-sans">
-                            {item.subtitle}
+                  return (
+                    <div
+                      key={item.id}
+                      ref={isSelected ? activeItemRef : undefined}
+                      onClick={() => {
+                        if (item.id === 'cmd-shortcuts') {
+                          handleClose();
+                          setShortcutsModalOpen(true);
+                        } else if (item.id === 'cmd-lock') {
+                          handleClose();
+                          useAuthStore.getState().lockScreen();
+                        } else {
+                          handleExecuteResult(item as SearchResultItem);
+                        }
+                      }}
+                      onMouseEnter={() => setSelectedIndex(itemIdx)}
+                      className={cn(
+                        'px-3 py-2 rounded-[10px] flex items-center justify-between gap-3 text-xs transition-all cursor-pointer select-none ios-press',
+                        isSelected
+                          ? 'bg-black/[0.06] dark:bg-white/10 text-slate-900 dark:text-white shadow-2xs font-medium'
+                          : 'text-slate-700 dark:text-[#a1a1a1] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
+                      )}
+                    >
+                      {/* Left: Icon & Title */}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className={cn(
+                          "w-7 h-7 rounded-[8px] flex items-center justify-center shrink-0 transition-colors",
+                          isSelected ? "bg-emerald-500/20 text-[#3ecf8e]" : "bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-[#8e8e93]"
+                        )}>
+                          <Icon className="w-3.5 h-3.5 stroke-[2]" />
+                        </div>
+                        <div className="truncate min-w-0">
+                          <span className="font-medium text-xs truncate block font-sans">
+                            {item.title}
                           </span>
+                          {item.subtitle && !item.id.startsWith('cmd-') && (
+                            <span className="text-[11px] text-slate-400 dark:text-[#8e8e93] truncate block font-sans">
+                              {item.subtitle}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Shortcut Badge or Amount */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.amount !== undefined && item.amount > 0 && (
+                          <span className="font-mono text-xs font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                            {formatINR(item.amount)}
+                          </span>
+                        )}
+
+                        {item.badge && item.badge.text && (
+                          <kbd className="px-1.5 py-0.5 rounded-[6px] bg-black/5 dark:bg-white/10 text-[10px] font-mono font-medium text-slate-500 dark:text-[#a1a1a1] border border-black/10 dark:border-white/10">
+                            {item.badge.text}
+                          </kbd>
                         )}
                       </div>
                     </div>
-
-                    {/* Right: Shortcut Badge or Amount */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {item.amount !== undefined && item.amount > 0 && (
-                        <span className="font-mono text-xs font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
-                          {formatINR(item.amount)}
-                        </span>
-                      )}
-
-                      {item.badge && item.badge.text && (
-                        <kbd className="px-1.5 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 text-[10px] font-mono font-medium text-slate-500 dark:text-[#a1a1a1] border border-black/10 dark:border-white/10">
-                          {item.badge.text}
-                        </kbd>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           ))}
 
@@ -564,20 +564,20 @@ export const GlobalSearchModal: React.FC = () => {
           )}
         </div>
 
-        {/* Minimalist Studio Footer */}
-        <div className="px-4 py-2 border-t border-slate-200 dark:border-[#262626] bg-slate-50/60 dark:bg-[#141414] flex items-center justify-between text-[10px] font-mono text-slate-400 dark:text-[#707070] shrink-0">
+        {/* Minimalist iOS 16 Footer */}
+        <div className="px-4 py-2.5 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-slate-400 dark:text-[#8e8e93] shrink-0">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↑</kbd>
-              <kbd className="px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↓</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↑</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↓</kbd>
               <span className="ml-0.5">navigate</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↵</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↵</kbd>
               <span className="ml-0.5">select</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.2 rounded bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">ESC</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">ESC</kbd>
               <span className="ml-0.5">close</span>
             </span>
           </div>
@@ -588,9 +588,10 @@ export const GlobalSearchModal: React.FC = () => {
               handleClose();
               setActivePage('search');
             }}
-            className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-[#3ecf8e]"
+            className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-[#3ecf8e] font-semibold flex items-center gap-1"
           >
-            Full Search Hub →
+            <span>Search Hub</span>
+            <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </div>

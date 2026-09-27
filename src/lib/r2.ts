@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getStoredCloudConfig } from '@/store/cloudConfigStore';
+import { supabase } from '@/lib/supabase';
 
 let currentConfig = getStoredCloudConfig();
 
@@ -122,7 +123,7 @@ export async function compressImageToBlob(
 }
 
 /**
- * Uploads a file to Cloudflare R2 with automatic client-side compression
+ * Uploads a file to Cloudflare R2 with automatic client-side compression and pre-signed URL security
  */
 export async function uploadToR2(
   file: File | Blob | Uint8Array,
@@ -140,7 +141,7 @@ export async function uploadToR2(
   const randomStr = Math.random().toString(36).substring(2, 6);
 
   try {
-    let body: Uint8Array;
+    let uploadBlob: Blob;
     let contentType = 'image/webp';
     let fileExt = 'webp';
 
@@ -149,14 +150,42 @@ export async function uploadToR2(
       const compressed = await compressImageToBlob(file, 1600, 1600, 0.80);
       contentType = compressed.contentType;
       fileExt = compressed.ext;
-      const arrayBuffer = await compressed.blob.arrayBuffer();
-      body = new Uint8Array(arrayBuffer);
+      uploadBlob = compressed.blob;
     } else {
-      body = file;
+      uploadBlob = new Blob([file as BlobPart], { type: 'image/webp' });
       fileExt = fileName ? fileName.split('.').pop() || 'webp' : 'webp';
     }
 
+    // 2. Primary Zero-Trust Path: Supabase Edge Function Pre-Signed URL
+    try {
+      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('r2-storage', {
+        body: {
+          action: 'get-upload-url',
+          folder,
+          contentType,
+          fileName: fileName || `upload.${fileExt}`,
+        },
+      });
+
+      if (!edgeError && edgeData?.uploadUrl && edgeData?.publicUrl) {
+        const presignedPut = await fetch(edgeData.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: uploadBlob,
+        });
+
+        if (presignedPut.ok) {
+          return edgeData.publicUrl;
+        }
+      }
+    } catch (e) {
+      // Fall through to direct S3 client fallback
+    }
+
+    // 3. Fallback: Direct S3 Client Upload
     const safeKey = `${folder}/${year}-${month}/${folder}_${day}-${month}-${year}_${hours}-${minutes}-${seconds}_${randomStr}.${fileExt}`;
+    const arrayBuffer = await uploadBlob.arrayBuffer();
+    const body = new Uint8Array(arrayBuffer);
 
     const command = new PutObjectCommand({
       Bucket: bucketName,
@@ -174,7 +203,7 @@ export async function uploadToR2(
     await Promise.race([uploadPromise, timeoutPromise]);
     return `${publicDomain}/${safeKey}`;
   } catch (err) {
-    console.warn('R2 S3 upload failed:', err);
+    console.warn('R2 upload failed:', err);
     return '';
   }
 }
@@ -185,15 +214,33 @@ export async function uploadToR2(
 export async function deleteFromR2(urlOrKey: string): Promise<boolean> {
   if (!urlOrKey) return false;
 
-  // Extract key from public URL or direct path
-  // Example: https://pub-5c613915e11142e0af82109d818863e1.r2.dev/receipts/2026-09/receipts_22-09-2026.webp
-  // Key: receipts/2026-09/receipts_22-09-2026.webp
   const key = urlOrKey
     .replace(/^https?:\/\/[^/]+\//, '')
     .replace(/^\/+/, '');
 
   if (!key) return false;
 
+  // Security Check: Restrict deletions strictly to media asset folders
+  const ALLOWED_FOLDERS = ['receipts/', 'avatars/', 'signatures/'];
+  const isAllowed = ALLOWED_FOLDERS.some((f) => key.startsWith(f));
+  if (!isAllowed) {
+    console.warn(`[Security] Blocked unauthorized R2 deletion targeting key: ${key}`);
+    return false;
+  }
+
+  // 1. Try Supabase Edge Function first
+  try {
+    const { data: edgeData, error: edgeError } = await supabase.functions.invoke('r2-storage', {
+      body: { action: 'delete-file', urlOrKey: key },
+    });
+    if (!edgeError && edgeData?.success) {
+      return true;
+    }
+  } catch (e) {
+    // Fall through to S3 client
+  }
+
+  // 2. Direct S3 Client Fallback
   try {
     const command = new DeleteObjectCommand({
       Bucket: bucketName,

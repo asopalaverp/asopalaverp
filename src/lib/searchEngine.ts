@@ -27,7 +27,7 @@ export interface SearchResultItem {
   categoryLabel: string;
   title: string;
   subtitle: string;
-  badge: {
+  badge?: {
     text: string;
     variant: 'emerald' | 'amber' | 'rose' | 'blue' | 'neutral';
   };

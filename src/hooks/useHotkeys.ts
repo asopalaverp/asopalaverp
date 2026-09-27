@@ -81,11 +81,29 @@ export function useHotkeys() {
         return;
       }
 
-      // F12: My Profile & Security
-      if (key === 'F12') {
+      // Alt + S: Staff Directory
+      if (e.altKey && key.toLowerCase() === 's') {
         e.preventDefault();
         e.stopPropagation();
-        setActivePage('profile');
+        if (!can('can_manage_users_roles')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Staff management requires appropriate permissions.' });
+          return;
+        }
+        setActivePage('staff');
+        return;
+      }
+
+      // Alt + M: Showroom Settings & Master Catalogues
+      if (e.altKey && (key.toLowerCase() === 'm' || key === 'µ')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!can('can_manage_periods')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Settings access requires appropriate permissions.' });
+          return;
+        }
+        setActivePage('settings');
         return;
       }
 
@@ -144,6 +162,14 @@ export function useHotkeys() {
         return;
       }
 
+      // F5: POS Quick Math & Tender Calculator (Override browser refresh on POS terminals to preserve transaction state)
+      if (key === 'F5') {
+        e.preventDefault();
+        e.stopPropagation();
+        setCalculatorOpen(!isCalculatorOpen);
+        return;
+      }
+
       const isAnyModalOpen =
         isSearchOpen ||
         isShortcutsModalOpen ||
@@ -153,21 +179,14 @@ export function useHotkeys() {
         Boolean(activeLightboxUrl) ||
         Boolean(activeDrawerVoucher);
 
-      // F6: POS Quick Math & Tender Calculator (Global access)
-      if (key === 'F6') {
-        e.preventDefault();
-        e.stopPropagation();
-        setCalculatorOpen(!isCalculatorOpen);
-        return;
-      }
-
       // If a modal/drawer is open, do not trigger background page switches
       if (isAnyModalOpen) return;
 
-      const isCashier = user?.role_code === 'Cashier';
+      // =========================================================================
+      // COMPLETE F1 - F12 ENTERPRISE POS FUNCTION KEY MAP
+      // =========================================================================
 
-      // Primary Function Keys for POS Navigation:
-      // F1: Dashboard
+      // F1: Dashboard & Live Shop Summary
       if (key === 'F1') {
         e.preventDefault();
         e.stopPropagation();
@@ -197,14 +216,27 @@ export function useHotkeys() {
         e.stopPropagation();
         if (!can('can_inject_float')) {
           triggerHaptic('error');
-          showToast({ type: 'error', title: 'Access Restricted (F4)', message: 'Treasury access requires appropriate permissions.' });
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Treasury access requires appropriate permissions.' });
           return;
         }
         setActivePage('treasury');
         return;
       }
 
-      // F7: Staff Advances & Imprest
+      // F6: Staff Directory & Showroom Roster
+      if (key === 'F6') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!can('can_manage_users_roles')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Staff management requires appropriate permissions.' });
+          return;
+        }
+        setActivePage('staff');
+        return;
+      }
+
+      // F7: Staff Advances & Imprest Loans
       if (key === 'F7') {
         e.preventDefault();
         e.stopPropagation();
@@ -212,20 +244,20 @@ export function useHotkeys() {
         return;
       }
 
-      // F8: Activity & Security History
+      // F8: Activity & Security Audit Logbook
       if (key === 'F8') {
         e.preventDefault();
         e.stopPropagation();
         if (!can('can_view_audit_logs')) {
           triggerHaptic('error');
-          showToast({ type: 'error', title: 'Access Restricted (F8)', message: 'Audit log access requires appropriate permissions.' });
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Audit log access requires appropriate permissions.' });
           return;
         }
         setActivePage('audit');
         return;
       }
 
-      // F9: Daily Cash Closing & 6-Denomination Reckoner
+      // F9: Daily Cash Closing & Day-End Settlement
       if (key === 'F9') {
         e.preventDefault();
         e.stopPropagation();
@@ -233,16 +265,11 @@ export function useHotkeys() {
         return;
       }
 
-      // F10: Staff Directory & Team Logins
+      // F10: Alerts & Messages / Notifications
       if (key === 'F10') {
         e.preventDefault();
         e.stopPropagation();
-        if (!can('can_manage_users_roles')) {
-          triggerHaptic('error');
-          showToast({ type: 'error', title: 'Access Restricted (F10)', message: 'Staff management requires appropriate permissions.' });
-          return;
-        }
-        setActivePage('staff');
+        setActivePage('notifications');
         return;
       }
 
@@ -252,10 +279,18 @@ export function useHotkeys() {
         e.stopPropagation();
         if (!can('can_manage_periods')) {
           triggerHaptic('error');
-          showToast({ type: 'error', title: 'Access Restricted (F11)', message: 'Settings access requires appropriate permissions.' });
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Settings access requires appropriate permissions.' });
           return;
         }
         setActivePage('settings');
+        return;
+      }
+
+      // F12: My Profile & PIN Security
+      if (key === 'F12') {
+        e.preventDefault();
+        e.stopPropagation();
+        setActivePage('profile');
         return;
       }
     }

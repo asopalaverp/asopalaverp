@@ -362,17 +362,17 @@ export const DailyCashClosingPage: React.FC = () => {
   return (
     <div ref={containerRef} className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
       {/* 1. Daily Cash Closing Header */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#232323] bg-white dark:bg-[#141414]">
+      <div className="px-4 lg:px-6 py-4 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <Coins className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Daily Cash Closing</span>
               </h1>
             </div>
-            <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-[#8e8e93] font-sans mt-0.5">
               Count night cash notes, match today's money with records, and close today's accounts.
             </p>
           </div>
@@ -382,7 +382,7 @@ export const DailyCashClosingPage: React.FC = () => {
             <button
               type="button"
               onClick={handlePrintSlip}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
               title="Print cash closing receipt slip"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -393,7 +393,7 @@ export const DailyCashClosingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleReset}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
                 title="Reset note counters to zero"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -406,7 +406,7 @@ export const DailyCashClosingPage: React.FC = () => {
                 type="button"
                 onClick={handleReopenClosing}
                 disabled={reopening}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
               >
                 <Unlock className="w-3.5 h-3.5" />
                 <span>{reopening ? 'Reopening...' : 'Reopen Closing'}</span>
@@ -420,37 +420,37 @@ export const DailyCashClosingPage: React.FC = () => {
       <main className="px-4 lg:px-6 py-4 space-y-4">
         {/* 2. Top Summary KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Expected Cash in Box</div>
-            <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(openingCash)}</div>
-            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e]">
+          <div className="stagger-card rounded-[12px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#141414] p-4 space-y-1 shadow-xs">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#8e8e93] font-semibold">Expected Cash in Box</div>
+            <div className="text-2xl font-mono tabular-nums font-bold text-slate-900 dark:text-white">{formatINR(openingCash)}</div>
+            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e] font-medium">
               Shop Record Balance
             </div>
           </div>
 
-          <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Cash Spent Today</div>
-            <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(cashDisbursedToday)}</div>
-            <div className="text-xs font-mono text-amber-600 dark:text-[#f59e0b]">
+          <div className="stagger-card rounded-[12px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#141414] p-4 space-y-1 shadow-xs">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#8e8e93] font-semibold">Cash Spent Today</div>
+            <div className="text-2xl font-mono tabular-nums font-bold text-slate-900 dark:text-white">{formatINR(cashDisbursedToday)}</div>
+            <div className="text-xs font-mono text-amber-600 dark:text-[#f59e0b] font-medium">
               {dayVouchers.filter((v) => v.payment_method === 'Physical_Cash').length} Cash Expenses
             </div>
           </div>
 
-          <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Actual Counted Cash</div>
-            <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{formatINR(physicalTotal)}</div>
-            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e]">
-              Counted Notes & Coins
+          <div className="stagger-card rounded-[12px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#141414] p-4 space-y-1 shadow-xs">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#8e8e93] font-semibold">Actual Counted Cash</div>
+            <div className="text-2xl font-mono tabular-nums font-bold text-slate-900 dark:text-white">{formatINR(physicalTotal)}</div>
+            <div className="text-xs font-mono text-emerald-600 dark:text-[#3ecf8e] font-medium">
+              Counted Notes &amp; Coins
             </div>
           </div>
 
-          <div className="stagger-card rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Cash Difference</div>
-            <div className={cn("text-2xl font-mono tabular-nums font-medium", varianceAmount === 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : varianceAmount > 0 ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400")}>
+          <div className="stagger-card rounded-[12px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#141414] p-4 space-y-1 shadow-xs">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#8e8e93] font-semibold">Cash Difference</div>
+            <div className={cn("text-2xl font-mono tabular-nums font-bold", varianceAmount === 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : varianceAmount > 0 ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400")}>
               {varianceAmount === 0 ? 'Matched ₹0' : formatINR(varianceAmount)}
             </div>
-            <div className={cn("text-xs font-mono", varianceAmount === 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : varianceAmount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400')}>
-              {varianceAmount === 0 ? 'Exact Match (₹0 Diff)' : varianceAmount > 0 ? '+ Extra Cash' : '- Cash Shortage'}
+            <div className="text-xs font-mono text-slate-500 dark:text-[#8e8e93] font-medium">
+              {varianceAmount === 0 ? 'Perfect match' : varianceAmount > 0 ? 'Excess in cash box' : 'Shortage in cash box'}
             </div>
           </div>
         </div>
@@ -459,26 +459,26 @@ export const DailyCashClosingPage: React.FC = () => {
         <form onSubmit={handleSaveClosing} className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Column: Denomination Table (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="stagger-card rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between p-3.5 border-b border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#171717]">
+            <div className="stagger-card rounded-[16px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 overflow-hidden shadow-xs ios-card">
+              <div className="flex items-center justify-between p-4 border-b border-slate-200/70 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
                 <div className="flex items-center gap-2">
-                  <Coins className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                  <Coins className="w-4 h-4 text-[#3ecf8e]" />
                   <h2 className="text-sm font-semibold font-sans text-slate-900 dark:text-white tracking-tight">
-                    1. Count Cash Notes & Coins
+                    1. Count Cash Notes &amp; Coins
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="h-7 px-2.5 rounded-[6px] text-xs font-sans text-slate-500 dark:text-[#707070] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-transparent hover:border-rose-200 dark:hover:border-rose-900/30 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  className="h-8 px-3 rounded-[8px] text-xs font-semibold font-sans text-slate-500 dark:text-[#8e8e93] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer inline-flex items-center gap-1.5 ios-press"
                 >
-                  <RotateCcw className="w-3 h-3 stroke-[2]" />
+                  <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
                   <span>Reset Counts</span>
                 </button>
               </div>
 
               {/* 1. Mobile Fast Steppers (< lg) */}
-              <div className="lg:hidden divide-y divide-slate-100 dark:divide-[#1f1f1f] p-2 space-y-2">
+              <div className="lg:hidden p-3 space-y-2.5">
                 {[500, 200, 100, 50, 20, 10, 5, 2, 1].map((denom) => {
                   const count = counts[denom] || 0;
                   const subtotal = denom * count;
@@ -486,29 +486,29 @@ export const DailyCashClosingPage: React.FC = () => {
                   return (
                     <div
                       key={denom}
-                      className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-2.5"
+                      className="p-3.5 rounded-[14px] bg-black/[0.02] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] space-y-3"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-[6px] text-xs font-mono font-medium bg-slate-200 dark:bg-[#222222] text-slate-900 dark:text-[#EDEDED] border border-slate-300 dark:border-[#2e2e2e]">
+                          <span className="px-2.5 py-1 rounded-[8px] text-xs font-mono font-semibold bg-white dark:bg-white/10 text-slate-900 dark:text-[#EDEDED] border border-black/[0.06] dark:border-white/[0.08] shadow-2xs">
                             ₹{denom} {denom >= 10 ? 'Note' : 'Coin'}
                           </span>
-                          <span className="text-[11px] font-mono text-slate-500 dark:text-[#707070]">
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-[#8e8e93]">
                             {count} pcs
                           </span>
                         </div>
 
-                        <div className="text-right font-mono font-medium text-sm text-slate-900 dark:text-white tabular-nums">
+                        <div className="text-right font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
                           {formatINR(subtotal)}
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-1.5 pt-1 font-mono">
+                      <div className="flex items-center justify-between gap-1.5 pt-0.5 font-mono">
                         <button
                           type="button"
                           onClick={() => handleStepCount(denom, -10)}
                           disabled={locked || count < 10}
-                          className="flex-1 min-h-[38px] rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#EDEDED] text-xs font-mono disabled:opacity-30 cursor-pointer active:scale-95 transition-all flex items-center justify-center hover:bg-slate-100 dark:hover:bg-[#222222]"
+                          className="flex-1 min-h-[40px] rounded-[6px] bg-white dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-semibold disabled:opacity-30 cursor-pointer active:scale-95 transition-all flex items-center justify-center shadow-2xs ios-press"
                         >
                           -10
                         </button>
@@ -516,7 +516,7 @@ export const DailyCashClosingPage: React.FC = () => {
                           type="button"
                           onClick={() => handleStepCount(denom, -1)}
                           disabled={locked || count <= 0}
-                          className="flex-1 min-h-[38px] rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#EDEDED] text-xs font-mono disabled:opacity-30 cursor-pointer active:scale-95 transition-all flex items-center justify-center hover:bg-slate-100 dark:hover:bg-[#222222]"
+                          className="flex-1 min-h-[40px] rounded-[6px] bg-white dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-semibold disabled:opacity-30 cursor-pointer active:scale-95 transition-all flex items-center justify-center shadow-2xs ios-press"
                         >
                           -1
                         </button>
@@ -528,14 +528,14 @@ export const DailyCashClosingPage: React.FC = () => {
                           value={count || ''}
                           onChange={(e) => handleCountChange(denom, e.target.value)}
                           placeholder="0"
-                          className="w-16 min-h-[38px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-[6px] text-center text-sm font-mono font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] tabular-nums"
+                          className="w-16 min-h-[40px] bg-white dark:bg-black/30 border border-black/[0.08] dark:border-white/10 rounded-[6px] text-center text-sm font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] tabular-nums shadow-inner"
                         />
 
                         <button
                           type="button"
                           onClick={() => handleStepCount(denom, 1)}
                           disabled={locked}
-                          className="flex-1 min-h-[38px] rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#EDEDED] text-xs font-mono cursor-pointer active:scale-95 transition-all flex items-center justify-center hover:bg-slate-100 dark:hover:bg-[#222222]"
+                          className="flex-1 min-h-[40px] rounded-[6px] bg-white dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-semibold cursor-pointer active:scale-95 transition-all flex items-center justify-center shadow-2xs ios-press"
                         >
                           +1
                         </button>
@@ -543,7 +543,7 @@ export const DailyCashClosingPage: React.FC = () => {
                           type="button"
                           onClick={() => handleStepCount(denom, 10)}
                           disabled={locked}
-                          className="flex-1 min-h-[38px] rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#EDEDED] text-xs font-mono cursor-pointer active:scale-95 transition-all flex items-center justify-center hover:bg-slate-100 dark:hover:bg-[#222222]"
+                          className="flex-1 min-h-[40px] rounded-[6px] bg-white dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-semibold cursor-pointer active:scale-95 transition-all flex items-center justify-center shadow-2xs ios-press"
                         >
                           +10
                         </button>
@@ -732,7 +732,7 @@ export const DailyCashClosingPage: React.FC = () => {
                   value={closingNotes}
                   onChange={(e) => setClosingNotes(e.target.value)}
                   placeholder="e.g. Day-end cash verified with all bills by cashier."
-                  className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-[6px] p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] resize-none font-mono disabled:opacity-60"
+                  className="w-full bg-black/[0.03] dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-[6px] p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] resize-none font-sans disabled:opacity-60 shadow-xs"
                 />
               </div>
 
@@ -744,10 +744,10 @@ export const DailyCashClosingPage: React.FC = () => {
                     }
                   }}
                   className={cn(
-                    'p-3 rounded-[6px] border font-sans text-xs font-medium',
+                    'p-3.5 rounded-[12px] border font-sans text-xs font-semibold',
                     feedback.type === 'success'
-                      ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-500/30'
-                      : 'bg-rose-50 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-500/30'
+                      ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/10 text-rose-800 dark:text-rose-300 border-rose-500/30'
                   )}
                 >
                   {feedback.message}
@@ -758,15 +758,15 @@ export const DailyCashClosingPage: React.FC = () => {
               <div className="pt-2 space-y-2">
                 {locked ? (
                   <div className="space-y-2">
-                    <div className="p-3 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-slate-900 dark:text-[#EDEDED] text-xs font-mono font-medium">
+                    <div className="p-3.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-slate-900 dark:text-[#EDEDED] text-xs font-medium">
                         <Lock className="w-4 h-4 text-[#3ecf8e]" />
-                        <span>Today's Cash Closed & Locked</span>
+                        <span>Today's Cash Closed &amp; Locked</span>
                       </div>
                       <button
                         type="button"
                         onClick={handlePrintSlip}
-                        className="h-7 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white text-xs font-sans transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        className="h-8 px-3 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white text-xs font-semibold font-sans transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ios-press"
                       >
                         <Printer className="w-3.5 h-3.5" />
                         <span>Print Slip</span>
@@ -774,10 +774,10 @@ export const DailyCashClosingPage: React.FC = () => {
                     </div>
 
                     {!isSupervisor && (
-                      <div className="p-3 rounded-[6px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-[11px] font-sans text-slate-600 dark:text-zinc-400 space-y-1">
+                      <div className="p-3.5 rounded-[12px] bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] text-[11px] font-sans text-slate-600 dark:text-zinc-400 space-y-1">
                         <p className="font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                           <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                          <span>Closing Submitted & Finalized</span>
+                          <span>Closing Submitted &amp; Finalized</span>
                         </p>
                         <p className="leading-relaxed">
                           Your evening cash closing for this date is recorded and permanently locked. Cashiers cannot edit, change note counts, or reopen closed accounts. If an adjustment is needed, contact your Store Manager or Super Admin.
@@ -790,7 +790,7 @@ export const DailyCashClosingPage: React.FC = () => {
                         type="button"
                         onClick={handleReopenClosing}
                         disabled={reopening}
-                        className="h-[38px] w-full flex items-center justify-center gap-2 px-4 rounded-[6px] border border-slate-300 dark:border-[#262626] bg-transparent hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white font-sans text-xs font-medium cursor-pointer transition-colors"
+                        className="h-10 w-full flex items-center justify-center gap-2 px-4 rounded-[6px] border border-black/[0.08] dark:border-white/10 bg-transparent hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white font-sans text-xs font-semibold cursor-pointer transition-all ios-press"
                       >
                         <Unlock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                         <span>{reopening ? 'Unlocking...' : 'Reopen / Unlock Closing (Supervisor)'}</span>
@@ -802,7 +802,7 @@ export const DailyCashClosingPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={handlePrintSlip}
-                      className="h-[38px] px-3.5 rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs shrink-0"
+                      className="h-11 px-4 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs shrink-0 ios-press"
                       title="Print Closing Slip preview"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -813,9 +813,9 @@ export const DailyCashClosingPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="h-[38px] flex-1 flex items-center justify-center gap-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans cursor-pointer transition-colors select-none shadow-xs"
+                      className="h-11 flex-1 flex items-center justify-center gap-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs font-sans cursor-pointer transition-all select-none shadow-md ios-press"
                     >
-                      <Check className="w-3.5 h-3.5 text-[#171717] stroke-[3]" />
+                      <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
                       <span>{submitting ? 'Saving Closing...' : 'Complete & Close Day'}</span>
                     </button>
                   </div>
@@ -825,16 +825,16 @@ export const DailyCashClosingPage: React.FC = () => {
           </div>
 
           {/* Mobile Sticky Reconciliation & Submit Bar (< lg) */}
-          <div className="lg:hidden fixed bottom-[68px] left-0 right-0 z-30 bg-white/95 dark:bg-[#141414]/95 backdrop-blur-2xl border-t border-slate-200 dark:border-[#262626] p-3 pb-safe shadow-2xl flex items-center justify-between gap-3 font-sans">
+          <div className="lg:hidden fixed bottom-[68px] left-0 right-0 z-30 bg-white/95 dark:bg-[#141414]/95 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 p-3 pb-safe shadow-2xl flex items-center justify-between gap-3 font-sans">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] uppercase font-mono">Physical:</span>
+                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] uppercase font-mono">Physical:</span>
                 <strong className="font-mono font-bold text-sm text-slate-900 dark:text-white tabular-nums">
                   {formatINR(physicalTotal)}
                 </strong>
               </div>
               <div className="text-xs font-mono font-semibold">
-                <span className="text-slate-500 dark:text-[#707070]">Diff: </span>
+                <span className="text-slate-500 dark:text-[#8e8e93]">Diff: </span>
                 <span
                   className={cn(
                     varianceAmount === 0
@@ -855,7 +855,7 @@ export const DailyCashClosingPage: React.FC = () => {
                   type="submit"
                   disabled={submitting}
                   onClick={() => triggerHaptic()}
-                  className="h-10 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs tracking-tight transition-transform active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-md select-none"
+                  className="h-11 px-5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs tracking-tight transition-all cursor-pointer flex items-center gap-1.5 shadow-md select-none ios-press"
                 >
                   <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
                   <span>{submitting ? 'Closing...' : 'Close Day'}</span>

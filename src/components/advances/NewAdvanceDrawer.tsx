@@ -34,16 +34,6 @@ interface NewAdvanceDrawerProps {
   onSuccess: () => void;
 }
 
-const COMMON_PURPOSES = [
-  'Emergency / Medical',
-  'Festival / Diwali',
-  'Family Need',
-  'Travel & Bus Fare',
-  'Salary Advance',
-  'Shop Material Purchase',
-  'Tailoring Work',
-];
-
 const PRESET_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000];
 
 export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess }) => {
@@ -174,8 +164,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     const isExcessRestricted = isExcessAdvance && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer';
     if (isExcessRestricted && !isExcessAdvancesAllowed()) {
       const msg = numAmount > 10000
-        ? `Advance Limit Exceeded: Staff advance maximum limit is ₹10,000. For ₹${formatINR(numAmount)}, enable F12 Emergency Excess Advance Override.`
-        : `Active Advance Exists: ${selectedStaff.first_name} already has an unsettled advance of ₹${formatINR(pendingAdvanceInfo.totalUnsettled)}. Settle prior advance or enable F12 Excess Advance Override.`;
+        ? `Advance Limit Exceeded: Staff advance maximum limit is ₹10,000. For ₹${formatINR(numAmount)}, enable Emergency Excess Advance Override in Settings.`
+        : `Active Advance Exists: ${selectedStaff.first_name} already has an unsettled advance of ₹${formatINR(pendingAdvanceInfo.totalUnsettled)}. Settle prior advance or enable Excess Advance Override in Settings.`;
       setError(msg);
       showToast({ type: 'error', title: 'Excess Advance Restricted', message: msg });
       triggerHaptic('error');
@@ -276,7 +266,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
           onClick={handleClose}
           className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
         >
-          Cancel (ESC)
+          Cancel
         </button>
 
         <button
@@ -568,7 +558,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
           )}
         </div>
 
-        {/* STEP 4: Purpose & Quick Tags */}
+        {/* STEP 4: Reason & Purpose */}
         <div className="space-y-3 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-[#262626]">
             <h3 className="text-xs font-medium uppercase tracking-wider text-slate-700 dark:text-zinc-300 font-sans">
@@ -589,33 +579,6 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
               placeholder="e.g. Festival advance / Medical emergency / Travel advance"
               className="w-full bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] shadow-xs min-h-[38px]"
             />
-          </div>
-
-          {/* Quick Purpose Tag Chips */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-mono text-slate-500 dark:text-zinc-400">
-              Quick Purpose Tags:
-            </label>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {COMMON_PURPOSES.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setPurpose(tag);
-                  }}
-                  className={cn(
-                    'px-2.5 py-1 rounded-[6px] text-xs font-sans transition-colors cursor-pointer border',
-                    purpose === tag
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-500/30 font-medium'
-                      : 'bg-white dark:bg-[#202020] text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-[#2e2e2e] hover:border-slate-300'
-                  )}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Touch Signature Canvas */}

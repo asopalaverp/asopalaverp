@@ -224,7 +224,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({ pageKey, childre
       {/* ========================================================================= */}
       {/* ACTIVE PAGE CONTENT CONTAINER                                            */}
       {/* ========================================================================= */}
-      <div ref={containerRef} className="w-full">
+      <div ref={containerRef} key={displayedKey} className="w-full">
         {displayedChildren}
       </div>
     </div>

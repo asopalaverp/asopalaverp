@@ -49,7 +49,7 @@ interface UIState {
   isCalculatorOpen: boolean;
   settleTargetAdvance: StaffAdvance | null;
   isBulkImportOpen: boolean;
-  bulkImportDefaultType: 'categories' | 'departments' | 'couriers' | 'payments' | 'staff' | 'branches';
+  bulkImportDefaultType: 'categories' | 'departments' | 'couriers' | 'staff' | 'branches';
   // Navigation Visibility (Auto-hide on mobile scroll down, reveal on scroll up)
   isNavVisible: boolean;
 
@@ -74,7 +74,7 @@ interface UIState {
   setSettleTargetAdvance: (advance: StaffAdvance | null) => void;
   setBulkImportOpen: (
     open: boolean,
-    defaultType?: 'categories' | 'departments' | 'couriers' | 'payments' | 'staff' | 'branches'
+    defaultType?: 'categories' | 'departments' | 'couriers' | 'staff' | 'branches'
   ) => void;
 }
 

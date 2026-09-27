@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase';
 import { SecurityAuditLog } from '@/types/database';
-import { SEED_AUDIT_LOGS } from '@/lib/sampleSeedData';
 
 /**
  * Generates a standard SHA-256 tamper-proof cryptographic signature for audit logs
@@ -122,10 +121,10 @@ export function getLocalAuditLogs(): SecurityAuditLog[] {
         return parsed;
       }
     }
-    localStorage.setItem(LOCAL_AUDIT_KEY, JSON.stringify(SEED_AUDIT_LOGS));
-    return SEED_AUDIT_LOGS;
+    localStorage.setItem(LOCAL_AUDIT_KEY, JSON.stringify([]));
+    return [];
   } catch {
-    return SEED_AUDIT_LOGS;
+    return [];
   }
 }
 

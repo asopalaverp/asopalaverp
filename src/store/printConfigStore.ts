@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase } from '@/lib/supabase';
 
 export interface PrintConfig {
   paperWidth: '80mm' | '58mm';
@@ -19,8 +20,9 @@ export interface PrintConfig {
 
 interface PrintConfigState {
   config: PrintConfig;
-  updateConfig: (updates: Partial<PrintConfig>) => void;
-  resetConfig: () => void;
+  fetchCloudPrintConfig: () => Promise<void>;
+  updateConfig: (updates: Partial<PrintConfig>) => Promise<void>;
+  resetConfig: () => Promise<void>;
 }
 
 const STORAGE_KEY = 'asopalav_thermal_print_config_v1';
@@ -58,7 +60,27 @@ const getStoredPrintConfig = (): PrintConfig => {
 export const usePrintConfigStore = create<PrintConfigState>((set, get) => ({
   config: getStoredPrintConfig(),
 
-  updateConfig: (updates: Partial<PrintConfig>) => {
+  fetchCloudPrintConfig: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'thermal_print_config')
+        .maybeSingle();
+
+      if (!error && data?.setting_value) {
+        const merged = { ...DEFAULT_PRINT_CONFIG, ...data.setting_value };
+        set({ config: merged });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        }
+      }
+    } catch (e) {
+      console.warn('Thermal print config cloud fetch fallback:', e);
+    }
+  },
+
+  updateConfig: async (updates: Partial<PrintConfig>) => {
     const updated = { ...get().config, ...updates };
     set({ config: updated });
     if (typeof window !== 'undefined') {
@@ -69,9 +91,20 @@ export const usePrintConfigStore = create<PrintConfigState>((set, get) => ({
         console.warn('Failed to persist print config:', e);
       }
     }
+
+    // Persist to Supabase app_settings
+    try {
+      await supabase.from('app_settings').upsert({
+        setting_key: 'thermal_print_config',
+        setting_value: updated,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Thermal print config cloud save fallback:', e);
+    }
   },
 
-  resetConfig: () => {
+  resetConfig: async () => {
     set({ config: DEFAULT_PRINT_CONFIG });
     if (typeof window !== 'undefined') {
       try {
@@ -80,6 +113,16 @@ export const usePrintConfigStore = create<PrintConfigState>((set, get) => ({
       } catch (e) {
         console.warn('Failed to reset print config:', e);
       }
+    }
+
+    try {
+      await supabase.from('app_settings').upsert({
+        setting_key: 'thermal_print_config',
+        setting_value: DEFAULT_PRINT_CONFIG,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Thermal print config cloud reset fallback:', e);
     }
   },
 }));

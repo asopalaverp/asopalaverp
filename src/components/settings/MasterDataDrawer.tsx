@@ -7,6 +7,7 @@ import { Branch, AppUser, StaffMember, ExpenseCategory, Department, CourierPartn
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { SupabaseFieldRow } from '@/components/ui/SupabaseFieldRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { IOSSegmentedControl } from '@/components/ui/ios';
 import {
   Trash2,
   AlertCircle,
@@ -56,7 +57,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
   useScrollLock(isOpen);
 
-  const [activeTab, setActiveTab] = useState<'form' | 'developer'>('form');
   const [formData, setFormData] = useState<any>({});
   const [availableRoles, setAvailableRoles] = useState<AppRole[]>([]);
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
@@ -88,7 +88,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('form');
       setConfirmDelete(false);
       setDeleteReason('');
       setError('');
@@ -464,36 +463,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
       footer={drawerFooter}
     >
       <div className="w-full space-y-4 font-sans text-xs">
-        {/* Navigation Tabs (if Developer) */}
-        {isDeveloper && (
-          <div className="flex items-center gap-1 p-0.5 rounded-[6px] bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] mb-4">
-            <button
-              type="button"
-              onClick={() => setActiveTab('form')}
-              className={cn(
-                'flex-1 py-1.5 px-3 rounded-[4px] text-xs font-sans transition-colors cursor-pointer min-h-[30px]',
-                activeTab === 'form'
-                  ? 'bg-white dark:bg-[#222222] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#333]'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white font-medium'
-              )}
-            >
-              Row Editor
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('developer')}
-              className={cn(
-                'flex-1 py-1.5 px-3 rounded-[4px] text-xs font-sans transition-colors cursor-pointer min-h-[30px]',
-                activeTab === 'developer'
-                  ? 'bg-white dark:bg-[#222222] text-slate-900 dark:text-white font-medium shadow-xs border border-slate-200 dark:border-[#333]'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white font-medium'
-              )}
-            >
-              JSON Payload
-            </button>
-          </div>
-        )}
-
         {error && (
           <div className="p-3 rounded-[6px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-sans flex items-center gap-2 font-medium">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -501,9 +470,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           </div>
         )}
 
-        {/* Tab 1: Supabase Row Editor Form */}
-        {activeTab === 'form' && (
-          <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleSave} className="space-y-4">
             {/* 1. Branch Form (master_branches) */}
             {type === 'branch' && (
               <div className="space-y-4">
@@ -1261,31 +1228,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                 </button>
               </div>
             )}
-          </form>
-        )}
-
-        {/* Tab 2: Developer Payload */}
-        {activeTab === 'developer' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-gray-400 flex items-center gap-1.5 font-medium">
-                <Code2 className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span>Entity JSON Payload</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => handleCopyText(JSON.stringify(formData, null, 2), 'json')}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-white dark:bg-[#202020] hover:bg-slate-50 text-slate-700 dark:text-white border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono cursor-pointer"
-              >
-                {copiedCode === 'json' ? <Check className="w-3 h-3 text-[#3ecf8e] stroke-[2.5]" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedCode === 'json' ? 'COPIED' : 'COPY JSON'}</span>
-              </button>
-            </div>
-            <pre className="p-3 rounded-[6px] bg-[#111111] text-[#3ecf8e] border border-[#222222] font-mono text-[11px] overflow-x-auto select-text leading-relaxed">
-              {JSON.stringify(formData, null, 2)}
-            </pre>
-          </div>
-        )}
+        </form>
       </div>
     </SlideOverDrawer>
   );

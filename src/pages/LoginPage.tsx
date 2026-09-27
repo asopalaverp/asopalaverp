@@ -3,27 +3,26 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { supabase } from '@/lib/supabase';
 import {
-  Lock,
-  User,
   Eye,
   EyeOff,
   AlertCircle,
-  Check,
   Sun,
   Moon,
-  ShieldAlert,
+  Lock,
+  X,
+  Phone,
+  HelpCircle,
 } from 'lucide-react';
-import { BrandLogo } from '@/components/icons/BrandLogo';
 import { useBrandStore } from '@/store/brandStore';
 import { animateErrorBanner } from '@/lib/animations';
 import { logSecurityEvent } from '@/lib/audit';
 
 import bcrypt from 'bcryptjs';
 import { showToast } from '@/components/ui/ToastContainer';
-import { triggerHaptic, cn } from '@/lib/utils';
+import { triggerHaptic } from '@/lib/utils';
 
 export const LoginPage: React.FC = () => {
-  const { brandName, tagline } = useBrandStore();
+  const { brandName } = useBrandStore();
   const { login } = useAuthStore();
   const { theme, toggleTheme } = useUIStore();
   const [username, setUsername] = useState('');
@@ -33,6 +32,9 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  // Forgot password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +64,36 @@ export const LoginPage: React.FC = () => {
     }
 
     try {
+      // 0. Primary Secure Server-Side RPC Verification (Zero Hash Leakage)
+      try {
+        const { data: rpcAuth, error: rpcAuthErr } = await supabase.rpc('verify_user_credentials', {
+          p_username_or_email: cleanUser,
+          p_plain_password: cleanPass,
+        });
+
+        if (!rpcAuthErr && rpcAuth) {
+          if (rpcAuth.success && rpcAuth.user) {
+            setFailedAttempts(0);
+            await login(rpcAuth.user);
+            showToast({
+              type: 'success',
+              title: `Welcome, ${rpcAuth.user.first_name || rpcAuth.user.username}!`,
+              message: `Signed in to Asopalav ERP (${rpcAuth.user.role_code || 'User'})`,
+            });
+            triggerHaptic('success');
+            setIsLoading(false);
+            return;
+          } else if (rpcAuth.message && rpcAuth.message.includes('deactivated')) {
+            setError(rpcAuth.message);
+            showToast({ type: 'error', title: 'Account Deactivated', message: rpcAuth.message });
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (rpcEx) {
+        // Fallback to client query if RPC not yet deployed
+      }
+
       // 1. Fast User Query with Timeout Guarantee (Max 3.5s)
       const queryPromise = supabase
         .from('app_users')
@@ -106,7 +138,6 @@ export const LoginPage: React.FC = () => {
       };
 
       if (!dbUser) {
-        // Run dummy hash check to prevent timing attack enumeration
         try { bcrypt.compareSync(cleanPass, DUMMY_HASH); } catch {}
 
         const newAttempts = failedAttempts + 1;
@@ -225,98 +256,113 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[#141414] flex items-center justify-center p-4 selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] font-sans text-slate-900 dark:text-white">
-      {/* Top Corner Action Controls */}
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-        {/* Theme Switcher */}
+    <div className="min-h-screen w-full flex flex-col justify-between bg-slate-50 dark:bg-[#121214] font-sans text-[#171717] dark:text-[#ededed] p-4 sm:p-6 lg:p-8 select-none selection:bg-[#3ecf8e]/25 selection:text-[#3ecf8e] relative overflow-hidden">
+      {/* iOS 18 Ambient Background Aura */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-[#3ecf8e]/10 dark:bg-[#3ecf8e]/8 rounded-full blur-3xl pointer-events-none" />
+
+      {/* ========================================================================= */}
+      {/* TOP BAR: THEME SWITCHER (RIGHT ALIGNED)                                   */}
+      {/* ========================================================================= */}
+      <header className="w-full max-w-4xl mx-auto flex items-center justify-end relative z-10">
+        {/* Top-Right Theme Toggle */}
         <button
           type="button"
           onClick={toggleTheme}
-          aria-label={`Current Theme: ${theme}. Click to switch theme.`}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-600 dark:text-zinc-300 text-xs font-sans transition-colors cursor-pointer shadow-xs"
-          title={`Current Theme: ${theme === 'soft-dark' ? 'Soft Dark (Charcoal Slate)' : theme === 'dark' ? 'Dark (Dark Night)' : 'Light'}. Click to cycle theme.`}
+          aria-label={`Current Theme: ${theme}. Click to switch.`}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/[0.06] dark:border-white/[0.1] bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-xl hover:bg-white dark:hover:bg-[#252528] text-[#171717] dark:text-zinc-200 text-xs font-medium transition-all cursor-pointer shadow-xs ios18-press"
         >
           {theme === 'light' ? (
             <>
-              <Sun className="w-3.5 h-3.5 text-amber-500 stroke-[2]" />
-              <span className="text-[11px] font-medium">Light</span>
+              <Moon className="w-3.5 h-3.5 text-slate-700" />
+              <span>Dark Mode</span>
             </>
           ) : theme === 'soft-dark' ? (
             <>
-              <Moon className="w-3.5 h-3.5 text-indigo-400 stroke-[2]" />
-              <span className="text-[11px] font-medium">Soft Dark</span>
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+              <span>Soft Dark</span>
             </>
           ) : (
             <>
-              <Moon className="w-3.5 h-3.5 text-zinc-400 stroke-[2]" />
-              <span className="text-[11px] font-medium">Dark Night</span>
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+              <span>Light Mode</span>
             </>
           )}
         </button>
-      </div>
+      </header>
 
-      <div className="w-full max-w-sm space-y-6">
-        {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center">
-            <div className="w-11 h-11 rounded-[8px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] flex items-center justify-center shadow-xs overflow-hidden">
-              <BrandLogo size={28} className="w-7 h-7 object-contain" />
+      {/* ========================================================================= */}
+      {/* CENTER: iOS 18 SQUIRCLE GLASS LOGIN CARD                                  */}
+      {/* ========================================================================= */}
+      <main className="w-full max-w-[400px] mx-auto my-auto py-8 relative z-10">
+        <div className="ios18-glass-card rounded-[22px] p-6 sm:p-8 space-y-6">
+          {/* Card Header */}
+          <div className="space-y-1.5 text-left">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#3ecf8e]/12 border border-[#3ecf8e]/20 text-emerald-700 dark:text-[#3ecf8e] text-[11px] font-mono font-medium mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
+              <span>ERP Station</span>
             </div>
-          </div>
-          <div>
-            <h1 className="text-xl font-medium tracking-tight text-slate-900 dark:text-white font-sans">
-              {brandName} ERP
+            <h1 className="text-2xl font-semibold tracking-tight text-[#171717] dark:text-white font-sans">
+              Welcome back
             </h1>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans mt-0.5">
-              {tagline || 'Cash Counter & Expense Management'}
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-[#8e8e93] font-sans">
+              Sign in to your {brandName} terminal
             </p>
           </div>
-        </div>
 
-        {/* Login Form Card */}
-        <div className="p-6 rounded-[12px] bg-white dark:bg-[#1a1a1a] border border-slate-300 dark:border-[#2e2e2e] shadow-xs space-y-5">
+          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
+            {/* Email / Username Field */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-gray-200 font-sans">
-                Username
+              <label className="block text-xs font-medium text-slate-700 dark:text-[#a1a1a6]">
+                Email or Username
               </label>
-              <div className="relative flex items-center rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e] transition-colors">
-                <User className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400 absolute left-3 pointer-events-none" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. aellpadmin"
-                  className="w-full bg-transparent pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none font-mono min-h-[38px]"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="username"
+                className="w-full px-3.5 py-2.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-xs sm:text-sm text-[#171717] dark:text-[#ededed] placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 transition-all font-sans"
+                required
+              />
             </div>
 
+            {/* Password Field */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-gray-200 font-sans">
-                Password
-              </label>
-              <div className="relative flex items-center rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e] transition-colors">
-                <Lock className="w-3.5 h-3.5 text-slate-500 dark:text-gray-400 absolute left-3 pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-700 dark:text-[#a1a1a6]">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="text-xs text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative flex items-center">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full bg-transparent pl-9 pr-9 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none font-mono min-h-[38px]"
+                  autoComplete="current-password"
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.08] dark:border-white/[0.1] text-xs sm:text-sm text-[#171717] dark:text-[#ededed] placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 transition-all font-mono"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-white transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
+            {/* Error Banner */}
             {error && (
               <div
                 ref={(el) => {
@@ -324,32 +370,99 @@ export const LoginPage: React.FC = () => {
                     animateErrorBanner(el);
                   }
                 }}
-                className="p-2.5 rounded-[6px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-sans flex items-center gap-1.5 font-medium"
+                className="p-3 rounded-[12px] bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-sans flex items-center gap-2 font-medium animate-in fade-in"
               >
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Single Emerald CTA with #171717 text and 6px radius */}
+            {/* Primary Emerald CTA */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full min-h-[40px] flex items-center justify-center gap-2 py-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-sans text-xs font-medium cursor-pointer transition-colors shadow-xs select-none"
+              className="w-full h-11 mt-2 rounded-[12px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] font-semibold text-xs sm:text-sm transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(62,207,142,0.35)] disabled:opacity-50 select-none ios18-press"
             >
-              <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
-              <span>{isLoading ? 'Signing In...' : 'Sign In (Enter)'}</span>
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-[#171717] border-t-transparent rounded-full animate-spin" />
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <span>Sign in</span>
+              )}
             </button>
           </form>
-        </div>
 
-        {/* Security Footer */}
-        <div className="text-center">
-          <div className="text-[11px] font-sans text-slate-400 dark:text-gray-500">
-            <span>Secure System • Asopalav Retail ERP</span>
+          {/* Encrypted Session Tag */}
+          <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] text-[#707070] dark:text-[#606060]">
+            <Lock className="w-3 h-3 text-emerald-600 dark:text-[#3ecf8e]" />
+            <span>End-to-End Encrypted Session</span>
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* ========================================================================= */}
+      {/* FOOTER: COPYRIGHT & PROTOCOL INFO                                         */}
+      {/* ========================================================================= */}
+      <footer className="w-full max-w-4xl mx-auto text-center py-2 text-[11px] text-[#707070] dark:text-[#606060] font-sans">
+        <span>Protected by Asopalav Security & SHA-256 Ledger</span>
+      </footer>
+
+      {/* ========================================================================= */}
+      {/* FORGOT PASSWORD MODAL                                                     */}
+      {/* ========================================================================= */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-white dark:bg-[#171717] border border-[#e5e7eb] dark:border-[#282828] rounded-[12px] p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#f0f0f0] dark:border-[#242424] pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-[#3ecf8e] flex items-center justify-center">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#171717] dark:text-white font-sans">
+                  Reset Terminal Access
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(false)}
+                className="p-1 rounded-[6px] text-zinc-400 hover:text-zinc-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-[#555555] dark:text-zinc-300 font-sans">
+              <p className="leading-relaxed">
+                Asopalav ERP utilizes role-based enterprise credentials. For security and cash drawer compliance, password resets must be authorized by an Administrator.
+              </p>
+
+              <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-[#e5e7eb] dark:border-[#262626] space-y-2">
+                <div className="font-semibold text-[#171717] dark:text-white flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+                  <span>How to reset your access:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[#666666] dark:text-zinc-400">
+                  <li>Contact your <strong>Store Branch Manager</strong> or <strong>Accounts Lead</strong>.</li>
+                  <li>Super Administrators can reset credentials directly under <strong>Staff Directory → Security</strong>.</li>
+                  <li>In case of urgent counter lockout, notify IT Support on the store intercom.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(false)}
+                className="w-full h-9 rounded-[6px] bg-[#171717] dark:bg-white text-white dark:text-[#171717] hover:bg-[#262626] dark:hover:bg-zinc-200 font-medium text-xs transition-colors cursor-pointer"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
