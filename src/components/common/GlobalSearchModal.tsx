@@ -4,7 +4,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { searchEngine, SearchResultItem, SearchCategory } from '@/lib/searchEngine';
-import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatDate, cn } from '@/lib/utils';
 import { animateModalOpen, animateModalClose, animateStaggerCards } from '@/lib/animations';
 import {
   Search,
@@ -175,7 +175,6 @@ export const GlobalSearchModal: React.FC = () => {
 
   // Direct Open Action Handler
   const handleExecuteResult = (item: SearchResultItem) => {
-    triggerHaptic('selection');
     handleClose();
 
     if (item.actionType === 'open_voucher' && item.rawItem) {
@@ -435,29 +434,24 @@ export const GlobalSearchModal: React.FC = () => {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-start justify-center pt-4 sm:pt-16 md:pt-20 p-2 sm:p-4 select-none font-sans"
+      className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans"
       onKeyDown={handleKeyDown}
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl ios18-glass-card rounded-[22px] shadow-2xl overflow-hidden text-slate-900 dark:text-zinc-100 font-sans flex flex-col max-h-[82vh] transition-all"
+        className="w-full max-w-2xl bg-white dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden text-slate-900 dark:text-[#EDEDED] font-sans flex flex-col max-h-[85vh] transition-all my-auto"
       >
-        {/* iOS 16 Sheet Handle (Mobile visual indicator) */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
-          <div className="w-9 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-        </div>
-
-        {/* Top Search Input Header (iOS 16 Cupertino Search Bar) */}
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200/70 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
-          <div className="flex-1 flex items-center gap-2.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] rounded-[10px] px-3 py-2">
-            <Search className="w-4 h-4 text-slate-400 dark:text-[#8e8e93] shrink-0 stroke-[2.2]" />
+        {/* Top Search Input Header */}
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200/80 dark:border-[#2e2e2e] bg-slate-50/50 dark:bg-[#141414]/50 shrink-0">
+          <div className="flex-1 flex items-center gap-2.5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2">
+            <Search className="w-4 h-4 text-slate-400 dark:text-[#707070] shrink-0 stroke-[2.2]" />
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search expenses, staff, cash box, or run a command..."
-              className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#8e8e93] focus:outline-none font-sans"
+              className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none font-sans"
             />
             {query && (
               <button
@@ -466,7 +460,7 @@ export const GlobalSearchModal: React.FC = () => {
                   setQuery('');
                   inputRef.current?.focus();
                 }}
-                className="p-1 rounded-full bg-black/10 dark:bg-white/15 hover:bg-black/20 dark:hover:bg-white/25 text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer active:scale-90"
+                className="p-1 rounded-[4px] bg-slate-100 dark:bg-[#252525] hover:bg-slate-200 dark:hover:bg-[#2e2e2e] text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -475,7 +469,7 @@ export const GlobalSearchModal: React.FC = () => {
           <Kbd size="xs" className="shrink-0 hidden sm:inline-flex rounded-[6px]">ESC</Kbd>
         </div>
 
-        {/* Scrollable Results List (iOS 16 Inset Grouped) */}
+        {/* Scrollable Results List */}
         <div ref={listRef} className="overflow-y-auto max-h-[50vh] p-2 space-y-3">
           {groupedSections.map((sec) => (
             <div key={sec.title} className="space-y-1">
@@ -506,17 +500,17 @@ export const GlobalSearchModal: React.FC = () => {
                       }}
                       onMouseEnter={() => setSelectedIndex(itemIdx)}
                       className={cn(
-                        'px-3 py-2 rounded-[10px] flex items-center justify-between gap-3 text-xs transition-all cursor-pointer select-none ios-press',
+                        'px-3 py-2 rounded-[6px] flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer select-none',
                         isSelected
-                          ? 'bg-black/[0.06] dark:bg-white/10 text-slate-900 dark:text-white shadow-2xs font-medium'
-                          : 'text-slate-700 dark:text-[#a1a1a1] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
+                          ? 'bg-emerald-500/10 dark:bg-[#3ecf8e]/10 text-slate-900 dark:text-white font-medium border border-emerald-500/20 dark:border-[#3ecf8e]/20'
+                          : 'text-slate-700 dark:text-[#a1a1a1] hover:bg-slate-100 dark:hover:bg-[#252525] hover:text-slate-900 dark:hover:text-white border border-transparent'
                       )}
                     >
                       {/* Left: Icon & Title */}
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div className={cn(
-                          "w-7 h-7 rounded-[8px] flex items-center justify-center shrink-0 transition-colors",
-                          isSelected ? "bg-emerald-500/20 text-[#3ecf8e]" : "bg-black/[0.04] dark:bg-white/[0.06] text-slate-400 dark:text-[#8e8e93]"
+                          "w-7 h-7 rounded-[6px] flex items-center justify-center shrink-0 transition-colors",
+                          isSelected ? "bg-[#3ecf8e]/20 text-[#3ecf8e]" : "bg-slate-100 dark:bg-[#252525] text-slate-500 dark:text-[#8e8e93]"
                         )}>
                           <Icon className="w-3.5 h-3.5 stroke-[2]" />
                         </div>
@@ -541,7 +535,7 @@ export const GlobalSearchModal: React.FC = () => {
                         )}
 
                         {item.badge && item.badge.text && (
-                          <kbd className="px-1.5 py-0.5 rounded-[6px] bg-black/5 dark:bg-white/10 text-[10px] font-mono font-medium text-slate-500 dark:text-[#a1a1a1] border border-black/10 dark:border-white/10">
+                          <kbd className="px-1.5 py-0.5 rounded-[6px] bg-slate-100 dark:bg-[#252525] text-[10px] font-mono font-medium text-slate-500 dark:text-[#a1a1a1] border border-slate-200 dark:border-[#2e2e2e]">
                             {item.badge.text}
                           </kbd>
                         )}
@@ -564,20 +558,20 @@ export const GlobalSearchModal: React.FC = () => {
           )}
         </div>
 
-        {/* Minimalist iOS 16 Footer */}
-        <div className="px-4 py-2.5 border-t border-slate-200/70 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-slate-400 dark:text-[#8e8e93] shrink-0">
+        {/* Minimalist Studio Command Footer */}
+        <div className="px-4 py-2.5 border-t border-slate-200/80 dark:border-[#2e2e2e] bg-slate-50/70 dark:bg-[#141414] flex items-center justify-between text-[10px] font-mono text-slate-400 dark:text-[#8e8e93] shrink-0">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↑</kbd>
-              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↓</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] text-[9px]">↑</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] text-[9px]">↓</kbd>
               <span className="ml-0.5">navigate</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">↵</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] text-[9px]">↵</kbd>
               <span className="ml-0.5">select</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 text-[9px]">ESC</kbd>
+              <kbd className="px-1 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] text-[9px]">ESC</kbd>
               <span className="ml-0.5">close</span>
             </span>
           </div>

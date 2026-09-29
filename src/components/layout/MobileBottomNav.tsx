@@ -44,13 +44,13 @@ export const MobileBottomNav: React.FC = () => {
   return (
     <>
       {/* ========================================================================= */}
-      {/* 1. iOS 18 TRANSLUCENT FLOATING GLASS DOCK NAVIGATION                       */}
+      {/* 1. SUPABASE STUDIO FLOATING DOCK NAVIGATION                                */}
       {/* ========================================================================= */}
       <nav
         aria-label="Mobile Navigation"
         className={cn(
-          'lg:hidden fixed bottom-2.5 left-3.5 right-3.5 z-40 select-none touch-manipulation max-w-md mx-auto',
-          'rounded-[26px] ios18-glass-dock',
+          'lg:hidden fixed bottom-3 left-3 right-3 z-40 select-none touch-manipulation max-w-md mx-auto',
+          'rounded-[12px] bg-white/95 dark:bg-[#161616]/95 border border-slate-200/80 dark:border-[#282828] shadow-2xl backdrop-blur-md',
           'pb-[env(safe-area-inset-bottom,0px)]'
         )}
       >
@@ -60,14 +60,14 @@ export const MobileBottomNav: React.FC = () => {
             type="button"
             onClick={() => handleNavClick('dashboard')}
             aria-label="Dashboard"
-            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.88] transition-transform duration-150"
+            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
             <div
               className={cn(
-                'w-7 h-7 rounded-[8px] flex items-center justify-center transition-colors',
+                'w-7 h-7 rounded-[6px] flex items-center justify-center transition-colors',
                 activePage === 'dashboard'
-                  ? 'text-[#3ecf8e]'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e]'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
               <LayoutGrid className="w-[19px] h-[19px] stroke-[1.8]" />
@@ -76,11 +76,11 @@ export const MobileBottomNav: React.FC = () => {
               className={cn(
                 'text-[10px] font-sans font-medium transition-colors tracking-tight',
                 activePage === 'dashboard'
-                  ? 'text-[#3ecf8e] font-semibold'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e] font-semibold'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
-              Home
+              Dashboard
             </span>
           </button>
 
@@ -89,14 +89,14 @@ export const MobileBottomNav: React.FC = () => {
             type="button"
             onClick={() => handleNavClick('expenses')}
             aria-label="All Expenses"
-            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.88] transition-transform duration-150"
+            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
             <div
               className={cn(
-                'w-7 h-7 rounded-[8px] flex items-center justify-center transition-colors',
+                'w-7 h-7 rounded-[6px] flex items-center justify-center transition-colors',
                 activePage === 'expenses'
-                  ? 'text-[#3ecf8e]'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e]'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
               <Receipt className="w-[19px] h-[19px] stroke-[1.8]" />
@@ -105,15 +105,15 @@ export const MobileBottomNav: React.FC = () => {
               className={cn(
                 'text-[10px] font-sans font-medium transition-colors tracking-tight',
                 activePage === 'expenses'
-                  ? 'text-[#3ecf8e] font-semibold'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e] font-semibold'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
-              Expenses
+              All Bills
             </span>
           </button>
 
-          {/* TAB 3: SIGNATURE iOS 16 ELEVATED EMERALD ACTION BUTTON */}
+          {/* TAB 3: SIGNATURE STUDIO EMERALD ACTION BUTTON */}
           <button
             type="button"
             onClick={() => {
@@ -121,26 +121,26 @@ export const MobileBottomNav: React.FC = () => {
               setIsQuickActionOpen(!isQuickActionOpen);
             }}
             aria-label="Quick Action Menu"
-            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.88] transition-transform duration-150"
+            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
-            <div className="w-[34px] h-[34px] rounded-full bg-[#3ecf8e] text-[#171717] flex items-center justify-center shadow-[0_2px_10px_rgba(62,207,142,0.4)] transition-all">
+            <div className="w-[36px] h-[36px] rounded-[8px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center shadow-xs transition-all hover:opacity-90">
               <Plus className={cn('w-5 h-5 stroke-[2.5] transition-transform duration-200', isQuickActionOpen && 'rotate-45')} />
             </div>
           </button>
 
-          {/* TAB 4: Cash Drawer / Advances */}
+          {/* TAB 4: Cash Box / Advances */}
           <button
             type="button"
             onClick={() => handleNavClick(isCashier ? 'advances' : 'treasury')}
             aria-label={isCashier ? 'Staff Advances' : 'Cash Box & Bank'}
-            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.88] transition-transform duration-150"
+            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
             <div
               className={cn(
-                'w-7 h-7 rounded-[8px] flex items-center justify-center transition-colors',
+                'w-7 h-7 rounded-[6px] flex items-center justify-center transition-colors',
                 activePage === (isCashier ? 'advances' : 'treasury')
-                  ? 'text-[#3ecf8e]'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e]'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
               {isCashier ? <HandCoins className="w-[19px] h-[19px] stroke-[1.8]" /> : <Wallet className="w-[19px] h-[19px] stroke-[1.8]" />}
@@ -149,8 +149,8 @@ export const MobileBottomNav: React.FC = () => {
               className={cn(
                 'text-[10px] font-sans font-medium transition-colors tracking-tight',
                 activePage === (isCashier ? 'advances' : 'treasury')
-                  ? 'text-[#3ecf8e] font-semibold'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e] font-semibold'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
               {isCashier ? 'Advances' : 'Cash Box'}
@@ -162,7 +162,7 @@ export const MobileBottomNav: React.FC = () => {
             type="button"
             onClick={() => handleNavClick('profile')}
             aria-label="Profile"
-            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.88] transition-transform duration-150"
+            className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
             <div className="w-7 h-7 flex items-center justify-center shrink-0">
               {user?.avatar_url ? (
@@ -182,7 +182,7 @@ export const MobileBottomNav: React.FC = () => {
                     'w-[22px] h-[22px] rounded-full flex items-center justify-center text-[9px] font-mono font-bold transition-all shrink-0',
                     activePage === 'profile'
                       ? 'bg-[#3ecf8e] text-[#171717] ring-2 ring-[#3ecf8e] ring-offset-1 ring-offset-white dark:ring-offset-[#141414]'
-                      : 'bg-[#e5e5ea] dark:bg-[#2c2c2e] text-[#1c1c1e] dark:text-zinc-200 ring-1 ring-black/10 dark:ring-white/20'
+                      : 'bg-slate-200 dark:bg-[#2c2c2e] text-slate-800 dark:text-zinc-200 ring-1 ring-black/10 dark:ring-white/20'
                   )}
                 >
                   {userInitials}
@@ -193,18 +193,18 @@ export const MobileBottomNav: React.FC = () => {
               className={cn(
                 'text-[10px] font-sans font-medium transition-colors tracking-tight',
                 activePage === 'profile'
-                  ? 'text-[#3ecf8e] font-semibold'
-                  : 'text-[#8e8e93] dark:text-[#98989d]'
+                  ? 'text-emerald-600 dark:text-[#3ecf8e] font-semibold'
+                  : 'text-slate-500 dark:text-[#a1a1a1]'
               )}
             >
-              Profile
+              My Profile
             </span>
           </button>
         </div>
       </nav>
 
       {/* ========================================================================= */}
-      {/* 2. iOS 16 AUTHENTIC ACTION SHEET / BOTTOM DRAWER                          */}
+      {/* 2. SUPABASE STUDIO ACTION SHEET / BOTTOM DRAWER                            */}
       {/* ========================================================================= */}
       {isQuickActionOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end p-3 pb-safe select-none touch-manipulation">
@@ -214,22 +214,22 @@ export const MobileBottomNav: React.FC = () => {
               triggerHaptic('light');
               setIsQuickActionOpen(false);
             }}
-            className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
           />
 
-          {/* iOS 16 Inset Grouped Action Sheet Container */}
-          <div className="relative w-full max-w-md mx-auto space-y-2 z-10 animate-in slide-in-from-bottom duration-250 ease-out">
+          {/* Studio Action Sheet Container */}
+          <div className="relative w-full max-w-md mx-auto space-y-2 z-10 animate-in slide-in-from-bottom duration-200 ease-out">
             {/* Action Group Card */}
-            <div className="rounded-[16px] bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-2xl p-4 space-y-3">
-              {/* iOS Grabber */}
-              <div className="w-9 h-1 rounded-full bg-black/20 dark:bg-white/20 mx-auto" />
+            <div className="rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-4 space-y-3">
+              {/* Studio Grabber */}
+              <div className="w-8 h-1 rounded-full bg-slate-300 dark:bg-[#333333] mx-auto" />
 
               <div className="text-center pb-1">
-                <h2 className="text-xs font-semibold text-[#1c1c1e] dark:text-white uppercase tracking-wider font-mono">
+                <h2 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
                   Quick Actions
                 </h2>
-                <p className="text-[11px] text-[#8e8e93] dark:text-[#98989d]">
-                  Record expense, staff IOU, or closing
+                <p className="text-[11px] text-slate-500 dark:text-[#8e8e8e]">
+                  Add new expense, staff advance, or daily closing
                 </p>
               </div>
 
@@ -239,22 +239,22 @@ export const MobileBottomNav: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleNavClick('new-voucher')}
-                    className="w-full flex items-center justify-between p-3 rounded-[12px] bg-emerald-500/10 hover:bg-emerald-500/15 text-[#171717] dark:text-white border border-emerald-500/25 transition-all active:scale-[0.98] cursor-pointer"
+                    className="w-full flex items-center justify-between p-3 rounded-[8px] bg-emerald-500/10 hover:bg-emerald-500/15 text-slate-900 dark:text-white border border-emerald-500/20 transition-all active:scale-[0.98] cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-[8px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center font-bold shadow-xs">
+                      <div className="w-8 h-8 rounded-[6px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center font-bold shadow-xs shrink-0">
                         <Receipt className="w-4 h-4 stroke-[2.2]" />
                       </div>
                       <div className="text-left">
-                        <div className="font-semibold text-xs text-[#1c1c1e] dark:text-white">
+                        <div className="font-semibold text-xs text-slate-900 dark:text-white">
                           Add Expense Bill
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-[#98989d]">
+                        <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e]">
                           Shop tea, stationery, repairs & transport
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[#3ecf8e]" />
+                    <ChevronRight className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e] shrink-0" />
                   </button>
                 )}
 
@@ -268,22 +268,22 @@ export const MobileBottomNav: React.FC = () => {
                       setActivePage('advances');
                       setAdvanceModalOpen(true);
                     }}
-                    className="w-full flex items-center justify-between p-3 rounded-[12px] bg-[#f2f2f7] dark:bg-[#2c2c2e] hover:bg-[#e5e5ea] dark:hover:bg-[#3a3a3c] text-slate-800 dark:text-zinc-200 border border-black/[0.04] dark:border-white/[0.06] transition-all active:scale-[0.98] cursor-pointer"
+                    className="w-full flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#262626] text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-[#2a2a2a] transition-all active:scale-[0.98] cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-[8px] bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                      <div className="w-8 h-8 rounded-[6px] bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
                         <HandCoins className="w-4 h-4 stroke-[2]" />
                       </div>
                       <div className="text-left">
-                        <div className="font-semibold text-xs text-[#1c1c1e] dark:text-white">
-                          Staff Advance / IOU
+                        <div className="font-semibold text-xs text-slate-900 dark:text-white">
+                          Give Staff Advance
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-[#98989d]">
-                          Disburse staff loan or market float
+                        <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e]">
+                          Advance salary or market cash to employee
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </button>
                 )}
 
@@ -292,35 +292,35 @@ export const MobileBottomNav: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleNavClick('closing')}
-                    className="w-full flex items-center justify-between p-3 rounded-[12px] bg-[#f2f2f7] dark:bg-[#2c2c2e] hover:bg-[#e5e5ea] dark:hover:bg-[#3a3a3c] text-slate-800 dark:text-zinc-200 border border-black/[0.04] dark:border-white/[0.06] transition-all active:scale-[0.98] cursor-pointer"
+                    className="w-full flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#262626] text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-[#2a2a2a] transition-all active:scale-[0.98] cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-[8px] bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                      <div className="w-8 h-8 rounded-[6px] bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
                         <Coins className="w-4 h-4 stroke-[2]" />
                       </div>
                       <div className="text-left">
-                        <div className="font-semibold text-xs text-[#1c1c1e] dark:text-white">
+                        <div className="font-semibold text-xs text-slate-900 dark:text-white">
                           Night Cash Closing
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-[#98989d]">
-                          Count 6-note currency denominations
+                        <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e]">
+                          Count physical cash and close today's register
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </button>
                 )}
               </div>
             </div>
 
-            {/* iOS 16 Separate Cancel Button */}
+            {/* Cancel Button */}
             <button
               type="button"
               onClick={() => {
                 triggerHaptic('light');
                 setIsQuickActionOpen(false);
               }}
-              className="w-full h-11 rounded-[14px] bg-white dark:bg-[#1c1c1e] text-[#007aff] dark:text-[#3ecf8e] font-semibold text-sm shadow-md flex items-center justify-center cursor-pointer active:scale-[0.98] transition-all"
+              className="w-full h-11 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#202020] font-medium text-xs shadow-md flex items-center justify-center cursor-pointer active:scale-[0.98] transition-all"
             >
               Cancel
             </button>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePrintConfigStore, PrintConfig, DEFAULT_PRINT_CONFIG } from '@/store/printConfigStore';
 import { ThermalReceiptSlip } from '@/components/ui/ThermalReceiptSlip';
 import { showToast } from '@/components/ui/ToastContainer';
-import { triggerHaptic, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   Printer,
   RotateCcw,
@@ -15,24 +15,29 @@ import {
   Sparkles,
   QrCode,
   Copy,
+  X,
 } from 'lucide-react';
 
 export const ThermalPrinterCustomizer: React.FC = () => {
   const { config, updateConfig, resetConfig } = usePrintConfigStore();
   const [formData, setFormData] = useState<PrintConfig>({ ...config });
   const [isSaved, setIsSaved] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const handleChange = <K extends keyof PrintConfig>(key: K, value: PrintConfig[K]) => {
     const updated = { ...formData, [key]: value };
     setFormData(updated);
-    updateConfig({ [key]: value });
     setIsSaved(false);
   };
 
-  const handleSave = (e?: React.FormEvent) => {
+  const handleOpenPreview = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmSave = () => {
     updateConfig(formData);
-    triggerHaptic('heavy');
+    setIsPreviewOpen(false);
     setIsSaved(true);
     showToast({
       type: 'success',
@@ -45,7 +50,6 @@ export const ThermalPrinterCustomizer: React.FC = () => {
   const handleReset = () => {
     resetConfig();
     setFormData({ ...DEFAULT_PRINT_CONFIG });
-    triggerHaptic('light');
     showToast({
       type: 'info',
       title: 'Settings Reset',
@@ -54,14 +58,13 @@ export const ThermalPrinterCustomizer: React.FC = () => {
   };
 
   const handleTestPrint = () => {
-    triggerHaptic('selection');
     window.print();
   };
 
   return (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[10px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#242424]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[12px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#242424]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-[8px] bg-emerald-500/10 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e]">
             <Printer className="w-5 h-5" />
@@ -92,10 +95,19 @@ export const ThermalPrinterCustomizer: React.FC = () => {
           <button
             type="button"
             onClick={handleTestPrint}
-            className="px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+            className="px-3 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#333] text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#202020] text-xs font-medium font-sans flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           >
-            <Printer className="w-3.5 h-3.5 text-[#171717]" />
+            <Printer className="w-3.5 h-3.5" />
             <span>Test Print</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenPreview}
+            className="px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>Save Settings</span>
           </button>
         </div>
       </div>
@@ -213,7 +225,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
                   value={formData.storeTitle}
                   onChange={(e) => handleChange('storeTitle', e.target.value)}
                   placeholder="e.g. Asopalav Silk & Sarees"
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -226,7 +238,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
                   value={formData.legalEntityName}
                   onChange={(e) => handleChange('legalEntityName', e.target.value)}
                   placeholder="e.g. Asopalav Endeavours LLP"
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -240,7 +252,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
                     value={formData.gstin}
                     onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
                     placeholder="24ABVFA8046N1ZQ"
-                    className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                    className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                   />
                 </div>
 
@@ -253,7 +265,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
                     value={formData.panNumber}
                     onChange={(e) => handleChange('panNumber', e.target.value.toUpperCase())}
                     placeholder="ABVFA8046N"
-                    className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                    className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                   />
                 </div>
               </div>
@@ -300,7 +312,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
                   value={formData.customFooterNote}
                   onChange={(e) => handleChange('customFooterNote', e.target.value)}
                   placeholder="e.g. Thank You • Computer Generated Cash Voucher"
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full p-3 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -340,7 +352,7 @@ export const ThermalPrinterCustomizer: React.FC = () => {
         </div>
 
         {/* Right Column: Live Interactive Thermal Slip Preview (5 Columns) */}
-        <div className="lg:col-span-5 flex flex-col items-center space-y-3 sticky top-4">
+        <div className="lg:col-span-5 flex flex-col items-center space-y-3">
           <div className="w-full flex items-center justify-between px-2">
             <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 font-mono flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e]" />
@@ -381,6 +393,91 @@ export const ThermalPrinterCustomizer: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* PRE-COMMIT CONFIRMATION PREVIEW MODAL                                     */}
+      {/* ========================================================================= */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-emerald-500/10 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shrink-0">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Thermal Printer Settings
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  Please verify thermal slip print configuration before saving.
+                </p>
+              </div>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2.5 font-sans text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Paper Roll Width:</span>
+                <span className="font-mono font-semibold text-slate-900 dark:text-white">{formData.paperWidth}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Copies Printed:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200">{formData.copiesCount} Copy ({formData.copiesCount === 1 ? 'Office record' : 'Cashier + Receiver copies'})</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Store Header Title:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{formData.storeTitle}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Legal Entity Name:</span>
+                <span className="text-slate-800 dark:text-zinc-200">{formData.legalEntityName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">GSTIN / PAN:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200">
+                  {formData.gstin || '—'} / {formData.panNumber || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 dark:text-[#888888]">Slip Features:</span>
+                <div className="flex flex-wrap gap-1 justify-end max-w-[240px]">
+                  {formData.showGstin && <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono">GST Header</span>}
+                  {formData.showStamp && <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono">PAID Stamp</span>}
+                  {formData.showDoubleEntry && <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono">DR/CR Lines</span>}
+                  {formData.showQrVerification && <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono">QR Audit</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Back &amp; Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                className="px-5 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Confirm &amp; Save</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

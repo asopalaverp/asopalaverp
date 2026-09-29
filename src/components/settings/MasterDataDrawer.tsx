@@ -7,7 +7,6 @@ import { Branch, AppUser, StaffMember, ExpenseCategory, Department, CourierPartn
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { SupabaseFieldRow } from '@/components/ui/SupabaseFieldRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { IOSSegmentedControl } from '@/components/ui/ios';
 import {
   Trash2,
   AlertCircle,
@@ -67,6 +66,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   const [error, setError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       if (type === 'user' || type === 'role') {
@@ -92,6 +93,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
       setDeleteReason('');
       setError('');
       setIsCustomStaffCode(false);
+      setIsPreviewOpen(false);
 
       if (record) {
         setFormData({ ...record });
@@ -203,8 +205,60 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
     setTimeout(() => setCopiedCode(null), 1800);
   };
 
-  const handleSave = useCallback(async (e?: React.FormEvent) => {
+  const handleInitiateSave = useCallback((e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setError('');
+
+    try {
+      if (type === 'branch') {
+        if (!formData.branch_name || !formData.branch_code) {
+          throw new Error('Branch Name and Code are required.');
+        }
+      } else if (type === 'category') {
+        if (!formData.category_name) {
+          throw new Error('Category Name is required.');
+        }
+      } else if (type === 'department') {
+        if (!formData.department_name || !formData.department_code) {
+          throw new Error('Department Name and Code are required.');
+        }
+      } else if (type === 'courier') {
+        if (!formData.partner_name || !formData.partner_code) {
+          throw new Error('Partner Name and Code are required.');
+        }
+      } else if (type === 'user') {
+        if (!formData.username || !formData.first_name) {
+          throw new Error('Username and First Name are required.');
+        }
+        const isSuperAdminOrDev = formData.role_code === 'Super_Admin' || formData.role_code === 'Developer';
+        if (!formData.staff_code && formData.username !== 'aellpadmin' && !isEdit && !isSuperAdminOrDev) {
+          throw new Error('Please link an active Staff Member for this user account.');
+        }
+      } else if (type === 'staff') {
+        if (!formData.staff_code || !formData.first_name) {
+          throw new Error('Staff Code and First Name are required.');
+        }
+      } else if (type === 'role') {
+        if (isEdit && record?.is_system_role) {
+          throw new Error('Core system role permissions cannot be modified. Create a custom role instead.');
+        }
+        if (!formData.role_code || !formData.role_title) {
+          throw new Error('Role Code and Role Title are required.');
+        }
+      }
+
+      setIsPreviewOpen(true);
+    } catch (err: any) {
+      setError(err.message || 'Please check required fields.');
+      showToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: err.message || 'Please fill in all required fields.',
+      });
+    }
+  }, [formData, isEdit, type, record]);
+
+  const handleFinalCommit = useCallback(async () => {
     setError('');
     setLoading(true);
 
@@ -213,38 +267,16 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
       const userRole = user?.role_code || 'Super_Admin';
 
       if (type === 'branch') {
-        if (!formData.branch_name || !formData.branch_code) {
-          throw new Error('Branch Name and Code are required.');
-        }
         await erpService.saveBranch(formData, isEdit, userName, userRole);
       } else if (type === 'category') {
-        if (!formData.category_name) {
-          throw new Error('Category Name is required.');
-        }
         await erpService.saveCategory(formData, isEdit, userName, userRole);
       } else if (type === 'department') {
-        if (!formData.department_name || !formData.department_code) {
-          throw new Error('Department Name and Code are required.');
-        }
         await erpService.saveDepartment(formData, isEdit, userName, userRole);
       } else if (type === 'courier') {
-        if (!formData.partner_name || !formData.partner_code) {
-          throw new Error('Partner Name and Code are required.');
-        }
         await erpService.saveCourier(formData, isEdit, userName, userRole);
       } else if (type === 'user') {
-        if (!formData.username || !formData.first_name) {
-          throw new Error('Username and First Name are required.');
-        }
-        const isSuperAdminOrDev = formData.role_code === 'Super_Admin' || formData.role_code === 'Developer';
-        if (!formData.staff_code && formData.username !== 'aellpadmin' && !isEdit && !isSuperAdminOrDev) {
-          throw new Error('Please select and link an active Staff Member profile for this operational login account (Cashier, Store Manager, Auditor, etc.). Super Admin and Developer accounts do not require a staff profile.');
-        }
         await erpService.saveAppUser(formData, isEdit, userName, userRole);
       } else if (type === 'staff') {
-        if (!formData.staff_code || !formData.first_name) {
-          throw new Error('Staff Code and First Name are required.');
-        }
         const bId = formData.branch_id || branches[0]?.branch_id || 'Aellp-ASI';
         const foundBranch = branches.find((b) => b.branch_id === bId);
         const bCode = formData.branch_code || foundBranch?.branch_code || bId.replace(/^Aellp-/, '') || 'ASI';
@@ -264,12 +296,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           userRole
         );
       } else if (type === 'role') {
-        if (isEdit && record?.is_system_role) {
-          throw new Error('Core system role permissions cannot be modified. Create a custom role instead.');
-        }
-        if (!formData.role_code || !formData.role_title) {
-          throw new Error('Role Code and Role Title are required.');
-        }
         await erpService.saveRole(
           {
             role_code: formData.role_code,
@@ -287,13 +313,15 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
       showToast({
         type: 'success',
         title: isEdit ? 'Record Updated' : 'Record Created',
-        message: `Successfully saved ${type} entry into Supabase database.`,
+        message: `Successfully saved ${type} entry into database.`,
       });
 
+      setIsPreviewOpen(false);
       onSuccess();
     } catch (err: any) {
       console.error('Save error:', err);
       setError(err.message || 'Failed to save record.');
+      setIsPreviewOpen(false);
       showToast({
         type: 'error',
         title: 'Save Failed',
@@ -310,12 +338,12 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        handleSave();
+        handleInitiateSave();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, handleSave]);
+  }, [isOpen, handleInitiateSave]);
 
   const handleDelete = async () => {
     if (!deleteReason || deleteReason.trim().length < 3) {
@@ -406,11 +434,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   };
 
   const drawerTitle = (
-    <div className="flex items-center gap-2 text-sm font-sans font-medium text-slate-800 dark:text-zinc-200">
-      <span>{isEdit ? 'Edit' : 'Add New'} {entityLabels[type]}</span>
-      <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#242424] text-slate-600 dark:text-zinc-400 font-mono text-xs border border-slate-200 dark:border-[#2e2e2e]">
-        {tableName}
-      </span>
+    <div className="flex items-center gap-2 text-sm font-sans font-medium text-slate-900 dark:text-white">
+      <span>{isEdit ? 'Edit' : 'Add'} {entityLabels[type]}</span>
     </div>
   );
 
@@ -433,15 +458,15 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans transition-colors cursor-pointer min-h-[34px]"
+          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans transition-colors cursor-pointer"
         >
           Cancel
         </button>
         <button
           type="button"
-          onClick={() => handleSave()}
+          onClick={() => handleInitiateSave()}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-semibold font-sans transition-colors cursor-pointer shadow-xs min-h-[34px]"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-semibold font-sans transition-colors cursor-pointer shadow-xs"
         >
           <span>{loading ? 'Saving...' : 'Save'}</span>
           <span className="font-mono text-[10px] text-[#171717]/80 bg-black/10 px-1 py-0.5 rounded leading-none">
@@ -452,14 +477,14 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
     </>
   );
 
-  const inputStyles = "w-full h-9 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-[#141414] font-mono text-xs transition-colors";
+  const inputStyles = "w-full h-10 min-h-[40px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-[#141414] font-sans text-xs transition-colors shadow-2xs";
 
   return (
     <SlideOverDrawer
       isOpen={isOpen}
       onClose={onClose}
       title={drawerTitle}
-      size="xl"
+      size="full"
       footer={drawerFooter}
     >
       <div className="w-full space-y-4 font-sans text-xs">
@@ -470,7 +495,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleInitiateSave} className="space-y-4">
             {/* 1. Branch Form (master_branches) */}
             {type === 'branch' && (
               <div className="space-y-4">
@@ -478,7 +503,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formData.branch_id || (isEdit ? record?.branch_id : 'Auto-generated uuid')}
+                    value={formData.branch_id || (isEdit ? record?.branch_id : 'Auto-assigned by system')}
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
@@ -508,8 +533,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="city" dataType="varchar">
@@ -570,8 +595,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                       onChange={(e) => handleChange('is_active', e.target.checked)}
                       className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
                     />
-                    <span className="text-slate-700 dark:text-zinc-300 font-mono text-xs">
-                      {formData.is_active ? 'TRUE' : 'FALSE'}
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </label>
                 </SupabaseFieldRow>
@@ -585,7 +610,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formData.id || (isEdit ? record?.category_name : 'Auto-generated uuid')}
+                    value={formData.id || (isEdit ? record?.category_name : 'Auto-assigned by system')}
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
@@ -604,8 +629,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="color_theme" dataType="varchar" description="Tally Prime Ledger Mapping group">
@@ -626,8 +651,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                       onChange={(e) => handleChange('is_active', e.target.checked)}
                       className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
                     />
-                    <span className="text-slate-700 dark:text-zinc-300 font-mono text-xs">
-                      {formData.is_active ? 'TRUE' : 'FALSE'}
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </label>
                 </SupabaseFieldRow>
@@ -641,7 +666,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formData.department_code || (isEdit ? record?.department_code : 'Auto-generated uuid')}
+                    value={formData.department_code || (isEdit ? record?.department_code : 'Auto-assigned by system')}
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
@@ -671,8 +696,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="description" dataType="text">
@@ -694,7 +719,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formData.partner_code || (isEdit ? record?.partner_code : 'Auto-generated uuid')}
+                    value={formData.partner_code || (isEdit ? record?.partner_code : 'Auto-assigned by system')}
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
@@ -724,8 +749,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="contact_phone" dataType="varchar">
@@ -831,7 +856,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formData.id || (isEdit ? record?.id : 'Auto-generated uuid')}
+                    value={formData.id || (isEdit ? record?.id : 'Auto-assigned by system')}
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
@@ -903,8 +928,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="last_name" dataType="varchar">
@@ -1022,8 +1047,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="last_name" dataType="varchar">
@@ -1096,8 +1121,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
                 {/* Optional Fields Divider */}
                 <div className="pt-4 pb-1 border-t border-slate-200 dark:border-[#262626] space-y-0.5">
-                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Fields</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">These are columns that do not need any value</p>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white">Optional Details</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
                 <SupabaseFieldRow columnName="description" dataType="text">
@@ -1230,6 +1255,191 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
             )}
         </form>
       </div>
+
+      {/* Pre-Commit Confirmation Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
+              <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  {isEdit ? 'Confirm Update' : 'Confirm New Record'}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-[#888888] font-sans">
+                  Review details for {entityLabels[type]} before saving
+                </p>
+              </div>
+            </div>
+
+            {/* Key Summary Details Card */}
+            <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2 text-xs font-mono">
+              {type === 'staff' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Staff ID:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formData.staff_code}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Full Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.first_name} {formData.middle_name || ''} {formData.last_name || ''}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Department:</span>
+                    <span className="text-slate-900 dark:text-white">{formData.department_name || '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Branch:</span>
+                    <span className="text-slate-900 dark:text-white">{formData.branch_code || 'ASI'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Designation:</span>
+                    <span className="text-slate-900 dark:text-white">{formData.designation || '—'}</span>
+                  </div>
+                  {formData.mobile_number && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-[#707070]">Phone:</span>
+                      <span className="text-slate-900 dark:text-white">{formData.mobile_number}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {type === 'user' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Username:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">@{formData.username}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Full Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.first_name} {formData.last_name || ''}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Role:</span>
+                    <span className="text-slate-900 dark:text-white">{formData.role_code}</span>
+                  </div>
+                  {formData.staff_code && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-[#707070]">Linked Staff:</span>
+                      <span className="text-slate-900 dark:text-white">{formData.staff_code}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Branch Access:</span>
+                    <span className="text-slate-900 dark:text-white">{(formData.assigned_branches || ['*']).join(', ')}</span>
+                  </div>
+                </>
+              )}
+
+              {type === 'branch' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Branch Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.branch_name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Branch Code:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formData.branch_code}</span>
+                  </div>
+                  {formData.city && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-[#707070]">City / State:</span>
+                      <span className="text-slate-900 dark:text-white">{formData.city}, {formData.state || 'Gujarat'}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {type === 'category' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Category Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.category_name}</span>
+                  </div>
+                  {formData.color_theme && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-[#707070]">Theme:</span>
+                      <span className="text-slate-900 dark:text-white">{formData.color_theme}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {type === 'department' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Department Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.department_name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Code:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formData.department_code}</span>
+                  </div>
+                </>
+              )}
+
+              {type === 'courier' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Partner Name:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.partner_name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Code:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formData.partner_code}</span>
+                  </div>
+                  {formData.contact_phone && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-[#707070]">Phone:</span>
+                      <span className="text-slate-900 dark:text-white">{formData.contact_phone}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {type === 'role' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Role Code:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formData.role_code}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-[#707070]">Role Title:</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{formData.role_title}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                disabled={loading}
+                className="flex-1 py-2 px-3 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-[#EDEDED] font-medium transition-colors cursor-pointer hover:bg-slate-100 dark:hover:bg-[#262626]"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalCommit}
+                disabled={loading}
+                className="flex-1 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-3.5 h-3.5 border-2 border-[#171717] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+                <span>Confirm & Save</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SlideOverDrawer>
   );
 };

@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 
 export const VoucherDetailDrawer: React.FC = () => {
   const { activeDrawerVoucher, closeDrawer, openLightbox } = useUIStore();
@@ -165,7 +165,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         <button
           type="button"
           onClick={handlePrint}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white text-xs font-sans transition-colors cursor-pointer min-h-[34px]"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white text-xs font-sans transition-colors cursor-pointer"
         >
           <Printer className="w-3.5 h-3.5 text-primary" />
           <span>Print Slip</span>
@@ -175,7 +175,7 @@ export const VoucherDetailDrawer: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-sans transition-colors cursor-pointer min-h-[34px]"
+            className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-sans transition-colors cursor-pointer"
           >
             <XCircle className="w-3.5 h-3.5" />
             <span>Cancel Bill (Void)</span>
@@ -186,7 +186,7 @@ export const VoucherDetailDrawer: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-rose-600 bg-rose-600 hover:bg-rose-700 text-white text-xs font-sans transition-colors cursor-pointer min-h-[34px]"
+            className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-rose-600 bg-rose-600 hover:bg-rose-700 text-white text-xs font-sans transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete (Admin)</span>
@@ -197,7 +197,7 @@ export const VoucherDetailDrawer: React.FC = () => {
       <button
         type="button"
         onClick={closeDrawer}
-        className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs min-h-[34px]"
+        className="inline-flex items-center gap-1 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs"
       >
         <span>Done</span>
       </button>
@@ -212,19 +212,19 @@ export const VoucherDetailDrawer: React.FC = () => {
       subtitle={`Recorded ${formatDate(v.payment_date)} • ${v.branch_code} • ${v.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}`}
       badge={statusBadge}
       copyId={v.voucher_number}
-      size="xl"
+      size="full"
       footer={drawerFooter}
     >
       <div className="max-w-4xl mx-auto w-full space-y-4 text-xs font-sans">
         {/* Navigation Tabs (iOS Segmented Control) */}
         <div className="w-full">
-          <IOSSegmentedControl
+          <SegmentedControl<'details' | 'thermal_slip'>
             options={[
               { id: 'details', label: 'Bill Details' },
               { id: 'thermal_slip', label: 'Print Slip (80mm)' },
             ]}
             value={activeTab}
-            onChange={(val) => setActiveTab(val as 'details' | 'thermal_slip')}
+            onChange={(val) => setActiveTab(val)}
             size="sm"
           />
         </div>
@@ -236,7 +236,7 @@ export const VoucherDetailDrawer: React.FC = () => {
             <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
               <div>
                 <span className="text-[11px] text-slate-500 dark:text-zinc-400 block uppercase tracking-wider font-mono">
-                  Total Paid Amount
+                  Total Paid
                 </span>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white mt-0.5">
                   {formatINR(v.total_amount)}
@@ -251,12 +251,12 @@ export const VoucherDetailDrawer: React.FC = () => {
                   {v.payment_method === 'Physical_Cash' ? (
                     <>
                       <Wallet className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Physical Cash Till</span>
+                      <span>Cash</span>
                     </>
                   ) : (
                     <>
                       <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Online Bank UPI</span>
+                      <span>UPI</span>
                     </>
                   )}
                 </div>
@@ -267,7 +267,7 @@ export const VoucherDetailDrawer: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Recipient / Payee
+                  Paid To
                 </span>
                 <span className="text-xs font-medium text-slate-900 dark:text-white block font-sans">
                   {v.recipient_name}
@@ -276,7 +276,7 @@ export const VoucherDetailDrawer: React.FC = () => {
 
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Showroom Outlet
+                  Branch
                 </span>
                 <span className="text-xs font-mono font-medium text-slate-900 dark:text-white block">
                   {v.branch_code}
@@ -285,7 +285,7 @@ export const VoucherDetailDrawer: React.FC = () => {
 
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Expense Category
+                  Category
                 </span>
                 <span className="text-xs font-medium text-emerald-600 dark:text-[#3ecf8e] block font-sans">
                   {v.category_name}
@@ -306,16 +306,16 @@ export const VoucherDetailDrawer: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Vendor Bill Number
+                  Bill No.
                 </span>
                 <span className="text-xs font-mono text-slate-900 dark:text-white block">
-                  {v.bill_number || 'N/A (Cash Voucher)'}
+                  {v.bill_number || 'N/A'}
                 </span>
               </div>
 
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Requested / Ordered By
+                  Ordered By
                 </span>
                 <span className="text-xs text-slate-900 dark:text-white font-medium block">
                   {v.requested_by_staff_name ? (
@@ -330,7 +330,7 @@ export const VoucherDetailDrawer: React.FC = () => {
 
               <div className="p-3 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Recorded By (Cashier)
+                  Recorded By
                 </span>
                 <span className="text-xs text-slate-900 dark:text-white block">
                   {v.created_by_name || 'Cashier'}
@@ -343,7 +343,7 @@ export const VoucherDetailDrawer: React.FC = () => {
               <div className="p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                    Itemized Vendor Bills ({v.vendor_splits.length})
+                    Vendor Bills ({v.vendor_splits.length})
                   </span>
                   <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e]">
                     Total: ₹{formatINR(v.total_amount)}
@@ -354,7 +354,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                     <thead>
                       <tr className="border-b border-slate-200 dark:border-[#262626] text-[10px] font-mono text-slate-400 uppercase">
                         <th className="py-1.5 px-2">#</th>
-                        <th className="py-1.5 px-2">Vendor / Shop</th>
+                        <th className="py-1.5 px-2">Vendor</th>
                         <th className="py-1.5 px-2">Category</th>
                         <th className="py-1.5 px-2">Dept</th>
                         <th className="py-1.5 px-2">Bill / Details</th>
@@ -393,7 +393,7 @@ export const VoucherDetailDrawer: React.FC = () => {
             {v.remarks && (
               <div className="p-3.5 rounded-[8px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-1 shadow-xs">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400 block">
-                  Notes & Purpose
+                  Notes
                 </span>
                 <p className="text-xs text-slate-900 dark:text-white font-sans leading-relaxed">
                   {v.remarks}
@@ -406,7 +406,7 @@ export const VoucherDetailDrawer: React.FC = () => {
               <div className="space-y-2 p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 block">
-                    ATTACHED PROOF OF BILL ({v.bill_photo_urls.length})
+                    Attached Bill Photo ({v.bill_photo_urls.length})
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">Click to zoom</span>
                 </div>

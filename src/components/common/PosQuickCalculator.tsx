@@ -4,7 +4,7 @@ import { useUIStore } from '@/store/uiStore';
 import { cn, formatINR, triggerHaptic } from '@/lib/utils';
 import { animateModalOpen, animateModalClose } from '@/lib/animations';
 import { showToast } from '@/components/ui/ToastContainer';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import {
   Calculator,
   X,
@@ -283,7 +283,7 @@ export const PosQuickCalculator: React.FC = () => {
           <div className="flex items-center gap-2">
             {/* Mode Switcher: Math vs Pro */}
             <div className="w-36">
-              <IOSSegmentedControl
+              <SegmentedControl<CalcMode>
                 size="sm"
                 options={[
                   { id: 'math', label: 'Math' },
@@ -292,7 +292,7 @@ export const PosQuickCalculator: React.FC = () => {
                 value={mode}
                 onChange={(val) => {
                   triggerHaptic('selection');
-                  setMode(val as CalcMode);
+                  setMode(val);
                 }}
               />
             </div>
@@ -301,7 +301,7 @@ export const PosQuickCalculator: React.FC = () => {
             <button
               type="button"
               onClick={handleClose}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-colors cursor-pointer active:scale-90"
+              className="w-7 h-7 flex items-center justify-center rounded-[6px] text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#242424] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] transition-colors cursor-pointer"
               title="Close and Clear Calculator"
             >
               <X className="w-3.5 h-3.5" />
@@ -501,7 +501,7 @@ export const PosQuickCalculator: React.FC = () => {
                   value={originalPrice}
                   onChange={(e) => setOriginalPrice(e.target.value)}
                   placeholder="e.g. 4500"
-                  className="w-full h-11 px-3.5 rounded-[6px] bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-[#262626] font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] tabular-nums"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 tabular-nums shadow-2xs"
                 />
                 {originalPrice && (
                   <button
@@ -528,7 +528,7 @@ export const PosQuickCalculator: React.FC = () => {
                     value={discountPercent}
                     onChange={(e) => setDiscountPercent(e.target.value)}
                     placeholder="10"
-                    className="w-full h-10 px-3 pr-7 rounded-[6px] bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-[#262626] font-mono text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] tabular-nums"
+                    className="w-full h-10 min-h-[40px] px-3 pr-7 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] font-mono text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 tabular-nums shadow-2xs"
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono pointer-events-none">
                     %

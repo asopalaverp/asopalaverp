@@ -10,7 +10,8 @@ import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
@@ -29,6 +30,7 @@ import {
   RotateCcw,
   ShieldCheck,
   AlertTriangle,
+  AlertCircle,
   CreditCard,
   Coins,
   Layers,
@@ -282,33 +284,49 @@ export const DashboardPage: React.FC = () => {
   const timeRangeLabel = timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'This Week' : timeRange === 'month' ? 'This Month' : timeRange === 'quarter' ? 'This Quarter' : timeRange === 'custom' ? 'Custom Range' : 'All Time';
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Dashboard Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl">
+      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#242424] bg-white/95 dark:bg-[#141414]/95 backdrop-blur-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Count Badge & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <LayoutDashboard className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Dashboard</span>
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center">
+              <span className="px-2.5 py-0.5 rounded-[4px] text-[11px] font-medium font-mono tabular-nums bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center">
                 {filteredVouchers.length} bills
               </span>
+              {isPeriodLocked && (
+                <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 inline-flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Day Locked
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-[#8e8e93] font-sans mt-0.5">
-              Today's money, expenses, cash in box, and shop records in one place.
+            <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
+              Live showroom liquidity, daily expenses, cash till telemetry, and staff advances in one place.
             </p>
           </div>
 
-          {/* Right Layer: Action Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right Layer: Action Buttons & Signature Emerald CTA */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {can('can_create_voucher') && (
+              <button
+                type="button"
+                onClick={() => setActivePage('new-voucher')}
+                className="h-9 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
+              >
+                <Plus className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                <span>New Expense (F4)</span>
+              </button>
+            )}
+
             {can('can_disburse_advance') && (
               <button
                 type="button"
                 onClick={() => setAdvanceModalOpen(true)}
-                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer ios-press"
+                className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <HandCoins className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Give Advance</span>
@@ -319,11 +337,11 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleExportTally}
-                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer ios-press"
+                className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Export all vouchers in Tally Prime compatible CSV format"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span>Tally Export</span>
+                <span className="hidden sm:inline">Tally Export</span>
               </button>
             )}
 
@@ -331,7 +349,7 @@ export const DashboardPage: React.FC = () => {
               type="button"
               onClick={() => refresh()}
               disabled={loading}
-              className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer ios-press"
+              className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
               title="Refresh Dashboard"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
@@ -342,12 +360,50 @@ export const DashboardPage: React.FC = () => {
 
       {/* 2. Main Studio Content Area */}
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1">
-        {/* Tier 2: Filter & Period Slicers Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-[14px] border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-[#18181a]/70 ios-glass">
-          {/* Time-Range Slicers */}
-          <div className="overflow-x-auto no-scrollbar py-0.5">
-            <IOSSegmentedControl
-              size="sm"
+        {/* Period Locked Notice Banner */}
+        {isPeriodLocked && (
+          <div className="p-3 rounded-[12px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300 text-xs font-sans">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Day-End Period Locked:</strong> Today's register has been closed by the cashier. New expenses are disabled until the next session is unlocked.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActivePage('closing')}
+              className="px-2.5 py-1 rounded-[6px] bg-amber-500/20 hover:bg-amber-500/30 font-medium text-[11px] shrink-0 transition-colors"
+            >
+              View Closing (F9)
+            </button>
+          </div>
+        )}
+
+        {/* Safe Drop Alert Banner */}
+        {isSafeDropAlert && (
+          <div className="p-3 rounded-[12px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300 text-xs font-sans">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                <strong>Cash Ceiling Exceeded:</strong> Cash in box ({formatINR(cashBalance)}) exceeds branch threshold ({formatINR(maxCashCeiling)}). Please transfer surplus cash to the safe.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActivePage('treasury')}
+              className="px-2.5 py-1 rounded-[6px] bg-amber-500/20 hover:bg-amber-500/30 font-medium text-[11px] shrink-0 transition-colors"
+            >
+              Transfer to Safe
+            </button>
+          </div>
+        )}
+
+        {/* Tier 2: Supabase Studio Filter & Period Slicers Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-[8px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#161616] shadow-2xs">
+          {/* Time-Range & Mode Slicers */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Time-Range Segmented Group */}
+            <SegmentedControl
               options={[
                 { id: 'today', label: 'Today' },
                 { id: 'week', label: 'Week' },
@@ -362,13 +418,11 @@ export const DashboardPage: React.FC = () => {
                 if (val === 'custom') setIsCustomDateOpen(true);
                 else setIsCustomDateOpen(false);
               }}
-            />
-          </div>
-
-          {/* Payment Mode Slicer */}
-          <div className="w-auto">
-            <IOSSegmentedControl
               size="sm"
+            />
+
+            {/* Payment Mode Segmented Group */}
+            <SegmentedControl
               options={[
                 { id: 'ALL', label: 'All Modes' },
                 { id: 'Physical_Cash', label: 'Cash' },
@@ -376,13 +430,67 @@ export const DashboardPage: React.FC = () => {
               ]}
               value={selectedMode}
               onChange={(val) => setSelectedMode(val as typeof selectedMode)}
+              size="sm"
             />
+          </div>
+
+          {/* Category & Department Filters + Active Count */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Category Select */}
+            <div className="w-38 sm:w-44">
+              <SearchableSelect
+                size="sm"
+                options={[
+                  { value: 'ALL', label: 'All Categories' },
+                  ...categories.map((c) => ({ value: c.category_name, label: c.category_name })),
+                ]}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                allowCustom={false}
+                placeholder="Category"
+                triggerClassName="!rounded-[6px] !bg-slate-50/80 dark:!bg-[#1a1a1a] !border-slate-200/80 dark:!border-[#282828] hover:!border-slate-300 dark:hover:!border-[#383838] !h-8 !text-xs !shadow-2xs text-slate-800 dark:text-zinc-200"
+              />
+            </div>
+
+            {/* Department Select */}
+            <div className="w-38 sm:w-44">
+              <SearchableSelect
+                size="sm"
+                options={[
+                  { value: 'ALL', label: 'All Departments' },
+                  ...departments.map((d) => ({ value: d.department_name, label: d.department_name })),
+                ]}
+                value={selectedDept}
+                onChange={setSelectedDept}
+                allowCustom={false}
+                placeholder="Department"
+                triggerClassName="!rounded-[6px] !bg-slate-50/80 dark:!bg-[#1a1a1a] !border-slate-200/80 dark:!border-[#282828] hover:!border-slate-300 dark:hover:!border-[#383838] !h-8 !text-xs !shadow-2xs text-slate-800 dark:text-zinc-200"
+              />
+            </div>
+
+            {/* Reset Filters Chip */}
+            {activeSlicerCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeRange('today');
+                  setSelectedMode('ALL');
+                  setSelectedCategory('ALL');
+                  setSelectedDept('ALL');
+                  setIsCustomDateOpen(false);
+                }}
+                className="h-8 px-2.5 rounded-[6px] text-xs font-sans font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset ({activeSlicerCount})</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Custom Date Picker Drawer/Bar */}
         {isCustomDateOpen && (
-          <div className="p-3 bg-slate-50 dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 rounded-[12px] flex flex-wrap items-center gap-3 animate-in fade-in duration-150 shadow-xs relative z-30">
+          <div className="p-3 bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] rounded-[12px] flex flex-wrap items-center gap-3 animate-in fade-in duration-100 shadow-xs relative z-10">
             <span className="text-xs text-slate-600 dark:text-[#A1A1A1] font-sans font-medium">Select Range:</span>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-40 sm:w-44">
@@ -423,6 +531,7 @@ export const DashboardPage: React.FC = () => {
             badge={timeRangeLabel}
             badgeColor="neutral"
             icon={Receipt}
+            onClick={() => setActivePage('expenses')}
           />
 
           {/* KPI 2: Cash in Drawer */}
@@ -434,6 +543,7 @@ export const DashboardPage: React.FC = () => {
             badge={isSafeDropAlert ? 'ALERT' : undefined}
             badgeColor={isSafeDropAlert ? 'amber' : undefined}
             icon={Wallet}
+            onClick={() => setActivePage('treasury')}
           />
 
           {/* KPI 3: Bank Account / UPI */}
@@ -443,6 +553,7 @@ export const DashboardPage: React.FC = () => {
             subValue={`${metrics.upiBills} online payments`}
             statusDotColor="#3b82f6"
             icon={Building2}
+            onClick={() => setActivePage('treasury')}
           />
 
           {/* KPI 4: Staff Advances Due */}
@@ -454,6 +565,7 @@ export const DashboardPage: React.FC = () => {
             badge={advanceMetrics.pendingCount > 0 ? `${advanceMetrics.pendingCount} PENDING` : 'CLEARED'}
             badgeColor={advanceMetrics.pendingCount > 0 ? 'amber' : 'emerald'}
             icon={HandCoins}
+            onClick={() => setActivePage('advances')}
           />
         </div>
 

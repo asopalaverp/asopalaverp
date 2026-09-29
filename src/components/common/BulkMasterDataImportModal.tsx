@@ -336,6 +336,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [resultMessage, setResultMessage] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [existingDbKeys, setExistingDbKeys] = useState<Set<string>>(new Set());
 
@@ -353,6 +354,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
         setTargetBranch(branches[0].branch_id);
       }
       setShowDiscardConfirm(false);
+      setIsPreviewOpen(false);
       setResultMessage(null);
     }
   }, [isBulkImportOpen, bulkImportDefaultType, selectedBranchId, branches]);
@@ -545,10 +547,10 @@ export const BulkMasterDataImportModal: React.FC = () => {
     }
   };
 
-  const handleExecuteImport = async () => {
+  const handleInitiateImport = () => {
     if (newCount === 0) {
       if (existingDbCount > 0 || batchDupCount > 0) {
-        const dupMsg = `Duplicate Import Rejected: All ${existingDbCount + batchDupCount} record(s) already exist in your database or input. No duplicate records can be recreated.`;
+        const dupMsg = `Duplicate Import: All ${existingDbCount + batchDupCount} record(s) already exist in database or input.`;
         setResultMessage({
           type: 'error',
           message: dupMsg,
@@ -563,7 +565,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
 
       const msg = parsedItems.length === 0 
         ? 'Please enter or paste at least one record.'
-        : `Cannot import: all ${parsedItems.length} records contain errors. Please fix highlighted issues.`;
+        : `Cannot import: all ${parsedItems.length} records contain errors.`;
       setResultMessage({
         type: 'error',
         message: msg,
@@ -576,6 +578,10 @@ export const BulkMasterDataImportModal: React.FC = () => {
       return;
     }
 
+    setIsPreviewOpen(true);
+  };
+
+  const handleExecuteImport = async () => {
     setImporting(true);
     setResultMessage(null);
 
@@ -713,15 +719,15 @@ export const BulkMasterDataImportModal: React.FC = () => {
         <button
           type="button"
           onClick={handleSafeClose}
-          className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
+          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans cursor-pointer transition-colors"
         >
           Cancel
         </button>
         <button
           type="button"
           disabled={newCount === 0 || importing}
-          onClick={handleExecuteImport}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] font-semibold text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs min-h-[34px] whitespace-nowrap"
+          onClick={handleInitiateImport}
+          className="inline-flex items-center justify-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] font-semibold text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs whitespace-nowrap"
         >
           <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5] shrink-0" />
           <span>
@@ -1057,6 +1063,88 @@ export const BulkMasterDataImportModal: React.FC = () => {
                 className="px-3.5 py-1.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors cursor-pointer"
               >
                 Discard Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Pre-Commit Confirmation Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
+              <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Bulk Import
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-[#888888] font-sans">
+                  Review the summary before importing records
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-[#707070]">Category / Type:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{currentConfig.label}</span>
+              </div>
+              {activeType === 'staff' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">Target Branch:</span>
+                  <span className="text-slate-900 dark:text-white">{targetBranch}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-[#707070]">New Records:</span>
+                <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{newCount} rows to save</span>
+              </div>
+              {existingDbCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">Already in Database:</span>
+                  <span className="text-amber-600 dark:text-amber-400">{existingDbCount} rows (will skip)</span>
+                </div>
+              )}
+              {batchDupCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">Duplicate in File:</span>
+                  <span className="text-amber-600 dark:text-amber-400">{batchDupCount} rows (will skip)</span>
+                </div>
+              )}
+              {invalidCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">Invalid Rows:</span>
+                  <span className="text-rose-600 dark:text-rose-400">{invalidCount} rows (will skip)</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                disabled={importing}
+                className="flex-1 py-2 px-3 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-[#EDEDED] font-medium transition-colors cursor-pointer hover:bg-slate-100 dark:hover:bg-[#262626]"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPreviewOpen(false);
+                  handleExecuteImport();
+                }}
+                disabled={importing}
+                className="flex-1 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {importing ? (
+                  <div className="w-3.5 h-3.5 border-2 border-[#171717] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+                <span>Confirm & Import</span>
               </button>
             </div>
           </div>

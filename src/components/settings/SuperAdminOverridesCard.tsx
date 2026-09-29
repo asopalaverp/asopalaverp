@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useOverrideStore, OverrideDuration, OverridePolicies } from '@/store/overrideStore';
-import { cn, triggerHaptic } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import {
   ShieldAlert,
@@ -19,6 +19,8 @@ import {
   FileCode2,
   Clock,
   Sparkles,
+  X,
+  Check,
 } from 'lucide-react';
 
 export const SuperAdminOverridesCard: React.FC = () => {
@@ -35,7 +37,15 @@ export const SuperAdminOverridesCard: React.FC = () => {
     isAnyOverrideActive,
   } = useOverrideStore();
 
-  const isSuperAdmin = user?.role_code === 'Super_Admin';
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    type: 'master' | 'reset' | 'policy';
+    policyKey?: keyof OverridePolicies;
+    policyTitle?: string;
+    nextValue?: boolean;
+  }>({ open: false, type: 'master' });
+
+  const isSuperAdmin = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
   if (!isSuperAdmin) return null;
 
   const anyActive = isAnyOverrideActive();
@@ -133,6 +143,51 @@ export const SuperAdminOverridesCard: React.FC = () => {
     },
   ];
 
+  const handleRequestMasterToggle = () => {
+    if (!policies.masterOverride) {
+      setConfirmModal({
+        open: true,
+        type: 'master',
+        policyTitle: 'Emergency Master Override (God Mode)',
+        nextValue: true,
+      });
+    } else {
+      setMasterOverride(false, duration, userName, userRole);
+      showToast({
+        type: 'info',
+        title: 'Master Override Deactivated',
+        message: 'Strict accounting rules and audit validation restored.',
+      });
+    }
+  };
+
+  const handleRequestResetAll = () => {
+    setConfirmModal({
+      open: true,
+      type: 'reset',
+      policyTitle: 'Reset All Emergency Overrides',
+    });
+  };
+
+  const handleConfirmAction = () => {
+    if (confirmModal.type === 'master') {
+      setMasterOverride(true, duration, userName, userRole);
+      showToast({
+        type: 'warning',
+        title: 'Master Override Activated',
+        message: `All validation checks bypassed for duration: ${duration.toUpperCase()}.`,
+      });
+    } else if (confirmModal.type === 'reset') {
+      resetAllOverrides(userName, userRole);
+      showToast({
+        type: 'info',
+        title: 'Overrides Cleared',
+        message: 'All standard accounting controls and cash limits active.',
+      });
+    }
+    setConfirmModal({ open: false, type: 'master' });
+  };
+
   return (
     <div className="space-y-4 font-sans select-none">
       {/* Section Title */}
@@ -150,8 +205,8 @@ export const SuperAdminOverridesCard: React.FC = () => {
         {anyActive && (
           <button
             type="button"
-            onClick={() => resetAllOverrides(userName, userRole)}
-            className="flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+            onClick={handleRequestResetAll}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-[6px] border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 text-xs font-medium transition-colors cursor-pointer"
             title="Restore all strict accounting rules"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -211,7 +266,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                       type="button"
                       onClick={() => setMasterOverride(true, dur, userName, userRole)}
                       className={cn(
-                        'px-1.5 py-0.5 rounded transition-all cursor-pointer uppercase',
+                        'px-1.5 py-0.5 rounded-[4px] transition-all cursor-pointer uppercase',
                         duration === dur
                           ? 'bg-amber-500 text-slate-950 font-bold'
                           : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
@@ -227,7 +282,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                 type="button"
                 role="switch"
                 aria-checked={policies.masterOverride}
-                onClick={() => setMasterOverride(!policies.masterOverride, duration, userName, userRole)}
+                onClick={handleRequestMasterToggle}
                 className={cn(
                   'w-12 h-6 rounded-full p-1 transition-colors cursor-pointer relative focus:outline-none shadow-inner',
                   policies.masterOverride
@@ -247,7 +302,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
           </div>
         </div>
 
-        {/* 1.5 FEATURED CASHIER DATE RESTRICTION SWITCH (F12 ADMIN CONTROL) */}
+        {/* 1.5 FEATURED CASHIER DATE RESTRICTION SWITCH */}
         <div
           className={cn(
             'p-4 sm:p-5 transition-colors border-b border-slate-100 dark:border-[#202020]',
@@ -275,7 +330,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                   </h3>
                   <span
                     className={cn(
-                      'text-[10px] font-mono font-bold px-2 py-0.5 rounded border',
+                      'text-[10px] font-mono font-bold px-2 py-0.5 rounded-[4px] border',
                       policies.allowBackdatedEntries
                         ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
                         : 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-500/30'
@@ -298,7 +353,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                 type="button"
                 onClick={() => togglePolicy('allowBackdatedEntries', userName, userRole)}
                 className={cn(
-                  'px-3.5 py-1.5 rounded-[6px] text-xs font-semibold font-sans flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95 border',
+                  'px-3.5 py-1.5 rounded-[6px] text-xs font-semibold font-sans flex items-center gap-2 transition-all cursor-pointer shadow-xs border',
                   policies.allowBackdatedEntries
                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400'
                     : 'bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-800 dark:text-zinc-200 border-slate-300 dark:border-[#383838]'
@@ -371,7 +426,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
 
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-xs font-medium text-slate-900 dark:text-white">
+                      <h4 className="text-xs font-medium text-slate-900 dark:text-white font-sans">
                         {item.title}
                       </h4>
                       <span
@@ -392,7 +447,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-[#8e8e8e] leading-relaxed max-w-2xl">
+                    <p className="text-xs text-slate-500 dark:text-[#8e8e8e] leading-relaxed max-w-2xl font-sans">
                       {item.description}
                     </p>
                   </div>
@@ -452,6 +507,92 @@ export const SuperAdminOverridesCard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* CONFIRMATION PREVIEW MODAL                                                */}
+      {/* ========================================================================= */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setConfirmModal({ open: false, type: 'master' })}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  {confirmModal.type === 'master' ? 'Activate Master Override' : 'Reset All Overrides'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  {confirmModal.type === 'master'
+                    ? 'Bypasses accounting safety constraints.'
+                    : 'Restores all standard financial rules.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2 text-xs font-sans">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Action:</span>
+                <span className="font-semibold text-slate-900 dark:text-white font-mono">
+                  {confirmModal.type === 'master' ? 'GOD MODE ACTIVATION' : 'RESTORE CONTROLS'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Requested By:</span>
+                <span className="text-slate-800 dark:text-zinc-200">{userName} ({userRole})</span>
+              </div>
+              {confirmModal.type === 'master' && (
+                <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                  <span className="text-slate-500 dark:text-[#888888]">Active Duration:</span>
+                  <span className="font-mono text-amber-600 dark:text-amber-400 font-bold uppercase">{duration}</span>
+                </div>
+              )}
+              <div className="space-y-1 py-1">
+                <span className="text-slate-500 dark:text-[#888888] block">Security Notice:</span>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed bg-amber-500/10 p-2 rounded-[6px] border border-amber-500/20">
+                  {confirmModal.type === 'master'
+                    ? 'All cash ceiling limits, negative cash blocks, backdate blocks, and 40A(3) checks will be bypassed across all counter terminals.'
+                    : 'All normal safety checks will be reactivated immediately. Any active bypasses will end.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ open: false, type: 'master' })}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Back &amp; Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                className={cn(
+                  'px-5 py-2 rounded-[6px] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs',
+                  confirmModal.type === 'master'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-black'
+                    : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717]'
+                )}
+              >
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>
+                  {confirmModal.type === 'master' ? 'Confirm & Enable God Mode' : 'Confirm & Reset'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

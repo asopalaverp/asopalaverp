@@ -146,15 +146,15 @@ type ColumnKey =
   | 'actions';
 
 const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
-  { key: 'voucher_number', label: 'Receipt No.' },
+  { key: 'voucher_number', label: 'Bill No.' },
   { key: 'date', label: 'Date' },
   { key: 'recipient_name', label: 'Paid To' },
   { key: 'category_name', label: 'Category' },
   { key: 'department_name', label: 'Department' },
-  { key: 'payment_method', label: 'Payment Mode' },
+  { key: 'payment_method', label: 'Mode' },
   { key: 'total_amount', label: 'Amount (₹)' },
   { key: 'status', label: 'Status' },
-  { key: 'actions', label: 'Quick Tools' },
+  { key: 'actions', label: 'Tools' },
 ];
 
 function downloadBlob(filename: string, content: string, mimeType: string) {
@@ -809,30 +809,30 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             {/* Metrics Ribbon */}
             <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 dark:text-[#8e8e93]">Σ Total:</span>
+                <span className="text-slate-500 dark:text-[#8e8e93]">Total:</span>
                 <span className="font-bold text-emerald-600 dark:text-primary text-sm tabular-nums">
                   {formatINR(telemetry.totalAmount)}
                 </span>
               </div>
               <span className="text-slate-300 dark:text-white/15">|</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 dark:text-[#8e8e93]">Peak:</span>
+                <span className="text-slate-500 dark:text-[#8e8e93]">Highest:</span>
                 <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
                   {formatINR(telemetry.max)}
                 </span>
               </div>
               <span className="text-slate-300 dark:text-white/15">|</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 dark:text-[#8e8e93]">Min/Max:</span>
+                <span className="text-slate-500 dark:text-[#8e8e93]">Range:</span>
                 <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
                   {formatINR(telemetry.min)} - {formatINR(telemetry.max)}
                 </span>
               </div>
               <span className="text-slate-300 dark:text-white/15">|</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-500 dark:text-[#8e8e93]">N Count:</span>
+                <span className="text-slate-500 dark:text-[#8e8e93]">Bills:</span>
                 <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
-                  {telemetry.count} vouchers
+                  {telemetry.count}
                 </span>
               </div>
             </div>
@@ -840,7 +840,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             {/* Sub-View Mode Switcher */}
             <div className="inline-flex rounded-[8px] p-0.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08]">
               {[
-                { id: 'grid', label: 'Grid', icon: Layers },
+                { id: 'grid', label: 'Ledger', icon: Layers },
                 { id: 'analytics_category', label: 'By Category', icon: BarChart3 },
                 { id: 'analytics_dept', label: 'By Dept', icon: Building2 },
                 { id: 'analytics_payee', label: 'Top Payees', icon: Users },
@@ -872,11 +872,11 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#8e8e93]">
               <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
                 <Banknote className="w-3 h-3" />
-                Physical Cash: {telemetry.cashPercent}% ({formatINR(telemetry.cashSum)})
+                Cash: {telemetry.cashPercent}% ({formatINR(telemetry.cashSum)})
               </span>
               <span className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-semibold">
                 <Smartphone className="w-3 h-3" />
-                Bank / UPI: {telemetry.upiPercent}% ({formatINR(telemetry.upiSum)})
+                UPI: {telemetry.upiPercent}% ({formatINR(telemetry.upiSum)})
               </span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden bg-black/[0.04] dark:bg-white/[0.06] flex border border-black/[0.04] dark:border-white/[0.06]">
@@ -942,8 +942,8 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
               aria-label="Search expense vouchers"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search vouchers..."
-              className="bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] rounded-[10px] pl-9 pr-7 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary w-full transition-all font-sans min-h-[36px]"
+              placeholder="Search bills..."
+              className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-9 pr-7 h-10 min-h-[40px] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 w-full transition-all font-sans shadow-2xs"
             />
             {search && (
               <button
@@ -962,16 +962,16 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
               type="button"
               onClick={() => setIsFilterOpen((prev) => !prev)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-semibold font-sans border transition-all cursor-pointer min-h-[36px] ios-press',
+                'flex items-center gap-1.5 px-3.5 h-10 min-h-[40px] rounded-[6px] text-xs font-semibold font-sans border transition-all cursor-pointer shadow-2xs',
                 isFilterOpen || activeFilterCount > 0
-                  ? 'bg-primary/15 text-emerald-800 dark:text-primary border-primary/30 font-semibold'
-                  : 'bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-slate-900 dark:text-zinc-200 border border-black/[0.06] dark:border-white/[0.08]'
+                  ? 'bg-[#3ecf8e]/15 text-emerald-800 dark:text-[#3ecf8e] border-[#3ecf8e]/40 font-semibold'
+                  : 'bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-900 dark:text-zinc-200 border-slate-200 dark:border-[#282828]'
               )}
             >
               <Filter className="w-3.5 h-3.5" />
               <span>Filters</span>
               {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-primary text-[#171717] text-[10px] font-mono flex items-center justify-center font-bold">
+                <span className="w-4 h-4 rounded-full bg-[#3ecf8e] text-[#171717] text-[10px] font-mono flex items-center justify-center font-bold">
                   {activeFilterCount}
                 </span>
               )}
@@ -984,14 +984,14 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
               type="button"
               onClick={handleToggleColumnPicker}
               title="Manage Columns"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] bg-black/[0.03] dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans text-slate-900 dark:text-white border border-black/[0.06] dark:border-white/[0.08] cursor-pointer min-h-[36px] ios-press"
+              className="flex items-center gap-1.5 px-3 h-10 min-h-[40px] rounded-[6px] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-xs font-semibold font-sans text-slate-900 dark:text-white border border-slate-200 dark:border-[#282828] cursor-pointer shadow-2xs"
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
               <span>Columns</span>
             </button>
 
             {isColumnPickerOpen && (
-              <div className="absolute right-0 mt-1.5 w-56 rounded-[10px] bg-white dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] shadow-xl p-3 z-40 space-y-2 text-xs font-sans">
+              <div className="absolute right-0 mt-1.5 w-56 rounded-[8px] bg-white dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] shadow-xl p-3 z-40 space-y-2 text-xs font-sans">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-[#282828]">
                   <span className="font-medium text-slate-900 dark:text-white">Visible Columns</span>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">
@@ -1026,7 +1026,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             <button
               type="button"
               onClick={handleToggleExport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-xs font-medium text-slate-900 dark:text-white border border-slate-200 dark:border-[#2e2e2e] transition-colors cursor-pointer font-sans min-h-[34px]"
+              className="flex items-center gap-1.5 px-3 h-10 min-h-[40px] rounded-[6px] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-xs font-medium text-slate-900 dark:text-white border border-slate-200 dark:border-[#282828] transition-colors cursor-pointer font-sans shadow-2xs"
             >
               <Download className="w-3.5 h-3.5 text-primary" />
               <span>Export</span>
@@ -1102,7 +1102,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             <button
               type="button"
               onClick={() => setActivePage('new-voucher')}
-              className="hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium transition-colors cursor-pointer font-sans shadow-xs min-h-[34px] shrink-0"
+              className="hidden lg:flex items-center gap-1.5 px-4 h-10 min-h-[40px] rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold transition-colors cursor-pointer font-sans shadow-xs shrink-0"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Record Expense</span>
@@ -1120,7 +1120,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-primary" />
               <span className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                Filter Expense Vouchers
+                Filter Bills
               </span>
               {activeFilterCount > 0 && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-[4px] bg-primary/15 text-emerald-700 dark:text-primary font-bold">
@@ -1171,14 +1171,14 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                   placeholder="Min ₹"
                   value={minAmount}
                   onChange={(e) => setMinAmount(e.target.value)}
-                  className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary font-mono shadow-xs"
+                  className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono shadow-2xs"
                 />
                 <input
                   type="number"
                   placeholder="Max ₹"
                   value={maxAmount}
                   onChange={(e) => setMaxAmount(e.target.value)}
-                  className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[6px] px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-primary font-mono shadow-xs"
+                  className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono shadow-2xs"
                 />
               </div>
             </div>
@@ -1331,7 +1331,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                     placeholder="0"
                     value={minAmount}
                     onChange={(e) => setMinAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                    className="w-full bg-slate-50 dark:bg-[#202020] border border-slate-200 dark:border-[#333] rounded-[12px] pl-14 pr-3.5 py-3 text-sm font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 min-h-[50px] transition-all shadow-xs"
+                    className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-14 pr-3.5 h-10 min-h-[40px] text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-all shadow-2xs"
                   />
                 </div>
                 <div className="relative">
@@ -1344,7 +1344,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                     placeholder="50,000"
                     value={maxAmount}
                     onChange={(e) => setMaxAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                    className="w-full bg-slate-50 dark:bg-[#202020] border border-slate-200 dark:border-[#333] rounded-[12px] pl-14 pr-3.5 py-3 text-sm font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 min-h-[50px] transition-all shadow-xs"
+                    className="w-full bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-14 pr-3.5 h-10 min-h-[40px] text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-all shadow-2xs"
                   />
                 </div>
               </div>
@@ -1517,15 +1517,15 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       {/* 5. ACTIVE SUB-VIEW CONTENT (Grid vs Analytics Breakdowns)                */}
       {/* ========================================================================= */}
       {activeSubTab === 'grid' && (
-        <div className="rounded-[14px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18181a] overflow-hidden shadow-xs ios-card">
-          {/* WhatsApp-Style Mobile Card Feed (< lg when mobileViewMode === 'cards') */}
+        <div className="rounded-[8px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#161616] overflow-hidden shadow-2xs">
+          {/* Mobile Card Feed (< lg when mobileViewMode === 'cards') */}
           {mobileViewMode === 'cards' && (
             <div className="lg:hidden p-2 space-y-3">
               {groupedMobileVouchers.map((group) => (
                 <div key={group.label} className="space-y-1.5">
-                  {/* iOS 16 Sticky Date Divider Pill */}
+                  {/* Studio Sticky Date Divider Pill */}
                   <div className="flex justify-center my-1.5 sticky top-14 z-10">
-                    <span className="px-3 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wider uppercase bg-slate-100/90 dark:bg-[#202022]/90 backdrop-blur-md text-slate-600 dark:text-zinc-400 border border-slate-200/80 dark:border-white/10 shadow-xs">
+                    <span className="px-2.5 py-0.5 rounded-[4px] text-[10px] font-semibold font-mono tracking-wider uppercase bg-slate-100 dark:bg-[#202020] text-slate-600 dark:text-zinc-300 border border-slate-200/80 dark:border-[#2a2a2a] shadow-2xs">
                       {group.label}
                     </span>
                   </div>
@@ -1542,7 +1542,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                             openDrawer(v);
                           }}
                           className={cn(
-                            'flex items-center justify-between p-3.5 rounded-[14px] bg-white dark:bg-[#1c1c1e] border border-slate-200/80 dark:border-white/10 hover:border-emerald-500/40 active:scale-[0.98] transition-all cursor-pointer shadow-xs gap-3 select-none min-h-[60px] ios-press',
+                            'flex items-center justify-between p-3 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200/80 dark:border-[#282828] hover:border-emerald-500/40 active:scale-[0.99] transition-all cursor-pointer shadow-2xs gap-3 select-none min-h-[56px]',
                             isSelected && 'ring-1 ring-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20'
                           )}
                         >
@@ -1562,11 +1562,11 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                               <span className="font-mono text-[10px]">{formatDate(v.payment_date, 'HH:mm')}</span>
                             </div>
                             <div className="flex items-center gap-1.5 mt-1">
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] bg-black/[0.04] dark:bg-white/[0.08] text-slate-600 dark:text-zinc-300 font-mono text-[10px] font-medium">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#222222] text-slate-600 dark:text-zinc-300 font-mono text-[10px] font-medium border border-slate-200/80 dark:border-[#2a2a2a]">
                                 {v.payment_method === 'Physical_Cash' ? 'Cash' : 'UPI'}
                               </span>
                               {v.branch_code && (
-                                <span className="px-1.5 py-0.5 rounded-[6px] bg-black/[0.04] dark:bg-white/[0.08] text-slate-500 dark:text-zinc-400 font-mono text-[10px]">
+                                <span className="px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#222222] text-slate-500 dark:text-zinc-400 font-mono text-[10px] border border-slate-200/80 dark:border-[#2a2a2a]">
                                   {v.branch_code}
                                 </span>
                               )}
@@ -1583,12 +1583,12 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                             </span>
                             <span
                               className={cn(
-                                'px-2 py-0.5 rounded-full text-[10px] font-mono border font-semibold',
+                                'px-2 py-0.2 rounded-[4px] text-[10px] font-mono border font-medium',
                                 v.status === 'Approved' || !v.status
-                                  ? 'badge-status-emerald'
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-500/20'
                                   : v.status === 'Voided'
-                                  ? 'badge-status-rose'
-                                  : 'badge-status-amber'
+                                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                               )}
                             >
                               {v.status === 'Pending_Approval'
@@ -1655,7 +1655,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                       )}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-slate-800 dark:text-white font-medium">Voucher #</span>
+                        <span className="font-mono text-slate-800 dark:text-white font-medium">Bill #</span>
                         {getSortIcon('voucher_number')}
                       </div>
                     </th>
@@ -1687,7 +1687,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                       )}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-slate-800 dark:text-white font-medium">Paid To / Vendor</span>
+                        <span className="font-mono text-slate-800 dark:text-white font-medium">Paid To</span>
                         {getSortIcon('recipient_name')}
                       </div>
                     </th>
@@ -1774,7 +1774,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                   {/* Actions */}
                   {visibleColumns.has('actions') && (
                     <th className={cn('text-center w-20 select-none font-mono text-slate-400 dark:text-[#737373]', densityStyles.header)}>
-                      <span>Actions</span>
+                      <span>Tools</span>
                     </th>
                   )}
                 </tr>
@@ -2123,6 +2123,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                 <div className="flex-1">
                   <SearchableSelect
                     size="sm"
+                    placement="top"
                     options={[
                       { value: '10', label: '10' },
                       { value: '15', label: '15' },
@@ -2133,6 +2134,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                     value={String(pageSize)}
                     onChange={(val) => setPageSize(Number(val))}
                     allowCustom={false}
+                    popupClassName="min-w-[76px]"
                   />
                 </div>
               </div>

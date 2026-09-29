@@ -429,7 +429,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] flex flex-col overflow-hidden text-sm font-sans antialiased selection:bg-primary/20 selection:text-slate-900 dark:selection:text-white">
+    <div className="fixed inset-0 bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] flex flex-col overflow-hidden text-sm font-sans antialiased selection:bg-primary/20 selection:text-slate-900 dark:selection:text-white">
       {/* Full-Width Top Announcement / Offline Banner */}
       <AnnouncementBanner />
 
@@ -441,7 +441,7 @@ export const App: React.FC = () => {
         {/* 2. Workspace Column */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 bg-white dark:bg-[#141414]">
           {/* Top Command Navigation Header */}
-          <header className="shrink-0 z-30 select-none bg-white dark:bg-[#141414]">
+          <header className="shrink-0 z-50 relative select-none bg-white dark:bg-[#141414]">
             <Topbar />
           </header>
 

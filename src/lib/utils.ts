@@ -479,12 +479,22 @@ export function printThermalClosingSlip(closing: {
 export type HapticFeedbackType = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error';
 
 /**
- * Emits tactile haptic vibration patterns on mobile & tablet touch devices
+ * Emits tactile haptic vibration patterns ONLY on mobile & tablet touch devices.
+ * Completely disabled on desktop devices.
  */
 export function triggerHaptic(type: HapticFeedbackType = 'light') {
   if (typeof window === 'undefined' || !window.navigator || !('vibrate' in window.navigator)) {
     return;
   }
+
+  // Only trigger on mobile / tablet touch devices (width < 1024px or coarse touch pointer)
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isMobileOrTablet = window.innerWidth < 1024 || (isTouch && window.matchMedia('(pointer: coarse)').matches);
+
+  if (!isTouch || !isMobileOrTablet) {
+    return;
+  }
+
   try {
     switch (type) {
       case 'selection':

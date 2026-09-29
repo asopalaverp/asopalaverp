@@ -103,14 +103,13 @@ export const AnnouncementBanner: React.FC = () => {
     });
   }, [broadcast]);
 
+  if (!isVisible) return null;
+
   return (
     <aside
       ref={bannerRef}
-      className={cn(
-        "w-full overflow-hidden select-none",
-        isVisible ? "opacity-100" : "h-0 opacity-0 pointer-events-none"
-      )}
-      role={isVisible ? "status" : undefined}
+      className="w-full overflow-hidden select-none"
+      role="status"
       aria-live="polite"
     >
       {isVisible && (

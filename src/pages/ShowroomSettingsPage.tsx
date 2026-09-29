@@ -15,13 +15,14 @@ import {
   CourierPartner,
   StaffMember,
 } from '@/types/database';
-import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatDate, cn } from '@/lib/utils';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
 import { BrandIdentitySetup } from '@/components/settings/BrandIdentitySetup';
 import { ThermalPrinterCustomizer } from '@/components/settings/ThermalPrinterCustomizer';
 import { useNotificationStore } from '@/store/notificationStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast, showToast } from '@/components/ui/ToastContainer';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   Building2,
   Tags,
@@ -53,6 +54,7 @@ import {
   RefreshCw,
   LucideIcon,
   Menu,
+  AlertCircle,
 } from 'lucide-react';
 
 export type SettingsTabId =
@@ -230,6 +232,7 @@ export const ShowroomSettingsPage: React.FC = () => {
   const [broadcastLink, setBroadcastLink] = useState(broadcast?.link || '');
   const [customBadge, setCustomBadge] = useState('');
   const [isCustomBadge, setIsCustomBadge] = useState(false);
+  const [isBroadcastPreviewOpen, setIsBroadcastPreviewOpen] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -397,6 +400,10 @@ export const ShowroomSettingsPage: React.FC = () => {
       }
     }
 
+    setIsBroadcastPreviewOpen(true);
+  };
+
+  const handleConfirmPublishBroadcast = () => {
     const finalBadge = isCustomBadge ? customBadge.trim().toUpperCase() || 'ANNOUNCEMENT' : broadcastBadge;
     setBroadcast({
       id: `BCAST-${Date.now()}`,
@@ -405,7 +412,8 @@ export const ShowroomSettingsPage: React.FC = () => {
       link: broadcastLink.trim() || undefined,
       created_at: new Date().toISOString(),
     });
-    toast.success('Global system broadcast banner updated.');
+    setIsBroadcastPreviewOpen(false);
+    toast.success('Global system broadcast banner updated and published.');
   };
 
   const handleClearBroadcast = () => {
@@ -755,11 +763,11 @@ export const ShowroomSettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* ========================================================================= */}
       {/* 1. TOP HEADER & UNIFIED SMART SECTION SELECTOR                            */}
       {/* ========================================================================= */}
-      <div className="border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#161618]/90 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-6 lg:px-8 py-3.5">
+      <div className="border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#161618]/90 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-[6px] bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shadow-2xs">
@@ -779,27 +787,28 @@ export const ShowroomSettingsPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             {/* Unified Smart Section Dropdown */}
-            <div className="relative min-w-[240px]">
-              <select
+            <div className="relative min-w-[260px]">
+              <SearchableSelect
+                options={[
+                  ...SETTINGS_TABS.filter(t => t.group === 'SHOWROOM MASTER DATA').map(t => ({
+                    value: t.id,
+                    label: t.name,
+                    badge: counts[t.id] !== undefined ? `${counts[t.id]} items` : undefined,
+                  })),
+                  ...SETTINGS_TABS.filter(t => t.group === 'HARDWARE & PRINTING').map(t => ({
+                    value: t.id,
+                    label: t.name,
+                    badge: 'Hardware',
+                  })),
+                ]}
                 value={activeTabId}
-                onChange={(e) => {
-                  triggerHaptic('selection');
-                  setActiveTabId(e.target.value as SettingsTabId);
+                onChange={(val: string) => {
+                  setActiveTabId(val as SettingsTabId);
                   setSearchQuery('');
                 }}
-                className="w-full px-3.5 py-2 rounded-[6px] bg-white dark:bg-[#202023] border border-slate-300/80 dark:border-white/15 text-xs font-semibold font-sans text-slate-900 dark:text-white shadow-xs focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 cursor-pointer transition-colors"
-              >
-                <optgroup label="ERP Master Catalogues">
-                  {SETTINGS_TABS.filter(t => t.group === 'SHOWROOM MASTER DATA').map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({counts[t.id] ?? '–'})</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Brand & Hardware Setup">
-                  {SETTINGS_TABS.filter(t => t.group === 'HARDWARE & PRINTING').map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </optgroup>
-              </select>
+                searchPlaceholder="Switch section..."
+                allowCustom={false}
+              />
             </div>
 
             <span className="text-[10px] font-mono text-[#3ecf8e] bg-emerald-500/10 px-2.5 py-1.5 rounded-full border border-[#3ecf8e]/30 font-medium shrink-0 hidden md:inline">
@@ -837,7 +846,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                       toast.info('Refreshing records...');
                     }}
                     disabled={isLoading}
-                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-all cursor-pointer shadow-xs ios-press"
+                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-all cursor-pointer shadow-xs"
                     title="Refresh Records"
                   >
                     <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-[#3ecf8e]')} />
@@ -848,7 +857,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setBulkImportOpen(true, activeTabId as any)}
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
                       <span>Import CSV</span>
@@ -859,7 +868,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                   <div className="relative group">
                     <button
                       type="button"
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Export</span>
@@ -890,7 +899,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleOpenInsert}
-                      className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
+                      className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>Add Record</span>
@@ -1034,7 +1043,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={`Filter ${currentTab.name}...`}
-                      className="w-full pl-9 pr-12 py-1.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] font-mono transition-colors"
+                      className="w-full h-10 min-h-[40px] pl-9 pr-12 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono transition-colors shadow-2xs"
                     />
                     {searchQuery ? (
                       <button
@@ -1115,22 +1124,22 @@ export const ShowroomSettingsPage: React.FC = () => {
                             <tr className="bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] text-[11px] text-slate-500 dark:text-[#707070] uppercase tracking-wider font-semibold">
                               {activeTabId === 'periods' && (
                                 <>
-                                  <th className={densityClasses}>Period Key</th>
+                                  <th className={densityClasses}>Accounting Month</th>
                                   <th className={densityClasses}>Date Range</th>
                                   <th className={densityClasses}>Status</th>
-                                  <th className={densityClasses}>Locked By</th>
-                                  <th className={densityClasses}>Audit Reason</th>
+                                  <th className={densityClasses}>Audited By</th>
+                                  <th className={densityClasses}>Lock Reason / Note</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
                                 </>
                               )}
 
                               {activeTabId === 'branches' && (
                                 <>
-                                  <th className={densityClasses}>Code</th>
+                                  <th className={densityClasses}>Branch Code</th>
                                   <th className={densityClasses}>Branch Name</th>
-                                  <th className={densityClasses}>City &amp; State</th>
-                                  <th className={densityClasses}>GSTIN</th>
-                                  <th className={densityClasses}>Cash Box Ceilings</th>
+                                  <th className={densityClasses}>City / State</th>
+                                  <th className={densityClasses}>GST Number</th>
+                                  <th className={densityClasses}>Cash Box Limits</th>
                                   <th className={densityClasses}>Status</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
                                 </>
@@ -1139,7 +1148,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                               {activeTabId === 'categories' && (
                                 <>
                                   <th className={densityClasses}>Category Name</th>
-                                  <th className={densityClasses}>Theme Tag</th>
+                                  <th className={densityClasses}>Color Theme</th>
                                   <th className={densityClasses}>Status</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
                                 </>
@@ -1147,7 +1156,7 @@ export const ShowroomSettingsPage: React.FC = () => {
 
                               {activeTabId === 'departments' && (
                                 <>
-                                  <th className={densityClasses}>Code</th>
+                                  <th className={densityClasses}>Department Code</th>
                                   <th className={densityClasses}>Department Name</th>
                                   <th className={densityClasses}>Status</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
@@ -1156,9 +1165,9 @@ export const ShowroomSettingsPage: React.FC = () => {
 
                               {activeTabId === 'couriers' && (
                                 <>
-                                  <th className={densityClasses}>Code</th>
+                                  <th className={densityClasses}>Partner Code</th>
                                   <th className={densityClasses}>Partner Name</th>
-                                  <th className={densityClasses}>Phone</th>
+                                  <th className={densityClasses}>Contact Phone</th>
                                   <th className={densityClasses}>Status</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
                                 </>
@@ -1181,17 +1190,17 @@ export const ShowroomSettingsPage: React.FC = () => {
                                   <th className={densityClasses}>Role Code</th>
                                   <th className={densityClasses}>Role Title</th>
                                   <th className={densityClasses}>Description</th>
-                                  <th className={densityClasses}>System Role</th>
+                                  <th className={densityClasses}>Role Type</th>
                                   <th className={cn(densityClasses, 'text-right')}>Action</th>
                                 </>
                               )}
 
                               {activeTabId === 'denominations' && (
                                 <>
-                                  <th className={densityClasses}>Value</th>
+                                  <th className={densityClasses}>Cash Value</th>
                                   <th className={densityClasses}>Display Label</th>
-                                  <th className={densityClasses}>Type</th>
-                                  <th className={densityClasses}>Sort</th>
+                                  <th className={densityClasses}>Type (Note / Coin)</th>
+                                  <th className={densityClasses}>Display Order</th>
                                   <th className={densityClasses}>Status</th>
                                 </>
                               )}
@@ -1491,15 +1500,15 @@ export const ShowroomSettingsPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* PERIOD LOCK AUDIT MODAL                                                   */}
+      {/* PERIOD LOCK AUDIT MODAL (PRE-COMMIT VERIFICATION SLIP)                    */}
       {/* ========================================================================= */}
       {lockModalOpen && targetPeriod && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"
               onClick={() => setLockModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1507,51 +1516,80 @@ export const ShowroomSettingsPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div
                 className={cn(
-                  'w-10 h-10 rounded-[8px] flex items-center justify-center',
+                  'w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0 border',
                   targetPeriod.is_locked
-                    ? 'bg-emerald-500/10 text-[#3ecf8e] border border-[#3ecf8e]/30'
-                    : 'bg-rose-500/10 text-rose-500 border border-rose-500/30'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                    : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
                 )}
               >
                 {targetPeriod.is_locked ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                  {targetPeriod.is_locked ? 'Unlock Accounting Period' : 'Lock Accounting Period'}
+                  {targetPeriod.is_locked ? 'Unlock Accounting Month' : 'Lock Accounting Month'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-[#888]">
-                  Period {targetPeriod.period_key} ({formatDate(targetPeriod.start_date)} → {formatDate(targetPeriod.end_date)})
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  {targetPeriod.is_locked
+                    ? 'Allow expense voucher modifications for this month.'
+                    : 'Prevent all future edits and additions for audited books.'}
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 font-sans block">
-                Audit Justification / Lock Reason
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2 text-xs font-sans">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Accounting Period:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">{targetPeriod.period_key}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Date Range:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200">
+                  {formatDate(targetPeriod.start_date)} → {formatDate(targetPeriod.end_date)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Current Status:</span>
+                <span className="font-mono font-medium text-slate-800 dark:text-zinc-200">
+                  {targetPeriod.is_locked ? 'Locked (Protected)' : 'Open (Editable)'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 dark:text-[#888888]">Action Requested:</span>
+                <span className={cn('font-mono font-semibold', targetPeriod.is_locked ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')}>
+                  {targetPeriod.is_locked ? 'UNLOCK PERIOD' : 'LOCK PERIOD'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 font-sans block">
+                Audit Reason / Justification Note
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 value={lockReason}
                 onChange={(e) => setLockReason(e.target.value)}
                 placeholder="e.g. Monthly books verified by chartered accountant. Final tally complete."
-                className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#121212] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#3ecf8e] outline-none"
+                className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#121212] border border-slate-300 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-[#3ecf8e] outline-none"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#242424]">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
               <button
                 type="button"
                 onClick={() => setLockModalOpen(false)}
-                className="px-3 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222]"
+                disabled={isSubmittingLock}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
               >
-                Cancel
+                Back &amp; Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmToggleLock}
                 disabled={isSubmittingLock}
                 className={cn(
-                  'px-4 py-1.5 rounded-[6px] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-xs',
+                  'px-4 py-2 rounded-[6px] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors',
                   targetPeriod.is_locked
                     ? 'bg-amber-500 hover:bg-amber-600 text-black'
                     : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717]'
@@ -1565,6 +1603,83 @@ export const ShowroomSettingsPage: React.FC = () => {
                     ? 'Confirm Unlock'
                     : 'Confirm Lock'}
                 </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* GLOBAL BROADCAST PRE-COMMIT CONFIRMATION PREVIEW MODAL                    */}
+      {/* ========================================================================= */}
+      {isBroadcastPreviewOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setIsBroadcastPreviewOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Shop Announcement
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  This message will be broadcast live to all counter cashier terminals.
+                </p>
+              </div>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2.5 text-xs font-sans">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Badge Tag:</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono text-[10px] font-bold">
+                  {isCustomBadge ? customBadge || 'CUSTOM' : broadcastBadge}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Audience:</span>
+                <span className="font-medium text-slate-900 dark:text-white">All Showroom Counter Terminals</span>
+              </div>
+              <div className="space-y-1 py-1">
+                <span className="text-slate-500 dark:text-[#888888] block">Announcement Message:</span>
+                <p className="p-2.5 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2c2c2c] text-slate-900 dark:text-[#EDEDED] leading-relaxed">
+                  {broadcastMessage}
+                </p>
+              </div>
+              {broadcastLink && (
+                <div className="flex justify-between items-center py-1 border-t border-slate-200/60 dark:border-[#202020]">
+                  <span className="text-slate-500 dark:text-[#888888]">Attachment Link:</span>
+                  <span className="font-mono text-[11px] text-[#3ecf8e] truncate max-w-[200px]">
+                    {broadcastLink}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
+              <button
+                type="button"
+                onClick={() => setIsBroadcastPreviewOpen(false)}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Back &amp; Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPublishBroadcast}
+                className="px-5 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Confirm &amp; Broadcast</span>
               </button>
             </div>
           </div>

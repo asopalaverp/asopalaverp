@@ -9,7 +9,7 @@ import { cn, triggerHaptic } from '@/lib/utils';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { toast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import {
   Search,
   RefreshCw,
@@ -210,9 +210,9 @@ export const SecurityAuditPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16">
-      {/* 1. iOS 16 Frosted Header */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
+      {/* 1. Activity History Header */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-7xl mx-auto">
           {/* Left: Title & Live Badge */}
           <div>
@@ -302,7 +302,7 @@ export const SecurityAuditPage: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search history by person, receipt, action..."
-              className="w-full pl-9 pr-12 py-2 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20 font-mono transition-colors"
+              className="w-full h-10 min-h-[40px] pl-9 pr-12 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono transition-colors shadow-2xs"
             />
             {search ? (
               <button
@@ -322,7 +322,7 @@ export const SecurityAuditPage: React.FC = () => {
           {/* Time Segmented Control & Stream Dropdown */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Time Filter Segmented Control */}
-            <IOSSegmentedControl
+            <SegmentedControl
               options={[
                 { id: 'all', label: 'All History' },
                 { id: '7d', label: '7 Days' },
@@ -356,46 +356,46 @@ export const SecurityAuditPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. Telemetry Metric Cards (4 Inset Grouped Tiles) */}
+        {/* 3. Telemetry Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-              Total Audit Records
+              All Activity Logs
             </span>
             <div className="text-2xl font-mono font-semibold text-slate-900 dark:text-[#EDEDED] tabular-nums">
               {stats.total.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-400 dark:text-[#606060] font-sans block">Immutable Supabase ledger</span>
+            <span className="text-[11px] text-slate-400 dark:text-[#606060] font-sans block">Recorded showroom actions</span>
           </div>
 
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-              SHA-256 Hash Chain
+              Tamper-Proof Protection
             </span>
             <div className="text-2xl font-mono font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums flex items-center gap-1.5">
               <ShieldCheck className="w-5 h-5 text-[#3ecf8e]" />
-              <span>100% Verified</span>
+              <span>100% Safe</span>
             </div>
-            <span className="text-[11px] text-emerald-600/80 dark:text-[#3ecf8e]/80 font-sans block">Zero tampering detected</span>
+            <span className="text-[11px] text-emerald-600/80 dark:text-[#3ecf8e]/80 font-sans block">All entries permanently locked</span>
           </div>
 
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-              Voucher Voids & Deletions
+              Cancelled / Deleted Bills
             </span>
             <div className="text-2xl font-mono font-semibold text-amber-500 dark:text-amber-400 tabular-nums">
               {stats.voids}
             </div>
-            <span className="text-[11px] text-slate-400 dark:text-[#606060] font-sans block">Requires manager sign-off</span>
+            <span className="text-[11px] text-slate-400 dark:text-[#606060] font-sans block">Requires manager approval</span>
           </div>
 
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-              Security Status
+              System Security
             </span>
             <div className="text-2xl font-mono font-semibold text-slate-900 dark:text-[#EDEDED] flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-[#3ecf8e] animate-pulse" />
-              <span>Operational</span>
+              <span>Active &amp; Live</span>
             </div>
             <span className="text-[11px] text-slate-400 dark:text-[#606060] font-sans block">Branch: {activeBranch.branch_code}</span>
           </div>
@@ -406,29 +406,29 @@ export const SecurityAuditPage: React.FC = () => {
           {filteredLogs.length === 0 ? (
             <div className="py-16 text-center text-slate-400 dark:text-[#707070] space-y-2">
               <Terminal className="w-8 h-8 mx-auto opacity-40 mb-2" />
-              <p className="text-sm font-semibold text-slate-900 dark:text-[#EDEDED]">No audit logs matching query.</p>
-              <p className="text-xs">Adjust your search terms, stream filter, or time range above.</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-[#EDEDED]">No activity records found.</p>
+              <p className="text-xs">Try adjusting your search terms or filter above.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse font-mono text-xs">
                 <thead>
-                  <tr className="bg-slate-100/60 dark:bg-white/5 border-b border-slate-200/80 dark:border-white/10 text-[11px] font-semibold text-slate-600 dark:text-[#8E8E93] uppercase tracking-wider">
+                  <tr className="bg-slate-100/60 dark:bg-white/5 border-b border-slate-200/80 dark:border-white/10 text-[11px] font-semibold text-slate-600 dark:text-[#8E8E93] uppercase tracking-wider font-sans">
                     <th className="py-3 px-4 w-12 text-center">#</th>
-                    <th className="py-3 px-4 w-40">Timestamp <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">timestamptz</span></th>
-                    <th className="py-3 px-4 w-28">Status <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">code</span></th>
-                    <th className="py-3 px-4 min-w-[280px]">Event Description <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">text</span></th>
-                    <th className="py-3 px-4 w-36">Action Type <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">varchar</span></th>
-                    <th className="py-3 px-4 w-36">Actor <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">text</span></th>
-                    <th className="py-3 px-4 w-24">Branch <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">code</span></th>
-                    <th className="py-3 px-4 w-44">SHA-256 Hash <span className="text-slate-400 dark:text-[#555555] font-normal lowercase">sha256</span></th>
-                    <th className="py-3 px-4 w-20 text-right">Inspect</th>
+                    <th className="py-3 px-4 w-40">Date &amp; Time</th>
+                    <th className="py-3 px-4 w-28">Status</th>
+                    <th className="py-3 px-4 min-w-[280px]">What Happened</th>
+                    <th className="py-3 px-4 w-36">Category</th>
+                    <th className="py-3 px-4 w-36">Done By</th>
+                    <th className="py-3 px-4 w-24">Branch</th>
+                    <th className="py-3 px-4 w-40">Security Code</th>
+                    <th className="py-3 px-4 w-16 text-right">View</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/60 dark:divide-white/5">
                   {filteredLogs.map((log, idx) => {
                     const dateObj = new Date(log.created_at || Date.now());
-                    const formattedDate = format(dateObj, 'MMM dd, HH:mm:ss');
+                    const formattedDate = format(dateObj, 'dd MMM, HH:mm:ss');
                     const isWarning = (log.event_description || '').toLowerCase().includes('void') || (log.event_description || '').toLowerCase().includes('shortage') || (log.event_description || '').toLowerCase().includes('failed');
 
                     return (
@@ -443,12 +443,12 @@ export const SecurityAuditPage: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
                           {isWarning ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-mono font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              400 WARN
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-sans font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                              Warning
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
-                              200 OK
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-sans font-medium bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
+                              Success
                             </span>
                           )}
                         </td>
@@ -456,18 +456,18 @@ export const SecurityAuditPage: React.FC = () => {
                           <span className="line-clamp-1">{log.event_description}</span>
                         </td>
                         <td className="py-3 px-4 text-slate-600 dark:text-[#A1A1A1] text-[11px] whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-[6px] bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-[#A1A1A1] font-mono">
+                          <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-[#A1A1A1] font-mono text-[10px]">
                             {log.action_type}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-slate-900 dark:text-[#EDEDED] text-xs whitespace-nowrap font-sans">
                           <span className="font-medium">{log.user_name}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#606060] block font-mono">({log.user_role})</span>
+                          <span className="text-[10px] text-slate-400 dark:text-[#606060] block font-mono">({log.user_role?.replace('_', ' ')})</span>
                         </td>
                         <td className="py-3 px-4 text-slate-600 dark:text-[#A1A1A1] font-mono text-xs whitespace-nowrap">
                           {log.target_entity === 'branches' ? log.target_identifier : activeBranch.branch_code}
                         </td>
-                        <td className="py-3 px-4 text-slate-400 dark:text-[#606060] text-[10px] font-mono truncate max-w-[180px]">
+                        <td className="py-3 px-4 text-slate-400 dark:text-[#606060] text-[10px] font-mono truncate max-w-[160px]">
                           {log.tamper_proof_signature || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}
                         </td>
                         <td className="py-3 px-4 text-right">
@@ -477,8 +477,8 @@ export const SecurityAuditPage: React.FC = () => {
                               e.stopPropagation();
                               setSelectedLog(log);
                             }}
-                            className="p-1.5 rounded-[8px] border border-slate-200/80 dark:border-white/10 bg-slate-100/70 dark:bg-white/5 text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-200/60 dark:hover:bg-white/10 ios-press transition-colors cursor-pointer"
-                            title="Inspect full audit record"
+                            className="p-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-slate-100/70 dark:bg-white/5 text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            title="View details"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
@@ -499,15 +499,13 @@ export const SecurityAuditPage: React.FC = () => {
                 <strong className="text-slate-900 dark:text-[#EDEDED] font-mono">{logs.length}</strong> events
               </span>
               <span>&bull;</span>
-              <span>SHA-256 Validated</span>
+              <span>Tamper-Proof Protected</span>
             </div>
             <div className="flex items-center gap-3 text-[11px]">
               <span className="text-[#3ecf8e] font-medium flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#3ecf8e] animate-pulse" />
-                Telemetry Live
+                Live Recording
               </span>
-              <span>&bull;</span>
-              <span>Latency: ~12ms</span>
             </div>
           </div>
         </div>
@@ -518,10 +516,10 @@ export const SecurityAuditPage: React.FC = () => {
         <SlideOverDrawer
           isOpen={Boolean(selectedLog)}
           onClose={() => setSelectedLog(null)}
-          title={`Audit Event #${selectedLog.audit_number || 'AUD-RECORD'}`}
-          subtitle={`Recorded ${selectedLog.created_at ? format(new Date(selectedLog.created_at), 'MMMM dd, yyyy HH:mm:ss') : 'Live'} by ${selectedLog.user_name}`}
+          title={`Activity Record #${selectedLog.audit_number || 'AUD-RECORD'}`}
+          subtitle={`Recorded on ${selectedLog.created_at ? format(new Date(selectedLog.created_at), 'dd MMMM yyyy, HH:mm:ss') : 'Live'} by ${selectedLog.user_name}`}
           badge={
-            <span className="px-2 py-0.5 rounded-[6px] bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-[#EDEDED] font-mono text-[10px] font-medium border border-slate-200 dark:border-white/10">
+            <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-[#EDEDED] font-mono text-[10px] font-medium border border-slate-200 dark:border-white/10">
               {selectedLog.action_type}
             </span>
           }
@@ -530,12 +528,12 @@ export const SecurityAuditPage: React.FC = () => {
           footer={
             <div className="flex items-center justify-between w-full">
               <span className="text-xs font-mono text-slate-400 dark:text-[#8E8E93]">
-                Audit Record ID: <strong className="text-slate-700 dark:text-[#EDEDED] font-mono">{selectedLog.id}</strong>
+                Record ID: <strong className="text-slate-700 dark:text-[#EDEDED] font-mono">{selectedLog.id}</strong>
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#171717] font-semibold text-xs ios-press transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -548,7 +546,7 @@ export const SecurityAuditPage: React.FC = () => {
               {/* Event Description Card */}
               <div className="p-4 rounded-[12px] bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-1.5">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-                  Event Narrative / Log Message
+                  What Happened
                 </span>
                 <p className="text-sm font-sans font-medium text-slate-900 dark:text-[#EDEDED] leading-relaxed">
                   {selectedLog.event_description}
@@ -559,16 +557,16 @@ export const SecurityAuditPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3.5 rounded-[12px] bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-1">
                   <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] block font-semibold">
-                    Actor / Operator
+                    Staff Member
                   </span>
                   <span className="text-xs font-semibold text-slate-900 dark:text-[#EDEDED] block font-sans">
-                    {selectedLog.user_name} ({selectedLog.user_role})
+                    {selectedLog.user_name} ({selectedLog.user_role?.replace('_', ' ')})
                   </span>
                 </div>
 
                 <div className="p-3.5 rounded-[12px] bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-1">
                   <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] block font-semibold">
-                    Target Identifier & Entity
+                    Reference Item
                   </span>
                   <span className="text-xs font-mono font-medium text-slate-900 dark:text-[#EDEDED] block">
                     {selectedLog.target_entity}: {selectedLog.target_identifier}
@@ -577,7 +575,7 @@ export const SecurityAuditPage: React.FC = () => {
 
                 <div className="p-3.5 rounded-[12px] bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-1">
                   <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] block font-semibold">
-                    Client IP Address
+                    Computer / Device
                   </span>
                   <span className="text-xs font-mono text-slate-600 dark:text-[#A1A1A1] block">
                     {selectedLog.ip_address || '127.0.0.1 (Local POS Terminal)'}
@@ -586,7 +584,7 @@ export const SecurityAuditPage: React.FC = () => {
 
                 <div className="p-3.5 rounded-[12px] bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-1">
                   <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] block font-semibold">
-                    Showroom Branch Context
+                    Branch
                   </span>
                   <span className="text-xs font-sans text-slate-600 dark:text-[#A1A1A1] block">
                     {activeBranch.branch_name} ({activeBranch.branch_code})
@@ -599,15 +597,15 @@ export const SecurityAuditPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                    <span>Tamper-Proof SHA-256 Signature</span>
+                    <span>Security Protection Code (SHA-256)</span>
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleCopyText(selectedLog.tamper_proof_signature || '', 'Hash Signature')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-900 dark:text-[#EDEDED] border border-slate-200/80 dark:border-white/10 text-[10px] font-mono ios-press cursor-pointer"
+                    onClick={() => handleCopyText(selectedLog.tamper_proof_signature || '', 'Security Code')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-900 dark:text-[#EDEDED] border border-slate-200/80 dark:border-white/10 text-[10px] font-mono cursor-pointer"
                   >
-                    {copiedLabel === 'Hash Signature' ? <Check className="w-3 h-3 text-[#3ecf8e]" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedLabel === 'Hash Signature' ? 'COPIED' : 'COPY HASH'}</span>
+                    {copiedLabel === 'Security Code' ? <Check className="w-3 h-3 text-[#3ecf8e]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedLabel === 'Security Code' ? 'COPIED' : 'COPY CODE'}</span>
                   </button>
                 </div>
                 <div className="p-3 rounded-[6px] bg-white dark:bg-[#0d0d0e] border border-slate-200/80 dark:border-white/10 font-mono text-[11px] text-[#3ecf8e] break-all select-all">

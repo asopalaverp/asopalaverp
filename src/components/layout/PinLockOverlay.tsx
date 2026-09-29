@@ -97,7 +97,7 @@ export const PinLockOverlay: React.FC = () => {
     >
       <div
         ref={cardRef}
-        className="w-full max-w-[420px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[16px] p-6 shadow-2xl flex flex-col items-center text-center space-y-4 relative text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200 my-auto"
+        className="w-full max-w-[420px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[12px] p-6 shadow-2xl flex flex-col items-center text-center space-y-4 relative text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200 my-auto"
       >
         {/* Top Brand Logo & Lock Indicator */}
         <div className="flex items-center justify-between w-full pb-2 border-b border-slate-100 dark:border-[#242424]">
@@ -165,10 +165,10 @@ export const PinLockOverlay: React.FC = () => {
                 }}
                 placeholder="• • • •"
                 className={cn(
-                  'w-full bg-white dark:bg-[#141414] border rounded-[8px] px-3 py-2 text-center text-base font-mono tracking-[0.4em] text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none transition-colors shadow-xs',
+                  'w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border rounded-[6px] px-3 text-center text-base font-mono tracking-[0.4em] text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none transition-colors shadow-2xs',
                   error
                     ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/30'
-                    : 'border-slate-200 dark:border-[#2e2e2e] focus:border-emerald-500 dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-emerald-500/30'
+                    : 'border-slate-200 dark:border-[#282828] focus:border-emerald-500 dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-emerald-500/30'
                 )}
                 autoComplete="off"
               />

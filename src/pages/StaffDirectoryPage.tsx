@@ -7,7 +7,7 @@ import { erpService } from '@/lib/erpService';
 import { AppUser, AppRole, RolePermissions, StaffMember } from '@/types/database';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import { showToast } from '@/components/ui/ToastContainer';
 import bcrypt from 'bcryptjs';
 import { logSecurityEvent } from '@/lib/audit';
@@ -54,7 +54,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from 'lucide-react';
-import { cn, formatIndianPhone, triggerHaptic } from '@/lib/utils';
+import { cn, formatIndianPhone } from '@/lib/utils';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -118,6 +118,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
   const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successData, setSuccessData] = useState<{
@@ -136,13 +137,13 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
       setError('');
       setSuccessData(null);
       setCopied(false);
+      setIsPreviewOpen(false);
     }
   }, [isOpen, user]);
 
   if (!isOpen || !user) return null;
 
   const generateRandomPassword = () => {
-    triggerHaptic('selection');
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const generatedPass = `Asopalav@${randomNum}`;
     const generatedPin = String(randomNum);
@@ -155,7 +156,6 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
   };
 
   const setStandardDefault = () => {
-    triggerHaptic('selection');
     setNewPassword('Admin@123');
     setConfirmPassword('Admin@123');
     setPin('1234');
@@ -168,26 +168,25 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
     if (!successData && !newPassword) return;
     const passToCopy = successData?.password || newPassword;
     const pinToCopy = successData?.pin || pin;
-    const text = `Asopalav ERP Login Credentials:\nUsername: @${user.username}\nPassword: ${passToCopy}${
-      pinToCopy ? `\nTerminal PIN: ${pinToCopy}` : ''
+    const text = `Asopalav Login Details:\nUsername: @${user.username}\nPassword: ${passToCopy}${
+      pinToCopy ? `\nPIN: ${pinToCopy}` : ''
     }`;
     navigator.clipboard.writeText(text);
     setCopied(true);
-    triggerHaptic('success');
     showToast({
       type: 'info',
-      title: 'Credentials Copied',
+      title: 'Details Copied',
       message: `Login details for @${user.username} copied to clipboard.`,
     });
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!newPassword && !pin) {
-      setError('Please enter a new password or 4-digit PIN to update.');
+      setError('Please enter a new password or 4-digit PIN.');
       return;
     }
 
@@ -203,12 +202,17 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
     }
 
     if (pin && !/^\d{4}$/.test(pin)) {
-      setError('Security PIN must be exactly 4 numeric digits (e.g. 1234).');
+      setError('PIN must be exactly 4 numbers (for example: 1234).');
       return;
     }
 
+    // Open Pre-Commit Confirmation Preview
+    setIsPreviewOpen(true);
+  };
+
+  const handleFinalCommit = async () => {
     setIsSubmitting(true);
-    triggerHaptic('selection');
+    setError('');
 
     try {
       const updates: any = {
@@ -244,7 +248,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
         targetEntity: 'app_users',
         targetIdentifier: user.username,
         eventDescription: `Reset credentials for user @${user.username} (${user.role_code})`,
-        justification: 'Manual password/PIN reset via F10 Staff Directory',
+        justification: 'Manual password/PIN reset via Staff Directory',
       });
 
       setSuccessData({
@@ -252,19 +256,22 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
         pin: pin,
       });
 
+      setIsPreviewOpen(false);
+
       showToast({
         type: 'success',
-        title: 'Password Reset Successful',
+        title: 'Password Updated',
         message: `Credentials for @${user.username} have been updated successfully.`,
       });
 
       onSuccess();
     } catch (err: any) {
       console.error('Failed to reset password:', err);
-      setError(err.message || 'Failed to update credentials in Supabase.');
+      setError(err.message || 'Failed to update credentials.');
+      setIsPreviewOpen(false);
       showToast({
         type: 'error',
-        title: 'Reset Failed',
+        title: 'Update Failed',
         message: err.message || 'Could not update user credentials.',
       });
     } finally {
@@ -275,31 +282,31 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
       <div
-        className="w-full max-w-md bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/15 rounded-[18px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        className="w-full max-w-md bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="reset-modal-title"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#171717]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[10px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center shrink-0">
-              <Key className="w-4 h-4 stroke-[2.2]" />
+            <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center shrink-0">
+              <Key className="w-4 h-4" />
             </div>
             <div>
               <h3 id="reset-modal-title" className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                Reset User Password & PIN
+                Change Password & PIN
               </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans mt-0.5">
-                Set new authentication credentials for staff member
+              <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
+                Set a new password or 4-digit lock PIN for this user
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            title="Close modal"
+            className="w-7 h-7 flex items-center justify-center rounded-[6px] bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-[#888888] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+            title="Close"
           >
             <X className="w-4 h-4" />
           </button>
@@ -308,9 +315,9 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 text-xs font-sans">
           {/* Target User Info Card */}
-          <div className="flex items-center justify-between p-3 rounded-[12px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
+          <div className="flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828]">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-[#3ecf8e]/30 flex items-center justify-center font-bold font-mono text-sm shrink-0">
+              <div className="w-9 h-9 rounded-[6px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-[#3ecf8e]/30 flex items-center justify-center font-bold font-mono text-sm shrink-0">
                 {user.avatar_initials || `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
@@ -318,14 +325,14 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                   <span className="font-semibold text-slate-900 dark:text-white truncate">
                     {user.first_name} {user.last_name}
                   </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-zinc-300 font-medium">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-[4px] bg-slate-200 dark:bg-[#282828] text-slate-700 dark:text-[#EDEDED] font-medium">
                     {user.role_code}
                   </span>
                 </div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e] truncate mt-0.5">
                   @{user.username}
                   {user.staff_code && (
-                    <span className="text-slate-400 dark:text-zinc-500 ml-2">
+                    <span className="text-slate-400 dark:text-[#707070] ml-2">
                       • Staff ID: {user.staff_code}
                     </span>
                   )}
@@ -336,25 +343,25 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
           {/* Success State Card */}
           {successData ? (
-            <div className="p-4 rounded-[12px] bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-in fade-in duration-200">
+            <div className="p-4 rounded-[8px] bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-in fade-in duration-200">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-[#3ecf8e] font-semibold">
                 <Check className="w-4 h-4 stroke-[2.5]" />
-                <span>Password & PIN Reset Successfully!</span>
+                <span>Password & PIN Saved!</span>
               </div>
-              <div className="p-3 rounded-[10px] bg-white dark:bg-[#141414] border border-emerald-500/20 font-mono text-xs space-y-1.5 text-slate-800 dark:text-zinc-200">
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#141414] border border-emerald-500/20 font-mono text-xs space-y-1.5 text-slate-800 dark:text-[#EDEDED]">
                 <div>
-                  <span className="text-slate-400 dark:text-zinc-500">Username: </span>
+                  <span className="text-slate-400 dark:text-[#707070]">Username: </span>
                   <strong className="text-slate-900 dark:text-white">@{user.username}</strong>
                 </div>
                 {successData.password && (
                   <div>
-                    <span className="text-slate-400 dark:text-zinc-500">New Password: </span>
+                    <span className="text-slate-400 dark:text-[#707070]">New Password: </span>
                     <strong className="text-emerald-600 dark:text-[#3ecf8e]">{successData.password}</strong>
                   </div>
                 )}
                 {successData.pin && (
                   <div>
-                    <span className="text-slate-400 dark:text-zinc-500">4-Digit PIN: </span>
+                    <span className="text-slate-400 dark:text-[#707070]">PIN: </span>
                     <strong className="text-emerald-600 dark:text-[#3ecf8e]">{successData.pin}</strong>
                   </div>
                 )}
@@ -363,15 +370,15 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyCredentials}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs ios-press"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied to Clipboard!' : 'Copy Login Details'}</span>
+                  <span>{copied ? 'Copied!' : 'Copy Login Details'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="py-2.5 px-4 rounded-[10px] bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-zinc-300 font-medium transition-all cursor-pointer ios-press"
+                  className="py-2 px-4 rounded-[6px] bg-slate-100 dark:bg-[#242424] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-[#EDEDED] font-medium transition-all cursor-pointer"
                 >
                   Done
                 </button>
@@ -384,17 +391,17 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                 <button
                   type="button"
                   onClick={setStandardDefault}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-all cursor-pointer ios-press shadow-2xs"
-                  title="Quick fill Admin@123 / PIN 1234"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#141414] hover:bg-slate-100 dark:hover:bg-[#202020] text-[11px] font-mono text-slate-700 dark:text-[#EDEDED] transition-all cursor-pointer shadow-xs"
+                  title="Use default password"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Set Default (Admin@123)</span>
+                  <span>Use Default (Admin@123)</span>
                 </button>
                 <button
                   type="button"
                   onClick={generateRandomPassword}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-[11px] font-mono text-slate-700 dark:text-zinc-300 transition-all cursor-pointer ios-press shadow-2xs"
-                  title="Generate secure random password and PIN"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#141414] hover:bg-slate-100 dark:hover:bg-[#202020] text-[11px] font-mono text-slate-700 dark:text-[#EDEDED] transition-all cursor-pointer shadow-xs"
+                  title="Generate random password"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
                   <span>Generate Random</span>
@@ -403,7 +410,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
               {/* Row 1: New Password */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                <label className="block text-xs font-semibold text-slate-800 dark:text-[#EDEDED]">
                   New Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -411,9 +418,8 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-3 pr-9 py-2.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
-                    required
+                    placeholder="At least 6 characters"
+                    className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-3 pr-9 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-colors"
                     autoFocus
                   />
                   <button
@@ -428,17 +434,16 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
               {/* Row 2: Confirm Password */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                  Confirm New Password <span className="text-rose-500">*</span>
+                <label className="block text-xs font-semibold text-slate-800 dark:text-[#EDEDED]">
+                  Re-enter New Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-type new password"
-                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-3 pr-9 py-2.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
-                    required
+                    placeholder="Type password again"
+                    className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-3 pr-9 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-colors"
                   />
                   <button
                     type="button"
@@ -468,11 +473,11 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
               {/* Row 3: 4-Digit Screen Lock PIN */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                    4-Digit POS Counter Lock PIN <span className="text-slate-400 font-normal">(Optional)</span>
+                  <label className="block text-xs font-semibold text-slate-800 dark:text-[#EDEDED]">
+                    4-Digit Counter Lock PIN <span className="text-slate-400 font-normal">(Optional)</span>
                   </label>
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
-                    Used for Screen Lock PIN
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-[#707070]">
+                    Used for Quick PIN Lock
                   </span>
                 </div>
                 <input
@@ -481,50 +486,111 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                   placeholder="e.g. 1234"
-                  className="w-36 bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] px-3 py-2 text-xs font-mono font-semibold tracking-widest text-center text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors shadow-2xs"
+                  className="w-36 h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs font-mono font-semibold tracking-widest text-center text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-colors"
                 />
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 rounded-[10px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
+                <div className="p-3 rounded-[6px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Modal Footer Actions */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/80 dark:border-white/10">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#282828]">
                 <button
                   type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="px-3.5 py-2 rounded-[10px] border border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 font-medium transition-all cursor-pointer ios-press"
+                  className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#282828] hover:bg-slate-100 dark:hover:bg-[#242424] text-slate-700 dark:text-[#EDEDED] font-medium transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-50 ios-press"
+                  className="flex items-center gap-2 px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-[#171717] border-t-transparent rounded-full animate-spin" />
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Key className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>Set New Credentials</span>
-                    </>
-                  )}
+                  <Key className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Save Password & PIN</span>
                 </button>
               </div>
             </form>
           )}
         </div>
       </div>
+
+      {/* Pre-Commit Confirmation Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
+              <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Password Update
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-[#888888] font-sans">
+                  Please review the details before saving
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-[#707070]">User:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {user.first_name} {user.last_name} (@{user.username})
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-[#707070]">Role:</span>
+                <span className="text-slate-900 dark:text-white">{user.role_code}</span>
+              </div>
+              {newPassword && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">New Password:</span>
+                  <span className="text-emerald-600 dark:text-[#3ecf8e] font-semibold">{newPassword}</span>
+                </div>
+              )}
+              {pin && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-[#707070]">PIN:</span>
+                  <span className="text-emerald-600 dark:text-[#3ecf8e] font-semibold">{pin}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                disabled={isSubmitting}
+                className="flex-1 py-2 px-3 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#202020] text-slate-700 dark:text-[#EDEDED] font-medium transition-colors cursor-pointer hover:bg-slate-100 dark:hover:bg-[#262626]"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalCommit}
+                disabled={isSubmitting}
+                className="flex-1 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <div className="w-3.5 h-3.5 border-2 border-[#171717] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+                <span>Confirm & Save</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -630,7 +696,6 @@ export const StaffDirectoryPage: React.FC = () => {
   }, []);
 
   const handleGrantLoginForStaff = (s: StaffMember) => {
-    triggerHaptic('selection');
     const cleanFirst = s.first_name || '';
     const cleanLast = s.last_name !== '-' ? s.last_name : '';
     const branchId = s.branch_id || `Aellp-${s.branch_code || 'ASI'}`;
@@ -992,9 +1057,9 @@ export const StaffDirectoryPage: React.FC = () => {
   }[density];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16">
-      {/* 1. Staff Directory Header (iOS 16 Frosted Glass) */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
+      {/* 1. Staff Directory Header */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -1085,7 +1150,7 @@ export const StaffDirectoryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenCreateStaff}
-                className="h-8.5 px-3.5 py-1.5 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
+                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Add New Staff</span>
@@ -1097,11 +1162,11 @@ export const StaffDirectoryPage: React.FC = () => {
 
       {/* 2. Main Studio Content */}
       <main className="px-4 lg:px-6 py-4 space-y-4">
-        {/* Studio Filter Controls Bar (iOS 16 Inset Grouped) */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/80 dark:bg-[#1a1a1c]/80 backdrop-blur-md p-3 rounded-[14px] border border-slate-200/80 dark:border-white/10 shadow-xs">
+        {/* Studio Filter Controls Bar */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/80 dark:bg-[#1a1a1c]/80 backdrop-blur-md p-3 rounded-[12px] border border-slate-200/80 dark:border-white/10 shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
-            {/* Tabs: Cashier Logins / Floor Staff (iOS Segmented Control) */}
-            <IOSSegmentedControl
+            {/* Tabs: Cashier Logins / Floor Staff */}
+            <SegmentedControl
               options={[
                 { id: 'logins', label: `Login Accounts (${usersList.length})`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
                 { id: 'staff', label: `All Staff (${staff.length})`, icon: <Users className="w-3.5 h-3.5" /> },
@@ -1147,8 +1212,8 @@ export const StaffDirectoryPage: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Filter ${activeTab === 'logins' ? 'logins' : 'staff'}...`}
-                className="w-full pl-9 pr-12 py-1.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] font-mono transition-colors"
+                placeholder={`Search ${activeTab === 'logins' ? 'logins' : 'staff'}...`}
+                className="w-full h-10 min-h-[40px] pl-9 pr-12 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono transition-colors shadow-2xs"
               />
               {search ? (
                 <button
@@ -1253,7 +1318,7 @@ export const StaffDirectoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. Telemetry 3-Card Summary Grid */}
+        {/* 3. Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {activeTab === 'logins' ? (
             <>
@@ -1261,49 +1326,49 @@ export const StaffDirectoryPage: React.FC = () => {
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Accounts</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{usersList.length}</div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                  Registered cashier & admin logins
+                  Active system logins
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Super Admins (HQ)</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Super Admins</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">
                   {usersList.filter((u) => u.role_code === 'Super_Admin').length}
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1]">
-                  Full system security access
+                  Full access administrators
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Store Managers & Cashiers</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Cashiers & Managers</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">
                   {usersList.filter((u) => u.role_code !== 'Super_Admin').length}
                 </div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                  Showroom till operators
+                  Showroom counter users
                 </div>
               </div>
             </>
           ) : (
             <>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Showroom Staff</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Total Staff</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{staff.length}</div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                  Floor associates & specialists
+                  Showroom team members
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Filtered Showing</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Matching Staff</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{filteredStaff.length}</div>
                 <div className="text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1]">
-                  Showing {filteredStaff.length} of {staff.length} staff
+                  Showing {filteredStaff.length} of {staff.length} members
                 </div>
               </div>
               <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#171717] p-3.5 space-y-1 shadow-xs">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Showroom Branches</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-[#707070]">Branches</div>
                 <div className="text-2xl font-mono tabular-nums font-medium text-slate-900 dark:text-white">{branches.length}</div>
                 <div className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                  Operating showroom locations
+                  Showroom locations
                 </div>
               </div>
             </>
@@ -1421,8 +1486,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>username</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">text</span>
+                          <span>Username</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1431,8 +1495,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleUserCols.has('staff_code') && (
                       <th className={cn("border-r border-slate-200 dark:border-[#242424]", densityStyles.header)}>
                         <div className="flex items-center gap-1.5">
-                          <span>linked_staff</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Linked Staff</span>
                         </div>
                       </th>
                     )}
@@ -1446,8 +1509,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>full_name</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Full Name</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1462,8 +1524,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>role</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Role</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1472,8 +1533,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleUserCols.has('branches') && (
                       <th className={cn("border-r border-slate-200 dark:border-[#242424]", densityStyles.header)}>
                         <div className="flex items-center gap-1.5">
-                          <span>assigned_branches</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">text[]</span>
+                          <span>Branch Access</span>
                         </div>
                       </th>
                     )}
@@ -1481,8 +1541,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleUserCols.has('status') && (
                       <th className={cn("border-r border-slate-200 dark:border-[#242424] text-center", densityStyles.header)}>
                         <div className="flex items-center justify-center gap-1.5">
-                          <span>is_active</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">bool</span>
+                          <span>Status</span>
                         </div>
                       </th>
                     )}
@@ -1490,7 +1549,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleUserCols.has('actions') && (
                       <th className={cn("text-right", densityStyles.header)}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>actions</span>
+                          <span>Actions</span>
                         </div>
                       </th>
                     )}
@@ -1767,10 +1826,7 @@ export const StaffDirectoryPage: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => {
-                            triggerHaptic();
-                            handleOpenEditStaff(s);
-                          }}
+                          onClick={() => handleOpenEditStaff(s)}
                           className="h-7 px-3 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
@@ -1824,8 +1880,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors min-w-[100px]", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>staff_code</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Staff ID</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1840,8 +1895,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors min-w-[170px]", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>full_name</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Full Name</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1850,8 +1904,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleStaffCols.has('login_access') && (
                       <th className={cn("border-r border-slate-200 dark:border-[#242424] min-w-[150px]", densityStyles.header)}>
                         <div className="flex items-center gap-1.5">
-                          <span>login_access</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">app_user</span>
+                          <span>Login Access</span>
                         </div>
                       </th>
                     )}
@@ -1865,8 +1918,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors min-w-[140px]", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>department</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Department</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1881,8 +1933,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors min-w-[80px]", densityStyles.header)}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>branch</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Branch</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1891,8 +1942,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleStaffCols.has('mobile') && (
                       <th className={cn("border-r border-slate-200 dark:border-[#242424] min-w-[120px]", densityStyles.header)}>
                         <div className="flex items-center gap-1.5">
-                          <span>phone</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">text</span>
+                          <span>Phone</span>
                         </div>
                       </th>
                     )}
@@ -1906,8 +1956,7 @@ export const StaffDirectoryPage: React.FC = () => {
                         className={cn("border-r border-slate-200 dark:border-[#242424] text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors min-w-[110px]", densityStyles.header)}
                       >
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>role_title</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
+                          <span>Designation</span>
                           <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60 ml-auto" />
                         </div>
                       </th>
@@ -1916,7 +1965,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     {visibleStaffCols.has('actions') && (
                       <th className={cn("text-right min-w-[90px]", densityStyles.header)}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>actions</span>
+                          <span>Actions</span>
                         </div>
                       </th>
                     )}
@@ -2222,6 +2271,7 @@ export const StaffDirectoryPage: React.FC = () => {
               <div className="flex-1">
                 <SearchableSelect
                   size="sm"
+                  placement="top"
                   options={[
                     { value: '10', label: '10' },
                     { value: '25', label: '25' },
@@ -2234,6 +2284,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     setCurrentPage(1);
                   }}
                   allowCustom={false}
+                  popupClassName="min-w-[76px]"
                 />
               </div>
             </div>

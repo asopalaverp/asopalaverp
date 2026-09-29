@@ -2,34 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { erpService } from '@/lib/erpService';
-import { formatINR, cn, triggerHaptic, numberToWordsINR } from '@/lib/utils';
+import { formatINR, cn, triggerHaptic } from '@/lib/utils';
 import { BillUploader } from '@/components/vouchers/BillUploader';
 import { TouchSignatureCanvas } from '@/components/advances/TouchSignatureCanvas';
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import {
   X,
-  ArrowDownLeft,
   Check,
   AlertCircle,
   Receipt,
   Banknote,
-  Sparkles,
-  RotateCcw,
   CheckCircle2,
-  Calendar,
-  Building2,
-  Tag,
-  ShieldCheck,
+  FileCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/ToastContainer';
 
 interface SettleAdvanceDrawerProps {
   onSuccess: () => void;
 }
-
-const BILL_PRESETS = [500, 1000, 2000, 5000];
-const CASH_PRESETS = [500, 1000, 2000, 5000];
 
 export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSuccess }) => {
   const { settleTargetAdvance, setSettleTargetAdvance } = useUIStore();
@@ -41,6 +33,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
   const [signatureDataUrl, setSignatureDataUrl] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Reset state on open
   useEffect(() => {
@@ -50,6 +43,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
       setProofPhotos([]);
       setSignatureDataUrl('');
       setError('');
+      setIsPreviewOpen(false);
     }
   }, [settleTargetAdvance]);
 
@@ -65,79 +59,65 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
   const isFullySettled = totalSettle === remainingToSettle && remainingToSettle > 0;
 
   const handleClose = () => {
-    triggerHaptic('light');
     setSettleTargetAdvance(null);
+    setIsPreviewOpen(false);
   };
 
   const handleQuickSettleAllBills = () => {
-    triggerHaptic('selection');
     setBillsAmount(remainingToSettle);
     setCashReturnAmount('');
     setError('');
   };
 
   const handleQuickSettleAllCash = () => {
-    triggerHaptic('selection');
     setCashReturnAmount(remainingToSettle);
     setBillsAmount('');
     setError('');
   };
 
   const handleQuickSplitEqual = () => {
-    triggerHaptic('selection');
     const half = Math.floor(remainingToSettle / 2);
     setBillsAmount(half);
     setCashReturnAmount(remainingToSettle - half);
     setError('');
   };
 
-  const handleAddBillPreset = (val: number) => {
-    triggerHaptic('selection');
-    const curr = Number(billsAmount) || 0;
-    setBillsAmount(Math.min(remainingToSettle, curr + val));
-  };
-
-  const handleAddCashPreset = (val: number) => {
-    triggerHaptic('selection');
-    const curr = Number(cashReturnAmount) || 0;
-    setCashReturnAmount(Math.min(remainingToSettle, curr + val));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleValidateAndPreview = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (totalSettle <= 0) {
-      const msg = 'Please enter either a Bills Amount or Cash Return Amount.';
+      const msg = 'Enter bills amount or cash return amount.';
       setError(msg);
       showToast({
         type: 'error',
-        title: 'Settlement Amount Required',
+        title: 'Amount Required',
         message: msg,
       });
-      triggerHaptic('error');
       return;
     }
 
     if (isOverSettled) {
-      const msg = `Total settlement (${formatINR(totalSettle)}) cannot exceed the remaining unsettled balance of ${formatINR(remainingToSettle)}.`;
+      const msg = `Total settlement (${formatINR(totalSettle)}) cannot exceed remaining due of ${formatINR(remainingToSettle)}.`;
       setError(msg);
       showToast({
         type: 'error',
-        title: 'Over-Settlement Error',
+        title: 'Amount Exceeded',
         message: msg,
       });
-      triggerHaptic('error');
       return;
     }
 
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmFinalSubmit = async () => {
     const allProofs = [...proofPhotos];
     if (signatureDataUrl) {
       allProofs.push(signatureDataUrl);
     }
 
     setSubmitting(true);
-    triggerHaptic('medium');
     try {
       const userName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
       const userRole = user?.role_code || 'Store_Manager';
@@ -155,11 +135,10 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
         userRole,
       });
 
-      triggerHaptic('success');
       showToast({
         type: 'success',
         title: 'Settlement Saved',
-        message: `₹${totalSettle} settlement recorded for ${adv.staff_name}.`,
+        message: `₹${totalSettle.toLocaleString('en-IN')} settlement recorded for ${adv.staff_name}.`,
       });
 
       onSuccess();
@@ -167,7 +146,6 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
     } catch (err: any) {
       console.error('Error settling staff advance:', err);
       setError(err.message || 'Failed to record settlement.');
-      triggerHaptic('error');
       showToast({
         type: 'error',
         title: 'Settlement Failed',
@@ -209,293 +187,348 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
         <button
           type="button"
           onClick={handleClose}
-          className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
+          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
         >
           Cancel
         </button>
 
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={handleValidateAndPreview}
           disabled={submitting || isOverSettled || totalSettle <= 0}
           className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs min-h-[34px] disabled:opacity-50 disabled:cursor-not-allowed',
+            'inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed',
             isOverSettled || totalSettle <= 0
               ? 'bg-slate-200 dark:bg-[#2a2a2a] text-slate-400 dark:text-zinc-500 shadow-none'
               : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717]'
           )}
         >
           <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-          <span>{submitting ? 'Clearing Advance...' : 'Confirm & Clear Advance'}</span>
+          <span>Review & Save</span>
         </button>
       </div>
     </>
   );
 
   return (
-    <SlideOverDrawer
-      isOpen={Boolean(settleTargetAdvance)}
-      onClose={handleClose}
-      title={`Settle Staff Advance #${adv.receipt_number}`}
-      subtitle={`Staff: ${adv.staff_name} (${adv.staff_code}) • Advance Given: ${formatINR(adv.advance_amount)}`}
-      badge={drawerBadge}
-      copyId={adv.receipt_number}
-      size="lg"
-      footer={drawerFooter}
-    >
-      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto w-full space-y-4">
-        {/* Error notification */}
-        {error && (
-          <div className="p-3 rounded-[8px] badge-status-rose flex items-center gap-2 text-xs">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span className="font-medium font-sans">{error}</span>
-          </div>
-        )}
+    <>
+      <SlideOverDrawer
+        isOpen={Boolean(settleTargetAdvance)}
+        onClose={handleClose}
+        title={`Settle Advance #${adv.receipt_number}`}
+        subtitle={`${adv.staff_name} (${adv.staff_code}) • Advance: ${formatINR(adv.advance_amount)}`}
+        badge={drawerBadge}
+        copyId={adv.receipt_number}
+        size="full"
+        footer={drawerFooter}
+      >
+        <form onSubmit={handleValidateAndPreview} className="max-w-4xl mx-auto w-full space-y-4">
+          {/* Error notification */}
+          {error && (
+            <div className="p-3 rounded-[8px] badge-status-rose flex items-center gap-2 text-xs">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-medium font-sans">{error}</span>
+            </div>
+          )}
 
-        {/* Staff & Advance Summary Card */}
-        <div className="p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar size="md" shape="circle">
-                <AvatarFallback>{staffInitials}</AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-slate-900 dark:text-white">
-                    {adv.staff_name}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono bg-slate-100 dark:bg-[#141414] text-slate-600 dark:text-zinc-400 font-medium border border-slate-200 dark:border-[#2e2e2e]">
-                    {adv.staff_code}
-                  </span>
+          {/* Staff & Advance Summary Card */}
+          <div className="p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar size="md" shape="circle">
+                  <AvatarFallback>{staffInitials}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-slate-900 dark:text-white">
+                      {adv.staff_name}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono bg-slate-100 dark:bg-[#141414] text-slate-600 dark:text-zinc-400 font-medium border border-slate-200 dark:border-[#2e2e2e]">
+                      {adv.staff_code}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans mt-0.5">
+                    {adv.department_name || 'Showroom'} · {adv.designation || 'Staff'} ({adv.branch_code})
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans mt-0.5">
-                  {adv.department_name || 'Showroom'} · {adv.designation || 'Staff'} ({adv.branch_code})
-                </p>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] font-mono uppercase text-slate-400 block">Original Advance</span>
+                <span className="font-mono text-sm font-medium text-slate-900 dark:text-white tabular-nums">
+                  {formatINR(adv.advance_amount)}
+                </span>
               </div>
             </div>
 
-            <div className="text-right">
-              <span className="text-[10px] font-mono uppercase text-slate-400 block">Original Advance</span>
-              <span className="font-mono text-sm font-medium text-slate-900 dark:text-white tabular-nums">
-                {formatINR(adv.advance_amount)}
-              </span>
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
+              <div className="p-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
+                <span className="text-[10px] uppercase font-mono text-slate-400 block">Already Settled</span>
+                <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                  {formatINR(Number(adv.advance_amount) - Number(adv.unsettled_balance))}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
+                <span className="text-[10px] uppercase font-mono text-slate-400 block">Remaining Due</span>
+                <span className="text-xs font-mono font-medium text-rose-600 dark:text-rose-400 tabular-nums">
+                  {formatINR(remainingToSettle)}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
-            <div className="p-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
-              <span className="text-[10px] uppercase font-mono text-slate-400 block">Already Settled</span>
-              <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
-                {formatINR(Number(adv.advance_amount) - Number(adv.unsettled_balance))}
-              </span>
-            </div>
-            <div className="p-2.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626]">
-              <span className="text-[10px] uppercase font-mono text-slate-400 block">Outstanding Due</span>
-              <span className="text-xs font-mono font-medium text-rose-600 dark:text-rose-400 tabular-nums">
-                {formatINR(remainingToSettle)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 1-Tap Preset Strip */}
-        <div className="space-y-1.5">
-          <label className="block text-[11px] font-mono text-slate-500 dark:text-zinc-400">
-            Settlement Distribution Presets:
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={handleQuickSettleAllBills}
-              className="py-1.5 px-2 rounded-[6px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate"
-            >
-              100% Bills ({formatINR(remainingToSettle)})
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickSettleAllCash}
-              className="py-1.5 px-2 rounded-[6px] bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-400 border border-sky-500/20 text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate"
-            >
-              100% Cash Return
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickSplitEqual}
-              className="py-1.5 px-2 rounded-[6px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-[#2e2e2e] text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate"
-            >
-              50 / 50 Split
-            </button>
-          </div>
-        </div>
-
-        {/* Settlement Inputs: Bills vs Cash */}
-        <div className="space-y-3 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <Receipt className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                <span>A. Expense Bills Submitted (₹)</span>
-              </label>
-              {billsAmount !== '' && (
-                <button
-                  type="button"
-                  onClick={() => setBillsAmount('')}
-                  className="text-[11px] font-mono text-rose-500 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] shadow-xs">
-              <span className="pl-3.5 text-base font-mono text-slate-400">₹</span>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={billsAmount}
-                onChange={(e) => setBillsAmount(parseFloat(e.target.value) || '')}
-                placeholder="0.00"
-                className="w-full bg-transparent pl-2 pr-3 py-2 text-base font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none min-h-[42px]"
-              />
-            </div>
-
-            {/* Preset Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              {BILL_PRESETS.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => handleAddBillPreset(amt)}
-                  className="px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-700 dark:text-zinc-300 text-xs font-mono font-medium border border-slate-200 dark:border-[#2e2e2e] active:scale-95 transition-all cursor-pointer shadow-xs"
-                >
-                  +₹{amt.toLocaleString('en-IN')}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                <span>B. Cash Returned to Counter Drawer (₹)</span>
-              </label>
-              {cashReturnAmount !== '' && (
-                <button
-                  type="button"
-                  onClick={() => setCashReturnAmount('')}
-                  className="text-[11px] font-mono text-rose-500 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] shadow-xs">
-              <span className="pl-3.5 text-base font-mono text-slate-400">₹</span>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={cashReturnAmount}
-                onChange={(e) => setCashReturnAmount(parseFloat(e.target.value) || '')}
-                placeholder="0.00"
-                className="w-full bg-transparent pl-2 pr-3 py-2 text-base font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none min-h-[42px]"
-              />
-            </div>
-
-            {/* Preset Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              {CASH_PRESETS.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => handleAddCashPreset(amt)}
-                  className="px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-700 dark:text-zinc-300 text-xs font-mono font-medium border border-slate-200 dark:border-[#2e2e2e] active:scale-95 transition-all cursor-pointer shadow-xs"
-                >
-                  +₹{amt.toLocaleString('en-IN')}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Realtime Reconciliation Card */}
-        <div
-          className={cn(
-            'p-4 rounded-[8px] border transition-all',
-            isOverSettled
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-              : isFullySettled
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-[#3ecf8e]'
-              : 'bg-slate-50 dark:bg-[#161616] border-slate-200 dark:border-[#262626] text-slate-800 dark:text-zinc-200'
-          )}
-        >
-          <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/5">
-            <span className="text-xs font-medium font-sans">Total Settlement Recorded:</span>
-            <span className="text-base font-mono font-medium tabular-nums">
-              {formatINR(totalSettle)}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-xs font-medium font-sans flex items-center gap-1.5">
-              {isFullySettled ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
-                  <span>Remaining Balance: Fully Cleared!</span>
-                </>
-              ) : (
-                <span>Remaining Balance:</span>
-              )}
-            </span>
-            <span
-              className={cn(
-                'text-base font-mono font-medium tabular-nums',
-                isFullySettled ? 'text-emerald-600 dark:text-[#3ecf8e]' : 'text-amber-600 dark:text-amber-400'
-              )}
-            >
-              {formatINR(newBalance)}
-            </span>
-          </div>
-
-          {isOverSettled && (
-            <div className="mt-2.5 pt-2 border-t border-rose-500/20 text-xs font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>
-                Settlement exceeds outstanding balance by {formatINR(totalSettle - remainingToSettle)}.
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Touch Digital Signature */}
-        <div className="space-y-3 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-[#262626]">
-            <label className="text-xs font-medium uppercase tracking-wider text-slate-700 dark:text-zinc-300 font-sans">
-              Staff Settlement Sign-off <span className="text-rose-500">*</span>
+          {/* Quick Options */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+              Quick Options:
             </label>
-            <span className="text-[11px] font-mono text-slate-400">Step 3 of 4</span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={handleQuickSettleAllBills}
+                className="h-10 min-h-[40px] px-2 rounded-[6px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate flex items-center justify-center"
+              >
+                All Bills ({formatINR(remainingToSettle)})
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickSettleAllCash}
+                className="h-10 min-h-[40px] px-2 rounded-[6px] bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-400 border border-sky-500/20 text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate flex items-center justify-center"
+              >
+                All Cash ({formatINR(remainingToSettle)})
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickSplitEqual}
+                className="h-10 min-h-[40px] px-2 rounded-[6px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-[#2e2e2e] text-xs font-medium font-sans transition-colors cursor-pointer text-center truncate flex items-center justify-center"
+              >
+                Half & Half
+              </button>
+            </div>
           </div>
-          <TouchSignatureCanvas
-            onSave={setSignatureDataUrl}
-            staffName={adv.staff_name}
-          />
-        </div>
 
-        {/* Bill / Slip Uploads */}
-        <div className="space-y-2 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-[#262626]">
-            <label className="text-xs font-medium uppercase tracking-wider text-slate-700 dark:text-zinc-300 font-sans">
-              Bill / Voucher Receipts (Camera or Upload)
-            </label>
-            <span className="text-[11px] font-mono text-slate-400">Step 4 of 4</span>
+          {/* Settlement Inputs: Bills vs Cash */}
+          <div className="space-y-3 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+                  <span>Bills Submitted (₹)</span>
+                </label>
+                {billsAmount !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setBillsAmount('')}
+                    className="text-[11px] font-mono text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-2xs h-10 min-h-[40px]">
+                <span className="pl-3.5 text-sm font-mono text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={billsAmount}
+                  onChange={(e) => setBillsAmount(parseFloat(e.target.value) || '')}
+                  placeholder="0.00"
+                  className="w-full bg-transparent pl-2 pr-3.5 py-2 text-sm font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                  <Banknote className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  <span>Cash Returned (₹)</span>
+                </label>
+                {cashReturnAmount !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setCashReturnAmount('')}
+                    className="text-[11px] font-mono text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-2xs h-10 min-h-[40px]">
+                <span className="pl-3.5 text-sm font-mono text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={cashReturnAmount}
+                  onChange={(e) => setCashReturnAmount(parseFloat(e.target.value) || '')}
+                  placeholder="0.00"
+                  className="w-full bg-transparent pl-2 pr-3.5 py-2 text-sm font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
-          <BillUploader photoUrls={proofPhotos} onChange={setProofPhotos} maxPhotos={3} />
+
+          {/* Realtime Reconciliation Card */}
+          <div
+            className={cn(
+              'p-4 rounded-[8px] border transition-all',
+              isOverSettled
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                : isFullySettled
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-[#3ecf8e]'
+                : 'bg-slate-50 dark:bg-[#161616] border-slate-200 dark:border-[#262626] text-slate-800 dark:text-zinc-200'
+            )}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/5">
+              <span className="text-xs font-medium font-sans">Total Settlement:</span>
+              <span className="text-base font-mono font-medium tabular-nums">
+                {formatINR(totalSettle)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs font-medium font-sans flex items-center gap-1.5">
+                {isFullySettled ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
+                    <span>Remaining Due: Fully Settled</span>
+                  </>
+                ) : (
+                  <span>Remaining Due:</span>
+                )}
+              </span>
+              <span
+                className={cn(
+                  'text-base font-mono font-medium tabular-nums',
+                  isFullySettled ? 'text-emerald-600 dark:text-[#3ecf8e]' : 'text-amber-600 dark:text-amber-400'
+                )}
+              >
+                {formatINR(newBalance)}
+              </span>
+            </div>
+
+            {isOverSettled && (
+              <div className="mt-2.5 pt-2 border-t border-rose-500/20 text-xs font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>
+                  Exceeds due balance by {formatINR(totalSettle - remainingToSettle)}.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Touch Digital Signature */}
+          <div className="space-y-3 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
+            <div className="pb-1 border-b border-slate-200 dark:border-[#262626]">
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-700 dark:text-zinc-300 font-sans">
+                Staff Signature <span className="text-rose-500">*</span>
+              </label>
+            </div>
+            <TouchSignatureCanvas
+              onSave={setSignatureDataUrl}
+              staffName={adv.staff_name}
+            />
+          </div>
+
+          {/* Bill / Slip Uploads */}
+          <div className="space-y-2 p-4 rounded-[8px] bg-slate-50/60 dark:bg-[#161616] border border-slate-200 dark:border-[#262626]">
+            <div className="pb-1 border-b border-slate-200 dark:border-[#262626]">
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-700 dark:text-zinc-300 font-sans">
+                Attach Bills / Receipts
+              </label>
+            </div>
+            <BillUploader photoUrls={proofPhotos} onChange={setProofPhotos} maxPhotos={3} />
+          </div>
+        </form>
+      </SlideOverDrawer>
+
+      {/* Pre-Commit Settlement Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Settlement
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Slip Content */}
+            <div className="p-5 space-y-4 font-sans text-xs">
+              <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] space-y-2 font-mono">
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Staff Member</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{adv.staff_name}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Receipt No.</span>
+                  <span className="font-medium text-slate-900 dark:text-white">#{adv.receipt_number}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Original Advance</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{formatINR(adv.advance_amount)}</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] space-y-2 font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 dark:text-zinc-300">Bills Submitted</span>
+                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{formatINR(bAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 dark:text-zinc-300">Cash Returned</span>
+                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{formatINR(cAmount)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-[#262626] flex justify-between items-center">
+                  <span className="text-slate-900 dark:text-white font-semibold">Total Settlement</span>
+                  <span className="text-base font-bold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">{formatINR(totalSettle)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 text-slate-500 dark:text-zinc-400">
+                  <span>Remaining Due</span>
+                  <span className={cn('font-semibold tabular-nums', newBalance === 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : 'text-amber-500')}>
+                    {formatINR(newBalance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 bg-slate-50/50 dark:bg-[#181818] border-t border-slate-200 dark:border-[#242424] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 text-xs font-medium cursor-pointer"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleConfirmFinalSubmit}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{submitting ? 'Saving...' : 'Confirm & Save'}</span>
+              </button>
+            </div>
+          </div>
         </div>
-      </form>
-    </SlideOverDrawer>
+      )}
+    </>
   );
 };
 

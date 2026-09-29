@@ -22,7 +22,12 @@
     color-scheme: light dark;
   }
 
-  html, body {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #ffffff;
     color: #171717;
@@ -30,7 +35,6 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    overscroll-behavior-y: contain;
   }
 
   .dark body,
@@ -722,14 +726,16 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
-  /* iOS 18 Fluid Spring Press Interaction */
-  .ios-press, .ios18-press {
-    transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.14s ease, filter 0.14s ease;
-    touch-action: manipulation;
-  }
-  .ios-press:active, .ios18-press:active {
-    transform: scale(0.965);
-    opacity: 0.88;
+  /* Fluid Spring Press Interaction (Restricted to Mobile Touchscreens) */
+  @media (hover: none) and (pointer: coarse) {
+    .ios-press, .ios18-press {
+      transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.14s ease, filter 0.14s ease;
+      touch-action: manipulation;
+    }
+    .ios-press:active, .ios18-press:active {
+      transform: scale(0.965);
+      opacity: 0.88;
+    }
   }
 
   /* Sonner Toast Supabase Studio Architecture (erpskill.md) */

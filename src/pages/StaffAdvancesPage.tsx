@@ -8,7 +8,7 @@ import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { differenceInDays } from 'date-fns';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import { ThermalReceiptSlip } from '@/components/ui/ThermalReceiptSlip';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -931,7 +931,7 @@ export const StaffAdvancesPage: React.FC = () => {
   }[tableDensity];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* Toast Notification */}
       {clipboardToast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-3.5 py-2 rounded-[6px] bg-slate-900 dark:bg-[#171717] text-white border border-slate-700 dark:border-[#2e2e2e] shadow-lg animate-in fade-in slide-in-from-bottom-3 duration-200 text-xs font-mono">
@@ -940,8 +940,8 @@ export const StaffAdvancesPage: React.FC = () => {
         </div>
       )}
 
-      {/* 1. Staff Advances Header (iOS 16 Frosted Glass) */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+      {/* 1. Staff Advances Header */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -961,8 +961,8 @@ export const StaffAdvancesPage: React.FC = () => {
 
           {/* Right Layer: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* Sub-View Switcher (iOS Segmented Control) */}
-            <IOSSegmentedControl
+            {/* Sub-View Switcher (Segmented Control) */}
+            <SegmentedControl
               options={[
                 { id: 'grid', label: 'All Advances', icon: <Layers className="w-3.5 h-3.5" /> },
                 { id: 'salary_payroll', label: 'HR Payroll Sync', icon: <Flag className="w-3.5 h-3.5" /> },
@@ -1047,7 +1047,7 @@ export const StaffAdvancesPage: React.FC = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search advances by staff name, receipt..."
-                className="w-full pl-9 pr-12 py-2 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] font-mono transition-colors shadow-2xs"
+                className="w-full h-10 min-h-[40px] pl-9 pr-12 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-[#EDEDED] placeholder-slate-400 dark:placeholder-[#606060] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-mono transition-colors shadow-2xs"
               />
               {search ? (
                 <button
@@ -1437,10 +1437,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <span>receipt_no</span>
-                            <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
-                          </span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Receipt No.</span>
                           {renderSortArrow('receipt_number')}
                         </div>
                       </th>
@@ -1455,10 +1452,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <span>advance_date</span>
-                            <span className="text-[10px] text-slate-400 dark:text-[#555555]">date</span>
-                          </span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Date</span>
                           {renderSortArrow('date')}
                         </div>
                       </th>
@@ -1473,10 +1467,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <span>staff_name</span>
-                            <span className="text-[10px] text-slate-400 dark:text-[#555555]">text</span>
-                          </span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Staff Member</span>
                           {renderSortArrow('staff_name')}
                         </div>
                       </th>
@@ -1489,10 +1480,7 @@ export const StaffAdvancesPage: React.FC = () => {
                           densityStyles.header
                         )}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <span>branch_code</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">varchar</span>
-                        </div>
+                        <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Branch</span>
                       </th>
                     )}
 
@@ -1505,8 +1493,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>advance_amount</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">numeric</span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Advance Given (₹)</span>
                           {renderSortArrow('advance_amount')}
                         </div>
                       </th>
@@ -1521,8 +1508,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>settled_amount</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">numeric</span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Settled (₹)</span>
                           {renderSortArrow('settled')}
                         </div>
                       </th>
@@ -1537,8 +1523,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-end gap-1.5">
-                          <span>unsettled_balance</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">numeric</span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Remaining Due (₹)</span>
                           {renderSortArrow('unsettled_balance')}
                         </div>
                       </th>
@@ -1553,8 +1538,7 @@ export const StaffAdvancesPage: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center justify-center gap-1.5">
-                          <span>status</span>
-                          <span className="text-[10px] text-slate-400 dark:text-[#555555]">text</span>
+                          <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Status</span>
                           {renderSortArrow('status')}
                         </div>
                       </th>
@@ -1562,9 +1546,7 @@ export const StaffAdvancesPage: React.FC = () => {
 
                     {visibleColumns.has('actions') && (
                       <th className={cn('text-right min-w-[140px]', densityStyles.header)}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span>actions</span>
-                        </div>
+                        <span className="font-sans font-medium text-slate-700 dark:text-zinc-300">Actions</span>
                       </th>
                     )}
                   </tr>
@@ -1983,6 +1965,7 @@ export const StaffAdvancesPage: React.FC = () => {
                   <div className="flex-1">
                     <SearchableSelect
                       size="sm"
+                      placement="top"
                       options={[
                         { value: '10', label: '10' },
                         { value: '15', label: '15' },
@@ -1992,6 +1975,7 @@ export const StaffAdvancesPage: React.FC = () => {
                       value={String(pageSize)}
                       onChange={(val) => setPageSize(Number(val))}
                       allowCustom={false}
+                      popupClassName="min-w-[76px]"
                     />
                   </div>
                 </div>

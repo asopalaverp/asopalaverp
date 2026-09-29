@@ -172,12 +172,12 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
   return (
     <div className="space-y-3 font-sans">
       {uploadError && (
-        <div className="p-3 rounded-[12px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium font-sans flex items-center justify-between">
+        <div className="p-2.5 rounded-[6px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium font-sans flex items-center justify-between">
           <span>{uploadError}</span>
           <button
             type="button"
             onClick={() => setUploadError(null)}
-            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+            className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -186,22 +186,22 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
 
       {/* Thumbnails + Inline Add Tile Strip */}
       {photoUrls.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           {photoUrls.map((url, idx) => (
             <div
               key={idx}
-              className="relative group rounded-[12px] overflow-hidden bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 w-28 h-24 flex items-center justify-center shadow-xs"
+              className="relative group rounded-[6px] overflow-hidden bg-slate-100 dark:bg-[#141414] border border-slate-200/80 dark:border-[#282828] w-20 h-20 flex items-center justify-center shadow-2xs shrink-0"
             >
               <img
                 src={url}
-                alt={`Receipt #${idx + 1}`}
+                alt={`Bill Photo #${idx + 1}`}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-xs">
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 backdrop-blur-xs">
                 <button
                   type="button"
                   onClick={() => openLightbox(url)}
-                  className="p-1.5 rounded-[8px] bg-white/90 dark:bg-white/20 text-slate-900 dark:text-white border border-slate-200/80 dark:border-white/10 hover:border-[#3ecf8e] cursor-pointer shadow-xs ios-press"
+                  className="p-1 rounded-[4px] bg-white/90 dark:bg-white/20 text-slate-900 dark:text-white border border-slate-200/80 dark:border-white/10 hover:border-[#3ecf8e] cursor-pointer shadow-xs"
                   title="View Full Size"
                 >
                   <Eye className="w-3.5 h-3.5 text-[#3ecf8e]" />
@@ -209,7 +209,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRemove(idx)}
-                  className="p-1.5 rounded-[8px] bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs ios-press"
+                  className="p-1 rounded-[4px] bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs"
                   title="Remove"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -218,10 +218,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
             </div>
           ))}
 
-          {/* Inline Add More Button if limit not reached */}
+          {/* Inline Add More Buttons if limit not reached */}
           {photoUrls.length < maxPhotos && (
             <div className="flex items-center gap-2">
-              <label className="w-28 h-24 rounded-[12px] border-2 border-dashed border-slate-300 dark:border-white/20 hover:border-[#3ecf8e] dark:hover:border-[#3ecf8e] bg-slate-50/60 dark:bg-white/5 hover:bg-emerald-500/5 dark:hover:bg-[#3ecf8e]/5 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all text-slate-600 dark:text-[#A1A1A1] hover:text-emerald-700 dark:hover:text-[#3ecf8e] ios-press">
+              <label className="w-20 h-20 rounded-[6px] border border-dashed border-slate-300 dark:border-[#2e2e2e] hover:border-[#3ecf8e] dark:hover:border-[#3ecf8e] bg-slate-50/50 dark:bg-[#141414] hover:bg-emerald-500/5 dark:hover:bg-[#3ecf8e]/5 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-slate-500 dark:text-[#a1a1a1] hover:text-emerald-600 dark:hover:text-[#3ecf8e] shrink-0">
                 <input
                   type="file"
                   accept="image/*"
@@ -230,10 +230,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
                   className="sr-only"
                 />
                 <Plus className="w-4 h-4 text-[#3ecf8e] stroke-[2.5]" />
-                <span className="text-[11px] font-semibold font-sans">Add Photo</span>
+                <span className="text-[10px] font-medium font-sans">Add Photo</span>
               </label>
 
-              <label className="h-24 px-3.5 rounded-[12px] border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors text-slate-700 dark:text-[#A1A1A1] ios-press">
+              <label className="h-20 px-3 rounded-[6px] border border-slate-200/80 dark:border-[#282828] hover:border-slate-300 dark:hover:border-[#383838] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-slate-600 dark:text-zinc-300 shrink-0 shadow-2xs">
                 <input
                   type="file"
                   accept="image/*"
@@ -243,76 +243,75 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
                   className="sr-only"
                 />
                 <Camera className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
-                <span className="text-[10px] font-semibold">Camera</span>
+                <span className="text-[10px] font-medium">Camera</span>
               </label>
             </div>
           )}
         </div>
       ) : (
-        /* Empty State: iOS 16 Interactive Dropzone Box */
+        /* Empty State: Modern Studio Dropzone Box */
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={cn(
-            'rounded-[16px] border-2 border-dashed p-5 text-center transition-all ios-card',
+            'rounded-[8px] border border-dashed p-4 transition-all text-center flex flex-col items-center justify-center gap-3',
             isDragOver
-              ? 'border-[#3ecf8e] bg-emerald-500/10 dark:bg-[#3ecf8e]/10 scale-[1.01]'
-              : 'border-slate-300/80 dark:border-white/15 hover:border-slate-400 dark:hover:border-white/30 bg-slate-50/60 dark:bg-white/5'
+              ? 'border-[#3ecf8e] bg-emerald-500/10 dark:bg-[#3ecf8e]/10'
+              : 'border-slate-300 dark:border-[#2e2e2e] hover:border-slate-400 dark:hover:border-[#404040] bg-slate-50/60 dark:bg-[#161616]'
           )}
         >
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center border border-emerald-500/20 shrink-0 shadow-xs">
-                <UploadCloud className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200 font-sans">
-                  Attach Photo of Receipt / Bill Slip
-                </p>
-                <p className="text-[11px] text-slate-400 dark:text-[#8E8E93] font-sans">
-                  Drag and drop files here, or tap Camera / Upload (up to {maxPhotos} receipts)
-                </p>
-              </div>
+          {/* Center Info */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded-[8px] bg-slate-100 dark:bg-[#202020] text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center border border-slate-200/80 dark:border-[#2a2a2a] shrink-0 shadow-2xs">
+              <UploadCloud className="w-5 h-5" />
             </div>
-
-            {/* Quick Upload Buttons */}
-            <div className="flex items-center gap-2 shrink-0">
-              <label className="flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/15 text-slate-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer transition-colors shadow-xs ios-press">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileChange}
-                  disabled={uploading}
-                  className="sr-only"
-                />
-                <Camera className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                <span>Camera</span>
-              </label>
-
-              <label className="flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/15 text-slate-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer transition-colors shadow-xs ios-press">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileChange}
-                  disabled={uploading}
-                  className="sr-only"
-                />
-                <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-[#A1A1A1]" />
-                <span>Choose Files</span>
-              </label>
+            <div>
+              <p className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
+                Attach Photo of Bill or Slip
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-[#a1a1a1] font-sans mt-0.5 max-w-[260px] mx-auto leading-relaxed">
+                Take photo with camera or choose files (up to {maxPhotos})
+              </p>
             </div>
+          </div>
+
+          {/* Action Buttons Grid */}
+          <div className="grid grid-cols-2 gap-2 w-full pt-1">
+            <label className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-[6px] border border-slate-200/80 dark:border-[#2a2a2a] bg-white dark:bg-[#1c1c1c] hover:bg-slate-50 dark:hover:bg-[#242424] hover:border-slate-300 dark:hover:border-[#383838] text-slate-800 dark:text-zinc-200 text-xs font-medium cursor-pointer transition-colors shadow-2xs select-none">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="sr-only"
+              />
+              <Camera className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+              <span>Take Photo</span>
+            </label>
+
+            <label className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-[6px] border border-slate-200/80 dark:border-[#2a2a2a] bg-white dark:bg-[#1c1c1c] hover:bg-slate-50 dark:hover:bg-[#242424] hover:border-slate-300 dark:hover:border-[#383838] text-slate-800 dark:text-zinc-200 text-xs font-medium cursor-pointer transition-colors shadow-2xs select-none">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="sr-only"
+              />
+              <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-[#8e8e8e]" />
+              <span>Choose Files</span>
+            </label>
           </div>
         </div>
       )}
 
       {uploading && (
-        <div className="flex items-center gap-2 py-1 text-xs font-mono text-emerald-700 dark:text-[#3ecf8e] font-semibold">
+        <div className="flex items-center gap-2 py-0.5 text-xs font-mono text-emerald-700 dark:text-[#3ecf8e] font-medium">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span>Attaching receipt to bill...</span>
+          <span>Saving photo...</span>
         </div>
       )}
     </div>

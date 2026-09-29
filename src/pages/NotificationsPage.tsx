@@ -4,8 +4,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { ERPNotification } from '@/types/database';
-import { IOSSegmentedControl } from '@/components/ui/ios';
-import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { SegmentedControl } from '@/components/ui';
+import { formatINR, formatDate, cn } from '@/lib/utils';
 import {
   Bell,
   CheckCircle2,
@@ -26,6 +26,7 @@ import {
   CloudSync,
   Radio,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -40,9 +41,9 @@ type NotificationCategoryFilter =
   | 'system';
 
 export const NotificationsPage: React.FC = () => {
-  const { setActivePage, openDrawer } = useUIStore();
+  const { setActivePage } = useUIStore();
   const { user } = useAuthStore();
-  const { branches, selectedBranchId, setSelectedBranchId, getActiveBranch } = useBranchStore();
+  const { branches } = useBranchStore();
   const {
     notifications,
     markAsRead,
@@ -53,6 +54,7 @@ export const NotificationsPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<NotificationCategoryFilter>('all');
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
 
   const username = user?.username || 'user';
   const userRole = user?.role_code || 'Super_Admin';
@@ -94,7 +96,6 @@ export const NotificationsPage: React.FC = () => {
   }, [userNotifications, username]);
 
   const handleMarkAllRead = () => {
-    triggerHaptic('success');
     markAllAsRead(username);
     showToast({
       type: 'success',
@@ -103,9 +104,9 @@ export const NotificationsPage: React.FC = () => {
     });
   };
 
-  const handleClearAll = () => {
-    triggerHaptic('selection');
+  const handleConfirmClearAll = () => {
     clearAll();
+    setIsClearAllModalOpen(false);
     showToast({
       type: 'info',
       title: 'Notifications Cleared',
@@ -114,14 +115,12 @@ export const NotificationsPage: React.FC = () => {
   };
 
   const handleToggleRead = (id: string, isRead: boolean) => {
-    triggerHaptic('selection');
     if (!isRead) {
       markAsRead(id, username);
     }
   };
 
   const handleNotificationAction = (n: ERPNotification) => {
-    triggerHaptic('selection');
     markAsRead(n.id, username);
 
     if (n.type === 'safe_drop') {
@@ -160,17 +159,17 @@ export const NotificationsPage: React.FC = () => {
   const getNotifBadge = (type: ERPNotification['type']) => {
     switch (type) {
       case 'safe_drop':
-        return <span className="badge-status-amber text-[10px] font-mono px-2 py-0.5 rounded-[4px]">SAFE DROP</span>;
+        return <span className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">SAFE DROP</span>;
       case 'closing_variance':
-        return <span className="badge-status-rose text-[10px] font-mono px-2 py-0.5 rounded-[4px]">VARIANCE</span>;
+        return <span className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">DIFFERENCE</span>;
       case 'high_value_voucher':
-        return <span className="badge-status-emerald text-[10px] font-mono px-2 py-0.5 rounded-[4px]">HIGH VALUE</span>;
+        return <span className="bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">HIGH VALUE</span>;
       case 'sec40a3_warning':
-        return <span className="badge-status-rose text-[10px] font-mono px-2 py-0.5 rounded-[4px]">SEC 40A(3)</span>;
+        return <span className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">TAX LIMIT</span>;
       case 'offline_sync':
-        return <span className="badge-status-blue text-[10px] font-mono px-2 py-0.5 rounded-[4px]">SYNC</span>;
+        return <span className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">CLOUD SYNC</span>;
       default:
-        return <span className="badge-status-neutral text-[10px] font-mono px-2 py-0.5 rounded-[4px]">SYSTEM</span>;
+        return <span className="bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10 text-[10px] font-mono px-2 py-0.5 rounded-[4px] font-medium">SYSTEM</span>;
     }
   };
 
@@ -184,16 +183,16 @@ export const NotificationsPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-20 select-none flex flex-col">
-      {/* 1. Notifications Header (iOS 16 Frosted Glass) */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-5xl mx-auto w-full">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
+      {/* 1. Notifications Header (Non-sticky) */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-[1600px] mx-auto w-full">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900 dark:text-white font-sans flex items-center gap-2">
                 <Bell className="w-5 h-5 text-[#3ecf8e]" />
-                <span>Alerts & Messages</span>
+                <span>Alerts &amp; Messages</span>
               </h1>
               {unreadCount > 0 ? (
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 whitespace-nowrap inline-flex items-center font-medium">
@@ -216,9 +215,9 @@ export const NotificationsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none ios-press"
+                className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
               >
-                <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Mark All as Read ({unreadCount})</span>
               </button>
             )}
@@ -226,8 +225,8 @@ export const NotificationsPage: React.FC = () => {
             {userNotifications.length > 0 && (
               <button
                 type="button"
-                onClick={handleClearAll}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
+                onClick={() => setIsClearAllModalOpen(true)}
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear All</span>
@@ -238,11 +237,11 @@ export const NotificationsPage: React.FC = () => {
       </div>
 
       {/* 2. Main Studio Content Area */}
-      <main className="px-4 lg:px-6 py-6 space-y-5 max-w-5xl mx-auto w-full flex-1">
+      <main className="px-4 lg:px-6 py-6 space-y-5 max-w-[1600px] mx-auto w-full flex-1">
         {/* TOP SUMMARY BAR */}
-        <div className="relative z-30 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/80 dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] shadow-xs">
+        <div className="relative z-10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/80 dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] shadow-xs">
           {/* Category Tabs */}
-          <IOSSegmentedControl
+          <SegmentedControl
             options={TABS.map((t) => ({
               id: t.id,
               label: t.count !== undefined ? `${t.label} (${t.count})` : t.label,
@@ -333,7 +332,7 @@ export const NotificationsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleToggleRead(notif.id, isRead)}
-                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer ios-press"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer"
                       title={isRead ? 'Marked as read' : 'Mark as read'}
                     >
                       {isRead ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-[#3ecf8e]" />}
@@ -342,7 +341,7 @@ export const NotificationsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleNotificationAction(notif)}
-                      className="px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-white text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ios-press"
+                      className="px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-white text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                     >
                       <span>Take Action</span>
                       <ArrowRight className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
@@ -366,6 +365,71 @@ export const NotificationsPage: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* ========================================================================= */}
+      {/* CLEAR ALL NOTIFICATIONS CONFIRMATION PREVIEW MODAL                        */}
+      {/* ========================================================================= */}
+      {isClearAllModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setIsClearAllModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Clear All Notifications
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  Are you sure you want to clear your notifications history?
+                </p>
+              </div>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2 text-xs font-sans">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Total Alerts to Clear:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">{userNotifications.length} items</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Current Unread:</span>
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{unreadCount} items</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 dark:text-[#888888]">Active Showroom Filter:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200">{branchFilter === 'ALL' ? 'All Branches' : branchFilter}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
+              <button
+                type="button"
+                onClick={() => setIsClearAllModalOpen(false)}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Back &amp; Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAll}
+                className="px-5 py-2 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm &amp; Clear All</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

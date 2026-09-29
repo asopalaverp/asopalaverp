@@ -108,7 +108,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
             <button
               type="button"
               onClick={handleSplitEvenly}
-              className="h-[34px] px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1f1f1f] text-slate-700 dark:text-[#EDEDED] hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#2e2e2e] hover:border-slate-300 dark:hover:border-[#383838] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#1f1f1f] text-slate-700 dark:text-[#EDEDED] hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#2e2e2e] hover:border-slate-300 dark:hover:border-[#383838] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               title="Distribute amount evenly across all added staff"
             >
               <Calculator className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
@@ -119,7 +119,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
           <button
             type="button"
             onClick={handleAddRow}
-            className="h-[34px] px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1f1f1f] hover:bg-emerald-50 dark:hover:bg-[#3ecf8e]/10 text-slate-800 dark:text-zinc-100 hover:text-emerald-700 dark:hover:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] hover:border-emerald-500/40 dark:hover:border-[#3ecf8e]/40 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            className="h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#1f1f1f] hover:bg-emerald-50 dark:hover:bg-[#3ecf8e]/10 text-slate-800 dark:text-zinc-100 hover:text-emerald-700 dark:hover:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] hover:border-emerald-500/40 dark:hover:border-[#3ecf8e]/40 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5] text-emerald-600 dark:text-[#3ecf8e]" />
             <span>Add Staff Member</span>
@@ -212,7 +212,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
                         handleUpdateRow(idx, 'amount', Math.max(0, parseFloat(e.target.value) || 0))
                       }
                       placeholder="0.00"
-                      className="w-full bg-slate-50/60 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] rounded-[6px] pl-6 pr-2.5 py-1.5 text-xs font-mono tabular-nums font-semibold text-right text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-xs"
+                      className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-6 pr-2.5 text-xs font-mono tabular-nums font-semibold text-right text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                     />
                   </div>
                   {splits.length > 1 && (
@@ -323,7 +323,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
                         handleUpdateRow(idx, 'amount', Math.max(0, parseFloat(e.target.value) || 0))
                       }
                       placeholder="0.00"
-                      className="w-full bg-slate-50/60 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] rounded-[6px] pl-7 pr-3 py-2 text-xs font-mono tabular-nums font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-xs"
+                      className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-7 pr-3 text-xs font-mono tabular-nums font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                     />
                   </div>
                 </div>

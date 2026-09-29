@@ -360,3 +360,5 @@ export interface SecurityAuditLog {
   tamper_proof_signature: string;
   created_at: string;
 }
+
+export type VoucherMode = 'Shop_Vendor' | 'Staff_Split' | 'Courier';

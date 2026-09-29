@@ -105,27 +105,22 @@ export const KeyboardShortcutsModal: React.FC = () => {
       <div
         ref={modalRef}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl ios18-glass-card rounded-[22px] shadow-2xl overflow-hidden text-slate-900 dark:text-zinc-100 font-sans transition-all"
+        className="w-full max-w-xl bg-white dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden text-slate-900 dark:text-[#EDEDED] font-sans transition-all"
       >
-        {/* iOS Grabber (Mobile indicator) */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-0.5">
-          <div className="w-9 h-1 rounded-full bg-black/20 dark:bg-white/20" />
-        </div>
-
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-slate-200/70 dark:border-white/10 flex items-center justify-between bg-black/[0.02] dark:bg-white/[0.02]">
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-[#2e2e2e] flex items-center justify-between bg-slate-50/50 dark:bg-[#141414]/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-[8px] bg-black/[0.04] dark:bg-white/[0.06] flex items-center justify-center">
-              <Keyboard className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e] stroke-[2]" />
+            <div className="w-7 h-7 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-[#3ecf8e] flex items-center justify-center">
+              <Keyboard className="w-4 h-4 stroke-[2]" />
             </div>
-            <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-zinc-100 font-sans">
+            <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white font-sans">
               Keyboard Shortcuts &amp; Hotkeys
             </h2>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-colors cursor-pointer active:scale-90"
+            className="w-7 h-7 flex items-center justify-center rounded-[6px] text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#242424] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>

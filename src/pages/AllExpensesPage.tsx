@@ -8,7 +8,7 @@ import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { erpService } from '@/lib/erpService';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import {
   Download,
   Plus,
@@ -104,11 +104,6 @@ export const AllExpensesPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    showToast({
-      type: 'activity',
-      title: 'Refreshing Expenses',
-      message: 'Fetching latest expense bills from database...',
-    });
     await refresh();
     showToast({
       type: 'success',
@@ -118,23 +113,23 @@ export const AllExpensesPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 flex flex-col">
-      {/* 1. Frosted Header */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-7xl mx-auto">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16">
+      {/* 1. Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left: Title & Status Badge */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-[#3ecf8e]" />
                 <span>All Expenses</span>
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
-                {filteredByDateVouchers.length} records
+              <span className="px-2 py-0.5 rounded-[4px] text-[10px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
+                {filteredByDateVouchers.length} bills
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#8E8E93] mt-0.5">
-              Search, view details, download, and print all showroom expense bills and payments.
+              View, search, and download all showroom expense bills.
             </p>
           </div>
 
@@ -144,8 +139,8 @@ export const AllExpensesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleExportTally}
-                className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                title="Export bills to CSV spreadsheet format"
+                className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                title="Download CSV for Excel or Tally"
               >
                 <Download className="w-3.5 h-3.5 text-slate-600 dark:text-[#A1A1A1]" />
                 <span>Download CSV</span>
@@ -156,8 +151,8 @@ export const AllExpensesPage: React.FC = () => {
               type="button"
               onClick={handleRefresh}
               disabled={loading}
-              className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] shadow-xs transition-colors cursor-pointer"
-              title="Refresh Expenses"
+              className="h-8 w-8 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] shadow-2xs transition-colors cursor-pointer"
+              title="Refresh"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
             </button>
@@ -166,21 +161,21 @@ export const AllExpensesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActivePage('new-voucher')}
-              className="h-9 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer font-sans"
+              className="h-9 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer font-sans select-none"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Record Expense</span>
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Add Expense</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* 2. Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-5 space-y-4 flex-1 w-full">
+      <div className="px-4 lg:px-6 py-4 space-y-4 flex-1 w-full">
         {/* Filter Toolbar */}
-        <div className="rounded-[12px] p-3 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 shadow-xs">
+        <div className="rounded-[12px] p-2.5 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-[#18181a]/70 border border-slate-200 dark:border-[#242424] shadow-2xs">
           <div className="flex items-center gap-2">
-            <IOSSegmentedControl
+            <SegmentedControl
               options={[
                 { id: 'all', label: 'All Time' },
                 { id: 'month', label: 'This Month' },
@@ -194,44 +189,44 @@ export const AllExpensesPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-[#8E8E93]">
-            <span>Showroom:</span>
-            <span className="px-2.5 py-1 rounded-[8px] bg-slate-100 dark:bg-white/5 text-slate-900 dark:text-white border border-slate-200/80 dark:border-white/10 font-semibold shadow-xs">
+            <span>Branch:</span>
+            <span className="px-2 py-0.5 rounded-[4px] bg-white dark:bg-[#202024] text-slate-900 dark:text-white border border-slate-200 dark:border-[#2e2e32] font-semibold text-[11px]">
               {showroomTitle} ({showroomCode})
             </span>
           </div>
         </div>
 
-        {/* 4 Telemetry Inset Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* 4 Inset Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard
-            label="Total Expenses"
+            label="Total Spent"
             value={formatINR(totalAmount)}
-            subValue={`${filteredByDateVouchers.length} vouchers recorded`}
+            subValue={`${filteredByDateVouchers.length} bills recorded`}
             statusDotColor="#3ecf8e"
             icon={Receipt}
           />
 
           <MetricCard
-            label="Physical Cash Paid"
+            label="Cash Paid"
             value={formatINR(cashAmount)}
-            subValue={`${cashPercent}% of total expenditure`}
+            subValue={`${cashPercent}% of total`}
             statusDotColor="#f59e0b"
             icon={Banknote}
           />
 
           <MetricCard
-            label="Bank & UPI Paid"
+            label="UPI Paid"
             value={formatINR(upiAmount)}
-            subValue={`${upiPercent}% digital settlements`}
+            subValue={`${upiPercent}% of total`}
             statusDotColor="#3b82f6"
             icon={Smartphone}
           />
 
           <MetricCard
-            label="Audit Verified"
+            label="Total Bills"
             value={String(filteredByDateVouchers.length)}
-            subValue="100% vouchers tallied"
-            badge="VERIFIED"
+            subValue="All recorded bills"
+            badge="ALL OK"
             badgeColor="emerald"
             statusDotColor="#3ecf8e"
             icon={Layers}
@@ -248,5 +243,7 @@ export const AllExpensesPage: React.FC = () => {
     </div>
   );
 };
+
+export default AllExpensesPage;
 
 

@@ -23,6 +23,7 @@ import {
   Plus,
   Minus,
   Check,
+  X,
 } from 'lucide-react';
 import { useGsapContext } from '@/hooks/useGsap';
 import { animateStaggerCards, animateErrorBanner } from '@/lib/animations';
@@ -69,6 +70,7 @@ export const DailyCashClosingPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const containerRef = useGsapContext(() => {
@@ -258,11 +260,15 @@ export const DailyCashClosingPage: React.FC = () => {
     });
   };
 
-  const handleSaveClosing = async (e: React.FormEvent) => {
+  const handleSaveClosing = (e: React.FormEvent) => {
     e.preventDefault();
     if (locked) return;
     setFeedback(null);
+    setIsPreviewOpen(true);
+  };
 
+  const handleConfirmFinalSave = async () => {
+    if (locked) return;
     setSubmitting(true);
     try {
       const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
@@ -301,8 +307,8 @@ export const DailyCashClosingPage: React.FC = () => {
         title: 'Daily Closing Locked',
         message: successMsg,
       });
-      triggerHaptic('success');
       setLocked(true);
+      setIsPreviewOpen(false);
     } catch (err: any) {
       console.error('Error recording closing:', err);
       const errMsg = err.message || 'Failed to record closing.';
@@ -312,7 +318,6 @@ export const DailyCashClosingPage: React.FC = () => {
         title: 'Closing Failed',
         message: errMsg,
       });
-      triggerHaptic('error');
     } finally {
       setSubmitting(false);
     }
@@ -360,7 +365,7 @@ export const DailyCashClosingPage: React.FC = () => {
   };
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
+    <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Daily Cash Closing Header */}
       <div className="px-4 lg:px-6 py-4 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
@@ -603,7 +608,7 @@ export const DailyCashClosingPage: React.FC = () => {
                                   }
                                 }}
                                 placeholder="0"
-                                className="w-28 h-8 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-[6px] text-center text-xs font-mono font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] tabular-nums transition-colors"
+                                className="w-28 h-9 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] text-center text-xs font-mono font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 tabular-nums shadow-2xs transition-colors"
                               />
                             </div>
                           </td>
@@ -865,6 +870,93 @@ export const DailyCashClosingPage: React.FC = () => {
           </div>
         </form>
       </main>
+
+      {/* Pre-Commit Daily Closing Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Daily Closing
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4 font-sans text-xs">
+              <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] space-y-2 font-mono">
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Closing Date</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{closingDate}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Branch</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{activeBranch.branch_code}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                  <span>Cashier / User</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{user?.first_name || 'Cashier'} {user?.last_name || ''}</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626] space-y-2 font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 dark:text-zinc-300">Expected Cash in Box</span>
+                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{formatINR(expectedBookCash)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 dark:text-zinc-300">Actual Counted Cash</span>
+                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{formatINR(physicalTotal)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-[#262626] flex justify-between items-center">
+                  <span className="text-slate-900 dark:text-white font-semibold">Difference / Variance</span>
+                  <span className={cn('text-sm font-bold tabular-nums', varianceAmount === 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : varianceAmount > 0 ? 'text-blue-500' : 'text-rose-500')}>
+                    {varianceAmount === 0 ? 'Matched (₹0)' : formatINR(varianceAmount)}
+                  </span>
+                </div>
+              </div>
+
+              {closingNotes && (
+                <div className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#262626]">
+                  <span className="text-[10px] uppercase font-mono text-slate-400 block mb-1">Notes:</span>
+                  <p className="text-slate-700 dark:text-zinc-300 font-sans text-xs">{closingNotes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 bg-slate-50/50 dark:bg-[#181818] border-t border-slate-200 dark:border-[#242424] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 text-xs font-medium cursor-pointer"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleConfirmFinalSave}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{submitting ? 'Locking Closing...' : 'Confirm & Lock Closing'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

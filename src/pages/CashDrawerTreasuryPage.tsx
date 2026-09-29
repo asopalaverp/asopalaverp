@@ -9,6 +9,8 @@ import { formatINR, numberToWordsINR, formatDate, cn, triggerHaptic } from '@/li
 import { useOverrideStore } from '@/store/overrideStore';
 import { SafeDropDrawer } from '@/components/treasury/SafeDropDrawer';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { AccessDeniedView } from '@/components/common/AccessDeniedView';
 import {
   Wallet,
   Coins,
@@ -111,6 +113,17 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const { branches, selectedBranchId, getActiveBranch } = useBranchStore();
   const { setActivePage } = useUIStore();
 
+  // If cashier, block entire page
+  if (user?.role_code === 'Cashier') {
+    return (
+      <AccessDeniedView
+        title="Access Restricted"
+        message="Cash Drawer & Treasury management is restricted to Store Managers and Super Admins."
+        pageName="Cash & Bank"
+      />
+    );
+  }
+
   const allowedBranches = getAllowedBranches(branches);
   const activeBranch = getActiveBranch();
   const initialBranch = (selectedBranchId && isBranchAllowed(selectedBranchId))
@@ -130,6 +143,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Pro Enterprise Ledger View & Filter State
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL');
@@ -368,7 +382,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     setFeedback(null);
   };
 
-  const handleTopupSubmit = async (e: React.FormEvent) => {
+  const handleOpenPreview = (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
@@ -379,7 +393,15 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       return;
     }
 
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    const amountToAdd = Number(amount) || 0;
+    if (amountToAdd <= 0) return;
+
     setSubmitting(true);
+    setIsPreviewOpen(false);
     try {
       const isHistorical = entryDate !== formatDateFns(new Date(), 'yyyy-MM-dd');
       const dateTag = isHistorical ? ` [Date: ${entryDate}]` : '';
@@ -388,7 +410,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       const modeTag = transferMode ? ` [Transfer Mode: ${transferMode}]` : '';
       const fullRemarks = `${noteContent}${modeTag}${dateTag}`.trim();
 
-      const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
+      const userName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
       const authName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
 
       await erpService.createFloatTopup({
@@ -405,10 +427,11 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       triggerHaptic('heavy');
       setFeedback({
         type: 'success',
-        message: `Successfully recorded ${formatINR(amountToAdd)} ${walletType === 'Cash' ? 'Cash' : 'Bank UPI'} inflow${isHistorical ? ` for ${entryDate}` : ''}!`,
+        message: `Successfully added ${formatINR(amountToAdd)} ${walletType === 'Cash' ? 'Cash' : 'Bank UPI'}!`,
       });
 
       setAmount('');
+      setReferenceNotes('');
       setEntryDate(formatDateFns(new Date(), 'yyyy-MM-dd'));
       loadTreasuryData();
       window.dispatchEvent(new Event('asopalav:wallet-updated'));
@@ -424,23 +447,23 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const safeDropExceeded = currentCashBalance > 50000 && !isCeilingExceededAllowed();
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-16 select-none flex flex-col">
-      {/* 1. Cash Box & Bank Header (iOS 16 Frosted Glass) */}
-      <div className="sticky top-0 z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+    <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
+      {/* 1. Cash & Bank Header */}
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-[#3ecf8e]" />
-                <span>Cash Box & Bank</span>
+                <span>Cash & Bank</span>
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
+              <span className="px-2 py-0.5 rounded-[4px] text-[10px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
                 {filteredAllocations.length} records
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
-              Manage morning cash, count currency notes, move cash to safe, and view cash history.
+              Manage cash in box, add float, and view history.
             </p>
           </div>
 
@@ -452,19 +475,19 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 triggerHaptic('selection');
                 setIsSafeDropOpen(true);
               }}
-              className="h-8.5 px-3.5 py-1.5 rounded-[10px] border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
-              title="Transfer excess cash from box to showroom safe"
+              className="h-8 px-3 py-1.5 rounded-[6px] border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Move excess cash from box to showroom safe"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>Move Cash to Safe</span>
+              <span>Move to Safe</span>
             </button>
 
             <button
               type="button"
               onClick={loadTreasuryData}
               disabled={loading}
-              className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer shadow-xs"
-              title="Refresh Cash Box"
+              className="h-8 w-8 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] transition-all cursor-pointer shadow-2xs"
+              title="Refresh"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
             </button>
@@ -474,7 +497,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
@@ -482,11 +505,11 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[12px] shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-[#2e2e2e] rounded-[8px] shadow-2xl py-1 z-40 animate-in fade-in zoom-in-95 duration-100">
                   <button
                     type="button"
                     onClick={() => handleExportLedger('csv')}
-                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242428] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     CSV format
@@ -495,7 +518,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleExportLedger('json')}
-                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242428] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                     >
                       <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       JSON format
@@ -511,7 +534,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       {/* 2. Main Studio Content Area */}
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Tier 2: Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[12px] border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#18181a] backdrop-blur-md shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-[12px] border border-slate-200 dark:border-[#242424] bg-slate-50/70 dark:bg-[#18181a]/70 shadow-2xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -521,8 +544,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 type="text"
                 value={ledgerSearch}
                 onChange={(e) => setLedgerSearch(e.target.value)}
-                placeholder="Search ledger entries (/)..."
-                className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[6px] pl-8 pr-8 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-[#737373] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors font-sans shadow-2xs"
+                placeholder="Search history..."
+                className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-8 pr-8 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-[#737373] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-colors font-sans shadow-2xs"
               />
               {ledgerSearch ? (
                 <button
@@ -543,7 +566,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                   { value: 'ALL', label: 'All Activity' },
                   { value: 'Float_Topup', label: 'Top-ups Only' },
                   { value: 'Cash', label: 'Cash Only' },
-                  { value: 'UPI', label: 'UPI / Bank Only' },
+                  { value: 'UPI', label: 'UPI Only' },
                 ]}
                 value={ledgerWalletFilter}
                 onChange={(val) => setLedgerWalletFilter(val as any)}
@@ -583,6 +606,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                   onChange={(val) => setCustomDate(val)}
                   allowPastDatesOverride={true}
                   placeholder="Pick date..."
+                  size="sm"
                 />
               </div>
             )}
@@ -591,6 +615,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
           {/* Branch Selector */}
           <div className="w-full sm:w-64">
             <SearchableSelect
+              size="sm"
               value={selectedBranch}
               onChange={setSelectedBranch}
               options={allowedBranches.map((b) => ({
@@ -605,13 +630,13 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
       {/* Safe Deposit Alert Banner */}
       {safeDropExceeded && (
-        <div className="stagger-card p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+        <div className="p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
             <div>
-              <strong className="block font-medium text-amber-800 dark:text-amber-300">Move Cash to Safe (Cash in Box is High)</strong>
+              <strong className="block font-medium text-amber-800 dark:text-amber-300">Move Cash to Safe (Cash is High)</strong>
               <span className="text-[11px] text-amber-700 dark:text-amber-200/80">
-                Cash in box ({formatINR(currentCashBalance)}) is over ₹50,000. Please move extra cash to the shop safe.
+                Cash in box ({formatINR(currentCashBalance)}) is over ₹50,000. Please move extra cash to the safe.
               </span>
             </div>
           </div>
@@ -622,7 +647,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               triggerHaptic('selection');
               setIsSafeDropOpen(true);
             }}
-            className="px-3.5 py-2 rounded-[10px] bg-amber-500 hover:bg-amber-400 text-[#171717] font-semibold text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs ios-press"
+            className="h-8 px-3.5 py-1.5 rounded-[6px] bg-amber-500 hover:bg-amber-400 text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
             <span>Move to Safe ({formatINR(Math.max(0, currentCashBalance - 40000))})</span>
@@ -630,93 +655,68 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Top Metric Cards (iOS 16 Inset Grouped) */}
+      {/* 2. Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Cash in Box</span>
-            <div className="w-7 h-7 rounded-[8px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center">
-              <Wallet className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-mono font-medium text-slate-900 dark:text-white tabular-nums">
-              {formatINR(currentCashBalance)}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              Cash notes in counter
-            </div>
-          </div>
-        </div>
+        <MetricCard
+          label="Cash in Box"
+          value={formatINR(currentCashBalance)}
+          subValue="Cash notes in till"
+          statusDotColor="#3ecf8e"
+          icon={Wallet}
+        />
 
-        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Bank & UPI Balance</span>
-            <div className="w-7 h-7 rounded-[8px] bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 flex items-center justify-center">
-              <Building2 className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-mono font-medium text-slate-900 dark:text-white tabular-nums">
-              {formatINR(currentUpiBalance)}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              Shop UPI bank account
-            </div>
-          </div>
-        </div>
+        <MetricCard
+          label="Bank UPI Balance"
+          value={formatINR(currentUpiBalance)}
+          subValue="Shop UPI balance"
+          statusDotColor="#38bdf8"
+          icon={Building2}
+        />
 
-        <div className="stagger-card p-4 rounded-[14px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-[#A1A1A1]">Total Available Money</span>
-            <div className="w-7 h-7 rounded-[8px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center">
-              <Coins className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
-              {formatINR(currentCashBalance + currentUpiBalance)}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-[#737373] font-mono">
-              Total Cash + UPI Money
-            </div>
-          </div>
-        </div>
+        <MetricCard
+          label="Total Available"
+          value={formatINR(currentCashBalance + currentUpiBalance)}
+          subValue="Cash + UPI combined"
+          statusDotColor="#3ecf8e"
+          badge="READY"
+          badgeColor="emerald"
+          icon={Coins}
+        />
       </div>
 
       {/* 3. Main Dual Column Content */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Column: Add Cash Form (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          <form onSubmit={handleTopupSubmit} className="stagger-card p-5 rounded-[16px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md space-y-4 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-white/10 gap-2">
+          <form onSubmit={handleOpenPreview} className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-3.5 shadow-xs">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-[#242424] gap-2">
               <div className="flex items-center gap-2">
                 <Coins className="w-4 h-4 text-[#3ecf8e]" />
                 <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                  Add Money to Cash Box / Bank
+                  Add Cash / UPI
                 </h2>
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-[10px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200/80 dark:border-white/10">
+                <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-[#242424]">
                   <button
                     type="button"
                     onClick={() => setWalletType('Cash')}
                     className={cn(
-                      'px-3 py-1 rounded-[8px] text-xs font-sans transition-all cursor-pointer font-medium',
+                      'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
                       walletType === 'Cash'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200/80 dark:border-white/10 shadow-xs'
+                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
                         : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
                     )}
                   >
-                    Cash Notes
+                    Cash
                   </button>
                   <button
                     type="button"
                     onClick={() => setWalletType('UPI')}
                     className={cn(
-                      'px-3 py-1 rounded-[8px] text-xs font-sans transition-all cursor-pointer font-medium',
+                      'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
                       walletType === 'UPI'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200/80 dark:border-white/10 shadow-xs'
+                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
                         : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
                     )}
                   >
@@ -727,81 +727,50 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="h-8 w-8 flex items-center justify-center rounded-[10px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 transition-all cursor-pointer shadow-xs shrink-0 ios-press"
-                  title="Reset Form"
+                  className="h-8 w-8 flex items-center justify-center rounded-[6px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-[#242424] transition-all cursor-pointer shadow-xs shrink-0"
+                  title="Reset"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Unified Clean Amount Input with Additive Chips for both Cash & Bank UPI */}
-            <div className="space-y-3 font-sans">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
-                    {walletType === 'Cash' ? 'Cash Amount (₹) *' : 'Bank / UPI Amount (₹) *'}
-                  </label>
-                  {Number(amount) > 0 && (
-                    <span className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                      {numberToWordsINR(Number(amount))}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-400 dark:text-[#737373] text-sm">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={amount}
-                    onChange={(e) => setAmount(parseFloat(e.target.value) || '')}
-                    placeholder="e.g. 10000"
-                    className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] pl-8 pr-3 py-2.5 text-sm font-mono font-bold tabular-nums text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] shadow-2xs"
-                  />
-                </div>
-
-                {/* 1-Tap Additive Preset Chips */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1 font-mono">
-                  {[1000, 2000, 5000, 10000, 25000, 50000].map((quickAmt) => (
-                    <button
-                      key={quickAmt}
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic('selection');
-                        setAmount((prev) => (Number(prev) || 0) + quickAmt);
-                      }}
-                      className="px-3 py-1.5 rounded-[8px] bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 border border-slate-200/80 dark:border-white/10 text-xs font-medium text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer ios-press shadow-2xs"
-                    >
-                      +₹{quickAmt >= 1000 ? `${(quickAmt / 1000).toLocaleString('en-IN')}k` : quickAmt}
-                    </button>
-                  ))}
-                  {Number(amount) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic('light');
-                        setAmount('');
-                      }}
-                      className="px-2.5 py-1.5 rounded-[8px] text-xs font-mono text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Transaction Date (supports filing older dates for Admin / Manager) */}
+            {/* Amount Input */}
             <div className="space-y-1 font-sans">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
-                  Entry / Inflow Date
+                  {walletType === 'Cash' ? 'Cash Amount (₹) *' : 'Bank / UPI Amount (₹) *'}
+                </label>
+                {Number(amount) > 0 && (
+                  <span className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
+                    {numberToWordsINR(Number(amount))}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-medium text-slate-400 dark:text-[#737373] text-sm">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  value={amount}
+                  onChange={(e) => setAmount(parseFloat(e.target.value) || '')}
+                  placeholder="0.00"
+                  className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] pl-7 pr-3 text-sm font-mono font-medium tabular-nums text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
+                />
+              </div>
+            </div>
+
+            {/* Transaction Date */}
+            <div className="space-y-1 font-sans">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
+                  Date
                 </label>
                 {entryDate !== formatDateFns(new Date(), 'yyyy-MM-dd') && (
-                  <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-[6px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
-                    Historical Entry ({entryDate})
+                  <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
+                    Past Date ({entryDate})
                   </span>
                 )}
               </div>
@@ -809,28 +778,28 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 value={entryDate}
                 onChange={(val) => setEntryDate(val)}
                 allowPastDatesOverride={isDeveloper || user?.role_code === 'Super_Admin' || user?.role_code === 'Store_Manager'}
-                placeholder="Select entry date..."
+                placeholder="Select date..."
               />
             </div>
 
             {/* Reference Remarks */}
             <div className="space-y-1 font-sans">
               <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
-                Reason / Note (e.g. Morning cash from safe)
+                Reason / Note
               </label>
               <input
                 type="text"
                 value={referenceNotes}
                 onChange={(e) => setReferenceNotes(e.target.value)}
-                placeholder="e.g. Morning opening cash from safe / Owner cash"
-                className="w-full bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-white/10 rounded-[10px] px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] shadow-2xs"
+                placeholder="e.g. Morning cash from safe / Owner topup"
+                className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
               />
             </div>
 
             {/* Feedback Alert */}
             {feedback && (
               <div
-                className={`p-3 rounded-[10px] border font-sans text-xs font-medium ${
+                className={`p-2.5 rounded-[6px] border font-sans text-xs font-medium ${
                   feedback.type === 'success'
                     ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 border-emerald-200 dark:border-[#3ecf8e]/30 text-emerald-700 dark:text-[#3ecf8e]'
                     : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400'
@@ -840,11 +809,11 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </div>
             )}
 
-            {/* Action Footer with Total & Reset & Emerald CTA */}
-            <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200/80 dark:border-white/10">
+            {/* Action Footer */}
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-[#242424]">
               <div className="text-xs text-slate-600 dark:text-[#A1A1A1] font-mono flex items-center justify-between sm:justify-start gap-2">
-                <span>Total to Add:</span>
-                <span className="font-bold text-slate-900 dark:text-white tabular-nums text-sm">
+                <span>Total:</span>
+                <span className="font-semibold text-slate-900 dark:text-white tabular-nums text-sm">
                   {formatINR(Number(amount) || 0)}
                 </span>
               </div>
@@ -852,8 +821,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="h-10 w-10 flex items-center justify-center rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer shadow-xs shrink-0 ios-press"
-                  title="Reset Form"
+                  className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#202020] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-all cursor-pointer shadow-xs shrink-0"
+                  title="Reset"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -861,15 +830,15 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 sm:flex-none h-10 px-5 rounded-[10px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none shadow-xs ios-press"
+                  className="flex-1 sm:flex-none h-9 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none shadow-xs"
                 >
-                  <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
+                  <Check className="w-4 h-4 text-[#171717] stroke-[2.5]" />
                   <span>
                     {submitting
-                      ? 'Adding Money...'
+                      ? 'Processing...'
                       : walletType === 'Cash'
-                      ? 'Add Cash to Box'
-                      : 'Add UPI to Bank'}
+                      ? 'Review & Add Cash'
+                      : 'Review & Add UPI'}
                   </span>
                 </button>
               </div>
@@ -1169,6 +1138,80 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         currentCashBalance={currentCashBalance}
         onSuccess={loadTreasuryData}
       />
+
+      {/* 5. Pre-Commit Verification Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424]">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Confirm Inflow
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Slip content */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Branch</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{activeBranch.branch_name} ({activeBranch.branch_code})</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Wallet</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Date</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{entryDate}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Reason</span>
+                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{referenceNotes || (walletType === 'Cash' ? 'Cash Box Inflow' : 'Bank UPI Inflow')}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-[#242424] flex justify-between items-baseline">
+                <span className="text-xs uppercase font-sans text-slate-500">Amount</span>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-emerald-600 dark:text-[#3ecf8e]">
+                    {formatINR(Number(amount) || 0)}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 dark:text-[#3ecf8e] font-sans">
+                    {numberToWordsINR(Number(amount) || 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 text-xs font-medium cursor-pointer"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleConfirmSubmit}
+                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{submitting ? 'Adding...' : 'Confirm & Add'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Toast Notification */}
       {clipboardToast && (

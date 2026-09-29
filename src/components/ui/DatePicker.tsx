@@ -236,14 +236,15 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full rounded-[10px] border flex items-center justify-between gap-2 transition-all cursor-pointer select-none text-xs font-sans',
-          size === 'sm' ? 'min-h-[34px] h-[34px] px-2.5 py-1' : size === 'lg' ? 'min-h-[42px] px-3.5 py-2.5' : 'min-h-[38px] px-3 py-2',
-          'bg-slate-50/60 dark:bg-[#121212] text-slate-900 dark:text-[#EDEDED]',
-          isOpen
-            ? 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-2 ring-[#3ecf8e]/20 shadow-xs'
-            : 'border-black/[0.08] dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-[#383838]',
+          'w-full rounded-[6px] border flex items-center justify-between gap-2 transition-all cursor-pointer select-none text-xs font-sans shadow-2xs',
+          size === 'sm' ? 'h-[34px] min-h-[34px] px-2.5' : size === 'lg' ? 'h-[44px] min-h-[44px] px-3.5' : 'h-10 min-h-[40px] px-3.5',
+          'bg-white dark:bg-[#181818] text-slate-900 dark:text-[#EDEDED]',
+          'border border-slate-200 dark:border-[#282828]',
+          'hover:bg-slate-50 dark:hover:bg-[#202020] hover:border-slate-300 dark:hover:border-[#383838]',
+          'focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30',
+          isOpen && 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-1 ring-[#3ecf8e]/30',
           disabled && 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-[#1c1c1c]',
-          error && 'border-rose-500 ring-2 ring-rose-500/20'
+          error && 'border-rose-500 ring-1 ring-rose-500/30'
         )}
         aria-label={ariaLabel || label || 'Date picker'}
         role="button"

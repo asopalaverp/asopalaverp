@@ -31,6 +31,7 @@ export interface SearchableSelectProps {
   allowCustom?: boolean;
   size?: 'sm' | 'md' | 'lg';
   align?: 'left' | 'right';
+  placement?: 'bottom' | 'top' | 'auto';
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -52,10 +53,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   allowCustom = true,
   size = 'md',
   align = 'left',
+  placement = 'auto',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [computedPlacement, setComputedPlacement] = useState<'top' | 'bottom'>('bottom');
 
   const instanceIdRef = useRef('select-' + Math.random().toString(36).substring(2, 9));
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -121,13 +124,31 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const handleToggleOpen = useCallback((openState: boolean) => {
     if (disabled) return;
     if (openState) {
+      if (placement === 'top') {
+        setComputedPlacement('top');
+      } else if (placement === 'bottom') {
+        setComputedPlacement('bottom');
+      } else {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const spaceBelow = window.innerHeight - rect.bottom;
+          const spaceAbove = rect.top;
+          if (spaceBelow < 250 && spaceAbove > spaceBelow) {
+            setComputedPlacement('top');
+          } else {
+            setComputedPlacement('bottom');
+          }
+        } else {
+          setComputedPlacement('bottom');
+        }
+      }
       triggerHaptic('selection');
       window.dispatchEvent(
         new CustomEvent('asopalav:dropdown-open', { detail: instanceIdRef.current })
       );
     }
     setIsOpen(openState);
-  }, [disabled]);
+  }, [disabled, placement]);
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -252,7 +273,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         className={cn('relative w-full text-xs font-sans', isOpen ? 'z-50' : 'z-auto', className)}
         onKeyDown={handleKeyDown}
       >
-        {/* Trigger Button (iOS 16 Cupertino Inset Pill) */}
+        {/* Trigger Button (Supabase Studio Standard Select) */}
         <button
           type="button"
           id={id}
@@ -262,22 +283,22 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           disabled={disabled}
           onClick={() => handleToggleOpen(!isOpen)}
           className={cn(
-            'w-full flex items-center justify-between text-left rounded-[10px] transition-all cursor-pointer select-none text-xs font-sans ios-press',
-            size === 'sm' ? 'min-h-[32px] h-[32px] px-3 py-1' : size === 'lg' ? 'min-h-[44px] px-4 py-2.5' : 'min-h-[38px] px-3.5 py-1.5',
-            'bg-slate-100/80 dark:bg-white/5 text-slate-900 dark:text-[#EDEDED]',
-            'border border-slate-200/80 dark:border-white/10',
-            'hover:bg-slate-200/60 dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20',
-            'focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-2 focus:ring-[#3ecf8e]/20',
+            'w-full flex items-center justify-between text-left rounded-[6px] transition-colors cursor-pointer select-none text-xs font-sans shadow-2xs',
+            size === 'sm' ? 'h-[34px] min-h-[34px] px-2.5' : size === 'lg' ? 'h-[44px] min-h-[44px] px-3.5' : 'h-10 min-h-[40px] px-3.5',
+            'bg-white dark:bg-[#181818] text-slate-900 dark:text-[#EDEDED]',
+            'border border-slate-200 dark:border-[#282828]',
+            'hover:bg-slate-50 dark:hover:bg-[#202020] hover:border-slate-300 dark:hover:border-[#383838]',
+            'focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30',
             disabled && 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-[#1c1c1c]',
-            isOpen && 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-2 ring-[#3ecf8e]/20 shadow-xs',
+            isOpen && 'border-[#3ecf8e] dark:border-[#3ecf8e] ring-1 ring-[#3ecf8e]/30',
             triggerClassName
           )}
         >
           <span className="truncate pr-2">
             {selectedOption ? (
-              <span className="font-semibold text-slate-900 dark:text-white">{selectedOption.label}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{selectedOption.label}</span>
             ) : value ? (
-              <span className="font-semibold text-slate-900 dark:text-white">{String(value)}</span>
+              <span className="font-medium text-slate-900 dark:text-white">{String(value)}</span>
             ) : (
               <span className="text-slate-400 dark:text-[#707070]">{placeholder}</span>
             )}
@@ -290,14 +311,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 tabIndex={0}
                 aria-label="Clear selection"
                 onClick={handleClear}
-                className="p-1 rounded-[6px] hover:bg-slate-200/80 dark:hover:bg-white/10 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                className="p-0.5 rounded-[4px] hover:bg-slate-200/80 dark:hover:bg-white/10 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </span>
             )}
             <ChevronDown
               className={cn(
-                'w-3.5 h-3.5 text-slate-400 dark:text-[#707070] transition-transform duration-200',
+                'w-3.5 h-3.5 text-slate-400 dark:text-[#707070] transition-transform duration-150',
                 isOpen && 'rotate-180 text-emerald-600 dark:text-[#3ecf8e]'
               )}
             />
@@ -308,7 +329,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         {isOpen && (
           <div
             className={cn(
-              'absolute top-full mt-1.5 z-50 rounded-[12px] bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2e2e32] shadow-2xl overflow-hidden w-full min-w-[200px] left-0 right-0 animate-in fade-in zoom-in-95 duration-100',
+              'absolute z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl overflow-hidden w-full left-0 right-0 animate-in fade-in zoom-in-95 duration-100',
+              computedPlacement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+              size === 'sm' ? 'min-w-[120px]' : 'min-w-[200px]',
               align === 'right' && 'right-0 left-auto',
               popupClassName
             )}
@@ -369,12 +392,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       onClick={() => handleSelect(opt.value)}
                       onMouseEnter={() => setHighlightedIndex(idx)}
                       className={cn(
-                        'flex items-center justify-between px-3 py-2 rounded-[8px] text-xs cursor-pointer transition-colors group select-none font-sans min-h-[34px] ios-press',
+                        'flex items-center justify-between px-2.5 py-1.5 rounded-[6px] text-xs cursor-pointer transition-colors group select-none font-sans min-h-[30px]',
                         isSelected
-                          ? 'bg-emerald-500/15 text-slate-900 dark:text-white font-semibold border border-emerald-500/30'
+                          ? 'bg-emerald-500/10 text-emerald-800 dark:text-[#3ecf8e] font-semibold border border-emerald-500/20'
                           : isHighlighted
-                          ? 'bg-slate-100/90 dark:bg-white/10 text-slate-900 dark:text-white font-medium'
-                          : 'text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-100/60 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                          ? 'bg-slate-100 dark:bg-[#222222] text-slate-900 dark:text-white font-medium'
+                          : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222] hover:text-slate-900 dark:hover:text-white'
                       )}
                     >
                       <div className="flex items-center gap-2 truncate pr-2 flex-1 min-w-0">

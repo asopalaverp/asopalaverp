@@ -32,7 +32,7 @@ import {
 } from '@/components/icons/AppIcons';
 import { BrandLogo } from '@/components/icons/BrandLogo';
 import { useBrandStore } from '@/store/brandStore';
-import { cn, triggerHaptic } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { RolePermissions } from '@/types/database';
 
 interface NavItem {
@@ -233,12 +233,12 @@ export const Sidebar: React.FC = () => {
   const desktopSidebarContent = (
     <aside
       className={cn(
-        'flex flex-col h-full select-none bg-[#fafafa] dark:bg-[#171717] border-r border-[#dfdfdf] dark:border-[#242424] text-slate-900 dark:text-[#EDEDED] font-sans transition-[width] duration-200 ease-out shrink-0',
-        isSidebarCollapsed ? 'w-16' : 'w-[240px]'
+        'flex flex-col h-full select-none bg-[#fafafa] dark:bg-[#161616] border-r border-slate-200/80 dark:border-[#242424] text-slate-900 dark:text-[#EDEDED] font-sans transition-[width] duration-200 ease-out shrink-0',
+        isSidebarCollapsed ? 'w-16' : 'w-[272px]'
       )}
     >
       {/* 1. TOP HEADER: ACTIVE SHOWROOM SELECTOR */}
-      <div className="relative h-12 flex items-center border-b border-[#dfdfdf] dark:border-[#242424] shrink-0 bg-white dark:bg-[#141414]" ref={dropdownRef}>
+      <div className="relative h-14 flex items-center border-b border-slate-200/80 dark:border-[#242424] shrink-0 bg-white dark:bg-[#141414]" ref={dropdownRef}>
         {!isSidebarCollapsed ? (
           <div className="w-full h-full flex items-center">
             <button
@@ -251,25 +251,25 @@ export const Sidebar: React.FC = () => {
               disabled={!isBranchSwitcherEnabled}
               aria-label={`Current active showroom: ${currentTitle}`}
               className={cn(
-                'w-full h-full px-3.5 flex items-center justify-between transition-colors text-left group select-none',
+                'w-full h-full px-4 flex items-center justify-between transition-colors text-left group select-none',
                 isBranchSwitcherEnabled
                   ? 'hover:bg-slate-50 dark:hover:bg-[#1c1c1c] cursor-pointer'
                   : 'cursor-default opacity-95'
               )}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
-                  <Store className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
+                  <Store className="w-4 h-4" />
                 </div>
                 <div className="truncate min-w-0">
-                  <p className="text-xs font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight font-sans">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight truncate leading-tight font-sans">
                     {currentTitle}
                   </p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] bg-emerald-500/10 px-1 rounded-[3px]">
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] bg-emerald-500/10 px-1 py-0.2 rounded-[3px]">
                       {currentBadgeCode}
                     </span>
-                    <span className="text-[10px] text-[#707070] dark:text-[#8e8e8e] font-sans truncate leading-tight">
+                    <span className="text-[10px] text-slate-500 dark:text-[#8e8e8e] font-sans truncate leading-tight">
                       {currentSubtitle}
                     </span>
                   </div>
@@ -278,17 +278,17 @@ export const Sidebar: React.FC = () => {
               {isBranchSwitcherEnabled && (
                 <ChevronsUpDown
                   className={cn(
-                    'w-3.5 h-3.5 text-[#707070] group-hover:text-[#171717] dark:group-hover:text-white transition-transform duration-200 shrink-0 ml-1',
-                    isBranchDropdownOpen && 'rotate-180 text-[#171717] dark:text-white'
+                    'w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform duration-200 shrink-0 ml-1',
+                    isBranchDropdownOpen && 'rotate-180 text-slate-900 dark:text-white'
                   )}
                 />
               )}
             </button>
 
-            {/* Branch Switcher Popup - Covers exact sidebar width flush below header */}
+            {/* Branch Switcher Popup */}
             {isBranchDropdownOpen && isBranchSwitcherEnabled && (
-              <div className="absolute left-0 top-full w-[240px] z-50 bg-white dark:bg-[#181818] border-b border-[#dfdfdf] dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
-                <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+              <div className="absolute left-0 top-full w-[272px] z-50 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans rounded-b-[8px]">
+                <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
                   {canViewAll && (
                     <>
                       <button
@@ -298,21 +298,21 @@ export const Sidebar: React.FC = () => {
                           setIsBranchDropdownOpen(false);
                         }}
                         className={cn(
-                          'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
+                          'w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
                           selectedBranchId === 'ALL'
                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
                             : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
                         )}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                            <div className="font-medium text-slate-900 dark:text-[#ededed] tracking-tight truncate leading-tight">
                               All Showrooms
                             </div>
-                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                            <div className="text-[10px] text-slate-500 dark:text-[#a1a1a1] leading-tight">
                               Combined View
                             </div>
                           </div>
@@ -336,21 +336,21 @@ export const Sidebar: React.FC = () => {
                           setIsBranchDropdownOpen(false);
                         }}
                         className={cn(
-                          'w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
+                          'w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-[6px] text-left transition-colors font-sans cursor-pointer',
                           isSelected
                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
                             : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222]'
                         )}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-6 h-6 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                            <div className="font-medium text-slate-900 dark:text-[#ededed] tracking-tight truncate leading-tight">
                               {b.branch_name}
                             </div>
-                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                            <div className="text-[10px] text-slate-500 dark:text-[#a1a1a1] leading-tight">
                               {b.branch_code} · Active Showroom
                             </div>
                           </div>
@@ -383,8 +383,8 @@ export const Sidebar: React.FC = () => {
 
             {/* Collapsed Flyout Dropdown */}
             {isBranchDropdownOpen && isBranchSwitcherEnabled && (
-              <div className="absolute left-[calc(100%+4px)] top-1 w-64 z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-[#dfdfdf] dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
-                <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+              <div className="absolute left-[calc(100%+4px)] top-1 w-64 z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2a2a2a] shadow-2xl overflow-hidden py-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+                <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
                   {canViewAll && (
                     <>
                       <button
@@ -405,10 +405,10 @@ export const Sidebar: React.FC = () => {
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                            <div className="font-medium text-slate-900 dark:text-[#ededed] tracking-tight truncate leading-tight">
                               All Showrooms
                             </div>
-                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                            <div className="text-[10px] text-slate-500 dark:text-[#a1a1a1] leading-tight">
                               Combined View
                             </div>
                           </div>
@@ -443,10 +443,10 @@ export const Sidebar: React.FC = () => {
                             <Store className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <div className="font-medium text-[#171717] dark:text-[#ededed] tracking-tight truncate leading-tight">
+                            <div className="font-medium text-slate-900 dark:text-[#ededed] tracking-tight truncate leading-tight">
                               {b.branch_name}
                             </div>
-                            <div className="text-[10px] text-[#707070] dark:text-[#a1a1a1] leading-tight">
+                            <div className="text-[10px] text-slate-500 dark:text-[#a1a1a1] leading-tight">
                               {b.branch_code} · Active Showroom
                             </div>
                           </div>
@@ -465,7 +465,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* 2. NAVIGATION SECTIONS & ITEMS */}
-      <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
         {navSections.map((section, sIdx) => {
           const visibleItems = section.items.filter((item) => {
             if (user?.role_code === 'Cashier') {
@@ -478,9 +478,9 @@ export const Sidebar: React.FC = () => {
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2.5 mt-1 border-t border-[#ededed] dark:border-[#242424]')}>
+            <div key={sIdx} className={cn('space-y-1', sIdx > 0 && 'pt-3 border-t border-slate-200/60 dark:border-[#242424]')}>
               {!isSidebarCollapsed && (
-                <div className="px-2 pb-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#707070] dark:text-[#707070]">
+                <div className="px-3 pb-1 text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-400 dark:text-[#707070]">
                   {section.title}
                 </div>
               )}
@@ -493,25 +493,20 @@ export const Sidebar: React.FC = () => {
                     <button
                       key={`${sIdx}-${iIdx}-${item.label}`}
                       onClick={() => {
-                        triggerHaptic('selection');
                         setActivePage(item.id);
                         setMobileSidebarOpen(false);
                       }}
-                      title={
-                        isSidebarCollapsed
-                          ? `${item.label} (${item.badge})`
-                          : `${item.label} (${item.badge})`
-                      }
+                      title={item.label}
                       aria-label={item.label}
                       className={cn(
-                        'w-full flex items-center justify-between rounded-[9px] text-xs transition-all font-sans cursor-pointer group select-none active:scale-[0.98]',
-                        isSidebarCollapsed ? 'justify-center p-2 h-9' : 'px-2.5 py-1.5 h-8.5',
+                        'w-full flex items-center justify-between rounded-[6px] text-xs transition-colors font-sans cursor-pointer group select-none',
+                        isSidebarCollapsed ? 'justify-center p-2 h-9' : 'px-3 py-2 h-9',
                         isActive
                           ? 'bg-emerald-500/10 dark:bg-[#3ecf8e]/15 text-emerald-800 dark:text-[#3ecf8e] font-semibold shadow-2xs'
-                          : 'text-[#212121] dark:text-[#a1a1a1] hover:text-[#171717] dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+                          : 'text-slate-700 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06]'
                       )}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0">
                         <Icon
                           className={cn(
                             'w-4 h-4 shrink-0 transition-colors stroke-[1.8]',
@@ -529,7 +524,7 @@ export const Sidebar: React.FC = () => {
                       {!isSidebarCollapsed && item.badge && (
                         <kbd
                           className={cn(
-                            'text-[10px] font-mono px-1.5 py-0.2 rounded-[5px] transition-colors border',
+                            'text-[10px] font-mono px-1.5 py-0.2 rounded-[4px] transition-colors border',
                             isActive
                               ? 'bg-emerald-500/15 text-emerald-800 dark:text-[#3ecf8e] font-semibold border-emerald-500/20'
                               : 'text-slate-400 dark:text-[#606060] group-hover:text-slate-600 dark:group-hover:text-[#a1a1a1] border-transparent'
@@ -548,7 +543,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* 3. BOTTOM UTILITIES & USER PROFILE */}
-      <div className="p-2 border-t border-[#dfdfdf] dark:border-[#242424] shrink-0 space-y-1.5 bg-white dark:bg-[#141414] relative">
+      <div className="p-3 border-t border-slate-200/80 dark:border-[#242424] shrink-0 space-y-2 bg-white dark:bg-[#141414] relative">
         {/* COLLAPSED MODE: Avatar with rich floating Popover */}
         {isSidebarCollapsed ? (
           <div className="relative flex justify-center" ref={profilePopoverRef}>
@@ -579,9 +574,9 @@ export const Sidebar: React.FC = () => {
 
             {/* Collapsed Profile Flyout Popover */}
             {isProfilePopoverOpen && (
-              <div className="absolute left-[calc(100%+8px)] bottom-0 z-50 w-64 bg-white dark:bg-[#1a1a1a] border border-[#dfdfdf] dark:border-[#2e2e2e] rounded-[12px] shadow-2xl p-3 space-y-3 font-sans animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-[calc(100%+8px)] bottom-0 z-50 w-64 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl p-3.5 space-y-3 font-sans animate-in fade-in zoom-in-95 duration-150">
                 {/* User Info Header */}
-                <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#ededed] dark:border-[#262626]">
+                <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-[#262626]">
                   {user?.avatar_url ? (
                     <img
                       src={user.avatar_url}
@@ -606,7 +601,7 @@ export const Sidebar: React.FC = () => {
                 </div>
 
                 {/* 4-Hour Session Security Pill */}
-                <div className="px-2.5 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-[#ededed] dark:border-[#2e2e2e] flex items-center justify-between text-[11px] font-mono">
+                <div className="px-2.5 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#202020] border border-slate-200 dark:border-[#2e2e2e] flex items-center justify-between text-[11px] font-mono">
                   <div className="flex items-center gap-1.5 text-slate-600 dark:text-[#a1a1a1]">
                     <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>4h Session Active</span>
@@ -619,7 +614,6 @@ export const Sidebar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      triggerHaptic('selection');
                       setActivePage('profile');
                       setIsProfilePopoverOpen(false);
                     }}
@@ -634,7 +628,6 @@ export const Sidebar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      triggerHaptic('warning');
                       setIsProfilePopoverOpen(false);
                       lockScreen();
                     }}
@@ -649,7 +642,6 @@ export const Sidebar: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      triggerHaptic('selection');
                       setIsProfilePopoverOpen(false);
                       setShortcutsModalOpen(true);
                     }}
@@ -676,11 +668,10 @@ export const Sidebar: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="border-t border-[#ededed] dark:border-[#262626] pt-1.5">
+                <div className="border-t border-slate-100 dark:border-[#262626] pt-1.5">
                   <button
                     type="button"
                     onClick={() => {
-                      triggerHaptic('warning');
                       setIsProfilePopoverOpen(false);
                       logout();
                     }}
@@ -695,19 +686,18 @@ export const Sidebar: React.FC = () => {
           </div>
         ) : (
           /* EXPANDED MODE: User Profile Card & Action Row */
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <button
               onClick={() => {
-                triggerHaptic('selection');
                 setActivePage('profile');
               }}
               title={`${user?.first_name || 'Admin'} ${user?.last_name || ''} - My Profile & Security`}
               aria-label="My Profile & Security"
               className={cn(
-                'w-full flex items-center p-2 rounded-[6px] text-xs transition-colors font-sans cursor-pointer group select-none border text-left',
+                'w-full flex items-center p-2.5 rounded-[6px] text-xs transition-colors font-sans cursor-pointer group select-none border text-left',
                 activePage === 'profile'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-[#3ecf8e]'
-                  : 'bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#202020] border-[#dfdfdf] dark:border-[#282828] text-slate-800 dark:text-zinc-200'
+                  : 'bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#202020] border-slate-200/80 dark:border-[#282828] text-slate-800 dark:text-zinc-200'
               )}
             >
               <div className="flex items-center gap-2.5 min-w-0 w-full">
@@ -715,15 +705,15 @@ export const Sidebar: React.FC = () => {
                   <img
                     src={user.avatar_url}
                     alt={user.first_name || 'User'}
-                    className="w-7 h-7 rounded-full object-cover border border-emerald-500/40 shrink-0 shadow-2xs"
+                    className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shrink-0 shadow-2xs"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-8 h-8 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
                     {userInitials}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-xs text-slate-900 dark:text-white truncate leading-tight group-hover:text-emerald-600 dark:group-hover:text-[#3ecf8e] transition-colors">
+                  <div className="font-semibold text-xs text-slate-900 dark:text-white truncate leading-tight group-hover:text-emerald-600 dark:group-hover:text-[#3ecf8e] transition-colors">
                     {user?.first_name
                       ? `${user.first_name} ${user.last_name || ''}`.trim()
                       : user?.username || 'Admin'}
@@ -739,17 +729,16 @@ export const Sidebar: React.FC = () => {
             </button>
 
             {/* Quick Action Toolbar (6px square buttons) */}
-            <div className="grid grid-cols-4 gap-1 pt-0.5">
+            <div className="grid grid-cols-4 gap-1.5 pt-0.5">
               {/* Keyboard Shortcuts Trigger */}
               <button
                 type="button"
                 onClick={() => {
-                  triggerHaptic('selection');
                   setShortcutsModalOpen(true);
                 }}
                 title="Keyboard Shortcuts"
                 aria-label="Keyboard Shortcuts"
-                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Keyboard className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
@@ -758,12 +747,11 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  triggerHaptic('warning');
                   lockScreen();
                 }}
                 title="Lock Terminal Screen"
                 aria-label="Lock Screen"
-                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
@@ -772,12 +760,11 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  triggerHaptic('selection');
                   toggleTheme();
                 }}
                 title="Cycle Theme (Light / Dark)"
                 aria-label="Toggle Theme"
-                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 {theme === 'light' ? (
                   <Sun className="w-3.5 h-3.5 text-amber-500" />
@@ -790,12 +777,11 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  triggerHaptic('warning');
                   logout();
                 }}
                 title="Sign Out"
                 aria-label="Sign Out"
-                className="h-7 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-[#dfdfdf] dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5 stroke-[1.8]" />
               </button>
@@ -814,7 +800,6 @@ export const Sidebar: React.FC = () => {
       {/* 1. Backdrop Overlay */}
       <div
         onClick={() => {
-          triggerHaptic('light');
           setMobileSidebarOpen(false);
         }}
         className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
@@ -823,13 +808,13 @@ export const Sidebar: React.FC = () => {
       {/* 2. Full-Screen Mobile Drawer Container */}
       <div className="relative w-full h-full bg-white dark:bg-[#141414] shadow-2xl flex flex-col overflow-hidden z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
         {/* Drawer Header */}
-        <div className="h-12 px-4 flex items-center justify-between border-b border-[#dfdfdf] dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-[6px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center shadow-xs shrink-0 font-bold font-mono text-xs">
+        <div className="h-13 px-4 flex items-center justify-between border-b border-slate-200/80 dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-[6px] bg-[#3ecf8e] text-[#171717] flex items-center justify-center shadow-xs shrink-0 font-bold font-mono text-xs">
               {currentBadgeCode}
             </div>
             <div className="min-w-0">
-              <span className="text-xs font-medium tracking-tight text-slate-900 dark:text-white font-sans truncate block">
+              <span className="text-xs font-semibold tracking-tight text-slate-900 dark:text-white font-sans truncate block">
                 {brandName} ERP
               </span>
             </div>
@@ -839,11 +824,10 @@ export const Sidebar: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              triggerHaptic('selection');
               setMobileSidebarOpen(false);
             }}
             aria-label="Close navigation menu"
-            className="w-7 h-7 rounded-[6px] bg-slate-100 dark:bg-[#222222] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-zinc-200 flex items-center justify-center transition-colors cursor-pointer border border-[#dfdfdf] dark:border-[#2e2e2e]"
+            className="w-8 h-8 rounded-[6px] bg-slate-100 dark:bg-[#222222] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-zinc-200 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80 dark:border-[#2e2e2e]"
           >
             <X className="w-4 h-4 stroke-[2]" />
           </button>
@@ -863,8 +847,8 @@ export const Sidebar: React.FC = () => {
             if (visibleItems.length === 0) return null;
 
             return (
-              <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2 mt-1 border-t border-[#ededed] dark:border-[#242424]')}>
-                <div className="px-2 pb-1 text-[10px] font-mono font-medium uppercase tracking-wider text-[#707070]">
+              <div key={sIdx} className={cn('space-y-0.5', sIdx > 0 && 'pt-2.5 mt-1 border-t border-slate-200/60 dark:border-[#242424]')}>
+                <div className="px-2.5 pb-1 text-[11px] font-mono font-medium uppercase tracking-wider text-slate-400 dark:text-[#707070]">
                   {section.title}
                 </div>
                 <div className="space-y-0.5">
@@ -876,23 +860,22 @@ export const Sidebar: React.FC = () => {
                       <button
                         key={`m-${sIdx}-${iIdx}-${item.label}`}
                         onClick={() => {
-                          triggerHaptic('selection');
                           setActivePage(item.id);
                           setMobileSidebarOpen(false);
                         }}
                         className={cn(
-                          'w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] text-xs transition-colors font-sans cursor-pointer',
+                          'w-full flex items-center justify-between px-3 py-2.5 rounded-[6px] text-xs transition-colors font-sans cursor-pointer',
                           isActive
                             ? 'bg-emerald-500/10 text-emerald-800 dark:text-[#3ecf8e] font-medium border border-emerald-500/20'
                             : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#202020]'
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-emerald-600 dark:text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]')} />
                           <span className="truncate">{item.label}</span>
                         </div>
                         {item.badge && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-[#707070]">
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/10 text-slate-500">
                             {item.badge}
                           </span>
                         )}
@@ -906,10 +889,10 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Mobile Drawer Footer */}
-        <div className="p-3 border-t border-[#dfdfdf] dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] space-y-2 shrink-0">
+        <div className="p-3 border-t border-slate-200/80 dark:border-[#242424] bg-[#fafafa] dark:bg-[#171717] space-y-2 shrink-0">
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-[10px] flex items-center justify-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-[10px] flex items-center justify-center">
                 {userInitials}
               </div>
               <span className="font-medium text-slate-800 dark:text-zinc-200 truncate">
@@ -925,11 +908,10 @@ export const Sidebar: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                triggerHaptic('warning');
                 setMobileSidebarOpen(false);
                 lockScreen();
               }}
-              className="flex-1 h-8 rounded-[6px] bg-slate-100 dark:bg-[#222222] border border-[#dfdfdf] dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 h-8.5 rounded-[6px] bg-slate-100 dark:bg-[#222222] border border-slate-200/80 dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-200 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>Lock Screen</span>
@@ -938,11 +920,10 @@ export const Sidebar: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                triggerHaptic('warning');
                 setMobileSidebarOpen(false);
                 logout();
               }}
-              className="h-8 px-3 rounded-[6px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-8.5 px-3.5 rounded-[6px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

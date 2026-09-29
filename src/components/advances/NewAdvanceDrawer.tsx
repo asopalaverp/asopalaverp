@@ -34,8 +34,6 @@ interface NewAdvanceDrawerProps {
   onSuccess: () => void;
 }
 
-const PRESET_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000];
-
 export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess }) => {
   const { isAdvanceModalOpen, setAdvanceModalOpen } = useUIStore();
   const { user } = useAuthStore();
@@ -51,6 +49,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
   const [signatureData, setSignatureData] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [cashBalance, setCashBalance] = useState(0);
   const [upiBalance, setUpiBalance] = useState(0);
@@ -95,19 +95,14 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     if (isAdvanceModalOpen) {
       loadWallet();
       setError('');
+      setIsPreviewOpen(false);
     }
   }, [isAdvanceModalOpen, targetBranchId]);
-
-  // Handle Quick Presets
-  const handleAddPreset = (val: number) => {
-    triggerHaptic('selection');
-    const curr = Number(amount) || 0;
-    setAmount(curr + val);
-  };
 
   const handleClose = () => {
     if (submitting) return;
     setAdvanceModalOpen(false);
+    setIsPreviewOpen(false);
   };
 
   // Calculations
@@ -115,8 +110,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
   const availableBalance = paymentMethod === 'Physical_Cash' ? cashBalance : upiBalance;
   const isInsufficient = numAmount > 0 && numAmount > availableBalance;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleOpenPreview = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError('');
 
     if (!staffCode) {
@@ -180,7 +175,14 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       return;
     }
 
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!selectedStaff || numAmount <= 0) return;
+
     setSubmitting(true);
+    setIsPreviewOpen(false);
     triggerHaptic('medium');
 
     try {
@@ -253,7 +255,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     <>
       <div className="min-w-0">
         <div className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400">
-          Disbursal Total
+          Total Advance Amount
         </div>
         <div className="font-mono font-medium text-base sm:text-lg text-slate-900 dark:text-white tabular-nums truncate">
           {formatINR(numAmount)}
@@ -264,24 +266,24 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
         <button
           type="button"
           onClick={handleClose}
-          className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
+          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
         >
           Cancel
         </button>
 
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={() => handleOpenPreview()}
           disabled={submitting || isInsufficient || numAmount <= 0}
           className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs min-h-[34px] disabled:opacity-50 disabled:cursor-not-allowed',
+            'inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed',
             isInsufficient
               ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60'
               : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717]'
           )}
         >
           <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-          <span>{submitting ? 'Giving Advance...' : 'Confirm & Give Advance'}</span>
+          <span>{submitting ? 'Giving Advance...' : 'Review & Give Advance'}</span>
         </button>
       </div>
     </>
@@ -292,12 +294,12 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       isOpen={isAdvanceModalOpen}
       onClose={handleClose}
       title="Give Staff Advance"
-      subtitle="Give salary advance or emergency money to staff from cash box or UPI"
+      subtitle="Give advance money to showroom staff."
       badge={drawerBadge}
-      size="xl"
+      size="full"
       footer={drawerFooter}
     >
-      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto w-full space-y-4">
+      <form onSubmit={handleOpenPreview} className="max-w-4xl mx-auto w-full space-y-4">
         {/* Error Notification */}
         {error && (
           <div className="p-3 rounded-[8px] badge-status-rose flex items-center gap-2 text-xs">
@@ -399,8 +401,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
               <label className="block text-xs font-medium text-slate-800 dark:text-slate-200 font-sans">
                 Physical Receipt Number <span className="text-rose-500">*</span>
               </label>
-              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] shadow-xs overflow-hidden min-h-[42px]">
-                <span className="px-2.5 py-2 bg-slate-100 dark:bg-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1] font-mono font-bold text-xs select-none shrink-0 border-r border-slate-200 dark:border-[#2e2e2e]">
+              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-2xs overflow-hidden h-10 min-h-[40px]">
+                <span className="px-3 h-full flex items-center bg-slate-50 dark:bg-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1] font-mono font-bold text-xs select-none shrink-0 border-r border-slate-200 dark:border-[#282828]">
                   {selectedStaff?.branch_code || 'ASI'}-ADV-
                 </span>
                 <input
@@ -418,8 +420,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
               <label className="block text-xs font-medium text-slate-800 dark:text-slate-200 font-sans">
                 Advance Amount (₹) <span className="text-rose-500">*</span>
               </label>
-              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] focus-within:border-[#3ecf8e] shadow-xs min-h-[42px]">
-                <span className="pl-3.5 text-base font-mono text-slate-400">₹</span>
+              <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-2xs h-10 min-h-[40px]">
+                <span className="pl-3.5 text-sm font-mono text-slate-400">₹</span>
                 <input
                   type="number"
                   min="1"
@@ -428,41 +430,9 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
                   value={amount}
                   onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value) || '')}
                   placeholder="0.00"
-                  className="w-full bg-transparent pl-2 pr-3 py-2 text-base font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
+                  className="w-full bg-transparent pl-2 pr-3.5 py-2 text-sm font-mono font-medium tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Fast Amount Preset Chips */}
-          <div className="space-y-1.5 pt-1">
-            <label className="block text-[11px] font-mono text-slate-500 dark:text-zinc-400">
-              Quick Amount Presets (Tap to Add):
-            </label>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {PRESET_AMOUNTS.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => handleAddPreset(amt)}
-                  className="px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-800 dark:text-zinc-200 text-xs font-mono font-medium border border-slate-200 dark:border-[#2e2e2e] active:scale-95 transition-all cursor-pointer shadow-xs"
-                >
-                  +₹{amt.toLocaleString('en-IN')}
-                </button>
-              ))}
-
-              {amount !== '' && Number(amount) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setAmount('');
-                  }}
-                  className="px-2.5 py-1 rounded-[6px] text-xs font-mono text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
             </div>
           </div>
 
@@ -577,7 +547,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
               placeholder="e.g. Festival advance / Medical emergency / Travel advance"
-              className="w-full bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] shadow-xs min-h-[38px]"
+              className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
             />
           </div>
 
@@ -590,6 +560,92 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
           </div>
         </div>
       </form>
+
+      {/* Pre-Commit Verification Modal */}
+      {isPreviewOpen && selectedStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424]">
+              <div className="flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Confirm Staff Advance
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Slip content */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Staff Member</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{selectedStaff.first_name} {selectedStaff.last_name || ''} ({selectedStaff.staff_code})</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Department</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{selectedStaff.department_name || 'General'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Branch</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{selectedStaff.branch_code}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Receipt No.</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{normalizeBranchCode(selectedStaff.branch_code || 'ASI')}-ADV-{receiptNumber.trim().toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Payment Mode</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{paymentMethod === 'Physical_Cash' ? 'Cash Till' : 'Online UPI'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Date</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{advanceDate}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Reason</span>
+                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[180px]">{purpose}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-[#242424] flex justify-between items-baseline">
+                <span className="text-xs uppercase font-sans text-slate-500">Advance Amount</span>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-emerald-600 dark:text-[#3ecf8e]">
+                    {formatINR(numAmount)}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 dark:text-[#3ecf8e] font-sans">
+                    {numberToWordsINR(numAmount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 text-xs font-medium cursor-pointer"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleConfirmSubmit}
+                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{submitting ? 'Giving Advance...' : 'Confirm & Give Advance'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SlideOverDrawer>
   );
 };

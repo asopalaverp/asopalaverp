@@ -10,3 +10,4 @@ export * from './AnimatedCounter';
 export * from './ImageLightbox';
 export * from './ToastContainer';
 export * from './SupabaseFieldRow';
+export * from './SegmentedControl';

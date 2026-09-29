@@ -7,7 +7,7 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
 
-export type DrawerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+export type DrawerSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '70' | 'full';
 
 export interface SlideOverDrawerProps {
   isOpen: boolean;
@@ -25,12 +25,13 @@ export interface SlideOverDrawerProps {
 }
 
 const sizeClasses: Record<DrawerSize, string> = {
-  sm: 'max-w-md',
-  md: 'max-w-xl',
-  lg: 'max-w-2xl sm:max-w-3xl', // Standard comfortable slide-over drawer
-  xl: 'max-w-3xl sm:max-w-4xl',
-  '2xl': 'max-w-5xl',
-  full: 'w-full max-w-full',
+  sm: 'w-full md:w-[70vw] md:max-w-[70vw]',
+  md: 'w-full md:w-[70vw] md:max-w-[70vw]',
+  lg: 'w-full md:w-[70vw] md:max-w-[70vw]',
+  xl: 'w-full md:w-[70vw] md:max-w-[70vw]',
+  '2xl': 'w-full md:w-[70vw] md:max-w-[70vw]',
+  '70': 'w-full md:w-[70vw] md:max-w-[70vw]',
+  full: 'w-full md:w-[70vw] md:max-w-[70vw]',
 };
 
 export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
@@ -40,7 +41,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   subtitle,
   badge,
   copyId,
-  size = 'lg',
+  size = 'full',
   allowExpand = true,
   contentClassName,
   headerExtra,
@@ -96,27 +97,21 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
 
   if (!isOpen || !mounted) return null;
 
-  // Sidebar width offset on desktop
-  const sidebarOffset = isMobile ? 0 : (isSidebarCollapsed ? 64 : 240);
-
   // Determine current width class: full screen if user toggled expand, otherwise standard drawer size
-  const currentSizeClass = isExpanded ? 'w-full max-w-full' : (sizeClasses[size] || sizeClasses.full);
+  const currentSizeClass = isExpanded ? 'w-full max-w-full' : (sizeClasses[size] || sizeClasses.lg);
 
   const drawerContent = (
-    <div
-      className="fixed inset-y-0 right-0 z-[99999] overflow-hidden select-none font-sans flex justify-end transition-[left] duration-200 ease-out"
-      style={{ left: `${sidebarOffset}px` }}
-    >
-      {/* Backdrop covering main canvas touching sidebar */}
+    <div className="fixed inset-0 z-[99999] overflow-hidden select-none font-sans flex justify-end">
+      {/* 1. Backdrop covering the ENTIRE viewport including sidebar and topbar */}
       <div
         ref={backdropRef}
-        className="absolute inset-0 bg-black/60 dark:bg-black/75 transition-opacity backdrop-blur-md z-0"
+        className="fixed inset-0 bg-black/70 dark:bg-black/80 transition-opacity backdrop-blur-sm z-0"
         onClick={handleClose}
       />
 
-      {/* Slide-over Panel Container */}
+      {/* 2. Slide-over Panel Container */}
       <div className={cn(
-        "absolute inset-0 pointer-events-none z-10 flex",
+        "fixed inset-0 pointer-events-none z-10 flex",
         isMobile ? "items-end justify-center" : "justify-end"
       )}>
         <div
@@ -124,11 +119,11 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
           className={cn(
             'pointer-events-auto bg-white dark:bg-[#141414] shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100 transition-[width,max-width] duration-200 ease-out',
             isMobile
-              ? 'w-full max-h-[92vh] rounded-t-[26px] border-t border-black/[0.08] dark:border-white/[0.12] pb-safe'
-              : cn('w-full h-full border-l border-slate-200 dark:border-[#222222]', currentSizeClass)
+              ? 'w-full max-h-[92vh] rounded-t-[20px] border-t border-black/[0.08] dark:border-white/[0.12] pb-safe'
+              : cn('w-full h-full border-l border-slate-200 dark:border-[#242424]', currentSizeClass)
           )}
         >
-          {/* iOS 18 Sheet Grabber Handle */}
+          {/* iOS Sheet Grabber Handle for Mobile */}
           <div className="sm:hidden w-10 h-1.5 rounded-full bg-black/25 dark:bg-white/25 mx-auto mt-2.5 mb-1 shrink-0" />
 
           {/* 1. iOS 16 Frosted Header */}

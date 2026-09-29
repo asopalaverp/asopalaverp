@@ -3,7 +3,7 @@ import { useBrandStore, BrandSettings, DEFAULT_BRAND_SETTINGS } from '@/store/br
 import { BrandLogo } from '@/components/icons/BrandLogo';
 import { AsopalavLogo } from '@/components/icons/AsopalavLogo';
 import { showToast } from '@/components/ui/ToastContainer';
-import { triggerHaptic, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   Sparkles,
   Upload,
@@ -24,6 +24,8 @@ import {
   CheckCircle2,
   Sliders,
   ExternalLink,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
 
@@ -60,6 +62,7 @@ export const BrandIdentitySetup: React.FC = () => {
 
   const [activePreviewChannel, setActivePreviewChannel] = useState<'topbar' | 'tab' | 'thermal' | 'login'>('topbar');
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const faviconInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -124,13 +127,24 @@ export const BrandIdentitySetup: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleOpenPreview = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-    triggerHaptic('selection');
+    if (!formData.brandName.trim()) {
+      showToast({
+        type: 'error',
+        title: 'Brand Name Required',
+        message: 'Please enter a brand display name.',
+      });
+      return;
+    }
+    setIsPreviewOpen(true);
+  };
 
+  const handleConfirmSave = async () => {
+    setIsSaving(true);
     try {
       await brandStore.updateBrandSettings(formData);
+      setIsPreviewOpen(false);
       showToast({
         type: 'success',
         title: 'Brand Identity Saved',
@@ -149,7 +163,6 @@ export const BrandIdentitySetup: React.FC = () => {
   };
 
   const handleReset = async () => {
-    triggerHaptic('selection');
     if (window.confirm('Reset all brand and identity assets to Asopalav default settings?')) {
       await brandStore.resetToDefaults();
       setFormData(DEFAULT_BRAND_SETTINGS);
@@ -162,7 +175,6 @@ export const BrandIdentitySetup: React.FC = () => {
   };
 
   const handleExportJson = () => {
-    triggerHaptic('selection');
     const blob = new Blob([JSON.stringify(formData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -217,7 +229,7 @@ export const BrandIdentitySetup: React.FC = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <form onSubmit={handleOpenPreview} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: Settings & Asset Controls (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           {/* Card A: Brand Identity Basics */}
@@ -238,7 +250,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   onChange={(e) => handleChange('brandName', e.target.value)}
                   placeholder="e.g. Asopalav"
                   required
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] font-sans"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-sans shadow-2xs transition-all"
                 />
               </div>
 
@@ -251,7 +263,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.legalEntityName}
                   onChange={(e) => handleChange('legalEntityName', e.target.value)}
                   placeholder="e.g. Asopalav Endeavours LLP"
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] font-sans"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-sans shadow-2xs transition-all"
                 />
               </div>
 
@@ -264,7 +276,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.tagline}
                   onChange={(e) => handleChange('tagline', e.target.value)}
                   placeholder="e.g. Showroom Cash Counter & Expense Management"
-                  className="w-full px-3 py-2 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] font-sans"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 font-sans shadow-2xs transition-all"
                 />
               </div>
             </div>
@@ -299,7 +311,6 @@ export const BrandIdentitySetup: React.FC = () => {
                       key={mode.id}
                       type="button"
                       onClick={() => {
-                        triggerHaptic('selection');
                         if (mode.id === 'svg_raw') {
                           setFormData((p) => ({ ...p, logoType: 'svg' }));
                         } else if (mode.id === 'svg') {
@@ -339,7 +350,7 @@ export const BrandIdentitySetup: React.FC = () => {
                       value={formData.logoUrl}
                       onChange={(e) => handleChange('logoUrl', e.target.value)}
                       placeholder="https://example.com/logo.png"
-                      className="flex-1 px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#171717] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e]"
+                      className="flex-1 h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                     />
                     <input
                       ref={fileInputRef}
@@ -351,7 +362,7 @@ export const BrandIdentitySetup: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#171717] hover:bg-slate-100 dark:hover:bg-[#252525] border border-slate-300 dark:border-[#2e2e2e] text-xs font-medium text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                      className="h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] hover:bg-slate-100 dark:hover:bg-[#202020] border border-slate-200 dark:border-[#282828] text-xs font-medium text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>Upload</span>
@@ -383,11 +394,11 @@ export const BrandIdentitySetup: React.FC = () => {
                     value={formData.monogramText}
                     onChange={(e) => handleChange('monogramText', e.target.value.toUpperCase())}
                     placeholder="ASI"
-                    className="w-28 px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#171717] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono font-bold text-slate-900 dark:text-white text-center uppercase focus:outline-none focus:border-[#3ecf8e]"
+                    className="w-28 h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono font-bold text-slate-900 dark:text-white text-center uppercase focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                   />
                   <div
                     style={{ backgroundColor: formData.brandAccentColor || '#3ecf8e' }}
-                    className="w-8 h-8 rounded-[6px] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shadow-2xs"
+                    className="w-10 h-10 rounded-[6px] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shadow-2xs"
                   >
                     {formData.monogramText || 'ASI'}
                   </div>
@@ -409,7 +420,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.brandSvgContent}
                   onChange={(e) => handleChange('brandSvgContent', e.target.value)}
                   placeholder="<svg viewBox='0 0 32 32'>...</svg>"
-                  className="w-full px-3 py-2 rounded-[6px] bg-white dark:bg-[#171717] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full p-3 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
             )}
@@ -430,7 +441,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.faviconUrl}
                   onChange={(e) => handleChange('faviconUrl', e.target.value)}
                   placeholder="Favicon URL or upload custom icon"
-                  className="flex-1 px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e]"
+                  className="flex-1 h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
                 <input
                   ref={faviconInputRef}
@@ -442,7 +453,7 @@ export const BrandIdentitySetup: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => faviconInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#1f1f1f] hover:bg-slate-200 dark:hover:bg-[#252525] border border-slate-300 dark:border-[#2e2e2e] text-xs font-medium text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                  className="h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] hover:bg-slate-100 dark:hover:bg-[#202020] border border-slate-200 dark:border-[#282828] text-xs font-medium text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Upload Favicon</span>
@@ -464,10 +475,7 @@ export const BrandIdentitySetup: React.FC = () => {
                     <button
                       key={preset.hex}
                       type="button"
-                      onClick={() => {
-                        triggerHaptic('selection');
-                        handleChange('brandAccentColor', preset.hex);
-                      }}
+                      onClick={() => handleChange('brandAccentColor', preset.hex)}
                       className={cn(
                         'px-2.5 py-1 rounded-[5px] text-[11px] font-sans border transition-all cursor-pointer flex items-center gap-1.5',
                         isSelected
@@ -511,7 +519,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.gstin}
                   onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
                   placeholder="24ABVFA8046N1ZQ"
-                  className="w-full px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white uppercase focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white uppercase focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -524,7 +532,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.panNumber}
                   onChange={(e) => handleChange('panNumber', e.target.value.toUpperCase())}
                   placeholder="ABVFA8046N"
-                  className="w-full px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs font-mono text-slate-900 dark:text-white uppercase focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white uppercase focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -537,7 +545,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.contactPhone}
                   onChange={(e) => handleChange('contactPhone', e.target.value)}
                   placeholder="+91 9925009050"
-                  className="w-full px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -550,7 +558,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.contactEmail}
                   onChange={(e) => handleChange('contactEmail', e.target.value)}
                   placeholder="satellite@asopalav.com"
-                  className="w-full px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
 
@@ -563,7 +571,7 @@ export const BrandIdentitySetup: React.FC = () => {
                   value={formData.address}
                   onChange={(e) => handleChange('address', e.target.value)}
                   placeholder="Asopalav House, Satellite Road..."
-                  className="w-full px-3 py-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-300 dark:border-[#2e2e2e] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
                 />
               </div>
             </div>
@@ -583,7 +591,7 @@ export const BrandIdentitySetup: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: Live Omni-Channel Simulator (5 cols) */}
-        <div className="lg:col-span-5 sticky top-20 space-y-4">
+        <div className="lg:col-span-5 space-y-4">
           <div className="p-5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#242424] pb-3">
               <span className="text-xs font-medium text-slate-900 dark:text-white flex items-center gap-1.5 font-sans">
@@ -711,6 +719,100 @@ export const BrandIdentitySetup: React.FC = () => {
           </div>
         </div>
       </form>
+
+      {/* ========================================================================= */}
+      {/* PRE-COMMIT CONFIRMATION PREVIEW MODAL                                     */}
+      {/* ========================================================================= */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-emerald-500/10 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                  Confirm Brand Identity Update
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#888888]">
+                  Please verify showroom branding details before publishing system-wide.
+                </p>
+              </div>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] space-y-2.5 font-sans text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Brand Name:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{formData.brandName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Legal Entity:</span>
+                <span className="text-slate-800 dark:text-zinc-200">{formData.legalEntityName || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Logo Mode:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200 uppercase">{formData.logoType}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Accent Color:</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    style={{ backgroundColor: formData.brandAccentColor }}
+                    className="w-3 h-3 rounded-full inline-block"
+                  />
+                  <span className="font-mono text-slate-800 dark:text-zinc-200">{formData.brandAccentColor}</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">GSTIN / PAN:</span>
+                <span className="font-mono text-slate-800 dark:text-zinc-200">
+                  {formData.gstin || '—'} / {formData.panNumber || '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60 dark:border-[#202020]">
+                <span className="text-slate-500 dark:text-[#888888]">Contact Phone:</span>
+                <span className="text-slate-800 dark:text-zinc-200">{formData.contactPhone || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 dark:text-[#888888]">Address:</span>
+                <span className="text-slate-800 dark:text-zinc-200 max-w-[240px] truncate text-right">
+                  {formData.address || '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-[#242424]">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                disabled={isSaving}
+                className="px-4 py-2 rounded-[6px] border border-slate-300 dark:border-[#333] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+              >
+                Back &amp; Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={isSaving}
+                className="px-5 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>{isSaving ? 'Updating...' : 'Confirm & Publish'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

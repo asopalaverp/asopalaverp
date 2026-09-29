@@ -5,20 +5,18 @@ import { useAuthStore } from '@/store/authStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { VoucherMode } from '@/components/vouchers/VoucherModeCards';
 import { StaffSplitTable, SplitItem } from '@/components/vouchers/StaffSplitTable';
 import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
 import { BillUploader } from '@/components/vouchers/BillUploader';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { IOSSegmentedControl } from '@/components/ui/ios';
+import { SegmentedControl } from '@/components/ui';
 import { QuickFloatDrawer } from '@/components/vouchers/QuickFloatDrawer';
-import { MultiBillBatchModal } from '@/components/vouchers/MultiBillBatchModal';
 import { cn, formatINR, numberToWordsINR, printThermalVoucherSlip, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
 import { showToast } from '@/components/ui/ToastContainer';
-import { VendorSplitItem } from '@/types/database';
+import { VendorSplitItem, VoucherMode } from '@/types/database';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -45,14 +43,12 @@ import {
   CreditCard,
   Banknote,
   UserCheck,
+  Eye,
 } from 'lucide-react';
-
-// Fast Amount Increment Chips
-const AMOUNT_INCREMENTS = [50, 100, 500, 1000];
 
 export const NewVoucherPage: React.FC = () => {
   const { setActivePage } = useUIStore();
-  const { user, getAllowedBranches, isBranchAllowed } = useAuthStore();
+  const { user, can, getAllowedBranches, isBranchAllowed } = useAuthStore();
   const { branches, selectedBranchId, setSelectedBranchId, getActiveBranch } = useBranchStore();
   const { categories, departments, couriers, staff, refresh } = useVouchers();
 
@@ -61,6 +57,9 @@ export const NewVoucherPage: React.FC = () => {
   const initialBranch = (selectedBranchId && selectedBranchId !== 'ALL' && isBranchAllowed(selectedBranchId))
     ? selectedBranchId
     : (allowedBranches[0]?.branch_id || activeBranch.branch_id || 'Aellp-ASI');
+
+  // Permissions: Cashiers cannot inject cash float
+  const canAddCash = can('can_inject_float') && user?.role_code !== 'Cashier';
 
   // Mode Selection: Shop_Vendor (Default), Staff_Split, Courier
   const [mode, setMode] = useState<VoucherMode>('Shop_Vendor');
@@ -147,11 +146,11 @@ export const NewVoucherPage: React.FC = () => {
   const [billNumber, setBillNumber] = useState<string>('');
   const [amount, setAmount] = useState<number | ''>('');
 
-  // Staff Requester State (Who initiated / ordered this expense?)
+  // Staff Requester State
   const [requestedByStaffCode, setRequestedByStaffCode] = useState<string>('');
   const [requestedByStaffName, setRequestedByStaffName] = useState<string>('');
 
-  // Multi-Vendor / Item Breakdown Mode State
+  // Multi-Vendor Mode State
   const [isMultiVendor, setIsMultiVendor] = useState<boolean>(false);
   const [vendorSplits, setVendorSplits] = useState<VendorSplitItem[]>([
     {
@@ -184,8 +183,9 @@ export const NewVoucherPage: React.FC = () => {
   const [remarks, setRemarks] = useState<string>('');
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
-  // Submission & Feedback State
+  // Submission, Preview & Feedback State
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successVoucher, setSuccessVoucher] = useState<any | null>(null);
   const errorBannerRef = useRef<HTMLDivElement | null>(null);
@@ -194,7 +194,6 @@ export const NewVoucherPage: React.FC = () => {
 
   // Quick Float Slide-Over Drawer State
   const [isQuickFloatOpen, setIsQuickFloatOpen] = useState<boolean>(false);
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
 
   // Listen to Global Counter Custom Events
   useEffect(() => {
@@ -208,7 +207,7 @@ export const NewVoucherPage: React.FC = () => {
       formRef.current?.requestSubmit();
     };
     const handleOpenFloat = () => {
-      setIsQuickFloatOpen(true);
+      if (canAddCash) setIsQuickFloatOpen(true);
     };
 
     window.addEventListener('asopalav:set-voucher-mode', handleSetMode);
@@ -220,7 +219,7 @@ export const NewVoucherPage: React.FC = () => {
       window.removeEventListener('asopalav:trigger-disburse-f2', handleTriggerDisburse);
       window.removeEventListener('asopalav:open-quick-float', handleOpenFloat);
     };
-  }, []);
+  }, [canAddCash]);
 
   useEffect(() => {
     if (error && errorBannerRef.current) {
@@ -228,17 +227,16 @@ export const NewVoucherPage: React.FC = () => {
     }
   }, [error]);
 
-  // Keyboard Shortcuts Listener for Counter Ergonomics (F2: Disburse, F6: Float, Alt+1/2/3: Mode, ESC: Reset)
+  // Keyboard Shortcuts Listener (F2: Disburse, F6: Float, Alt+1/2/3: Mode, ESC: Reset)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when inside modal or success screen
       if (successVoucher) return;
 
       if (e.key === 'F2') {
         e.preventDefault();
         if (isSubmittingRef.current) return;
         formRef.current?.requestSubmit();
-      } else if (e.key === 'F6') {
+      } else if (e.key === 'F6' && canAddCash) {
         e.preventDefault();
         triggerHaptic('selection');
         setIsQuickFloatOpen((prev) => !prev);
@@ -259,7 +257,7 @@ export const NewVoucherPage: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [successVoucher]);
+  }, [successVoucher, canAddCash]);
 
   // Quick Amount Add
   const handleAddAmount = (inc: number) => {
@@ -346,207 +344,158 @@ export const NewVoucherPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingRef.current) return;
-    isSubmittingRef.current = true;
-    try {
-      await _handleSubmitLogic();
-    } finally {
-      isSubmittingRef.current = false;
-    }
+    _handleValidateAndPreview();
   };
 
-  const _handleSubmitLogic = async () => {
+  const _handleValidateAndPreview = () => {
     setError(null);
 
     // Section 40A(3) enforcement
     if (sec40A3Check.exceeded && !is40A3ExceededAllowed()) {
-      setError(`Section 40A(3) Violation: Cash payment of ₹${finalCalculatedAmount.toLocaleString('en-IN')} exceeds the statutory limit of ₹${sec40A3Check.limit?.toLocaleString('en-IN') || '10,000'}. Switch to Bank UPI or obtain Super Admin authorization.`);
+      setError(`Cash payment of ${formatINR(finalCalculatedAmount)} exceeds the ₹10,000 tax limit. Please switch to Bank UPI.`);
       return;
     }
 
-    // Block future-dated vouchers for non-admins
+    // Block future-dated vouchers
     if (paymentDate > todayStr && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer') {
-      setError('Future-dated expense vouchers are not permitted. Please use today\'s date.');
+      setError("Cannot pick future date. Please use today's date.");
       return;
     }
 
-    // 0. Date Validation (Cashiers locked to Today only unless Super Admin override in F12 is enabled)
+    // Date Validation for Cashiers
     if (isBackdateBlocked) {
-      const msg = `Backdated entries are locked for Cashier accounts. You can only record vouchers for today (${format(new Date(), 'dd-MMM-yyyy')}). Super Admin can toggle backdating in F12 Profile & Security.`;
+      const msg = `Past dates are locked for Cashiers. You can only record for today (${format(new Date(), 'dd-MMM-yyyy')}).`;
       setError(msg);
-      showToast({
-        type: 'error',
-        title: 'Backdated Entry Locked',
-        message: msg,
-      });
+      showToast({ type: 'error', title: 'Date Locked', message: msg });
       triggerHaptic('error');
       return;
     }
 
-    // 1. Voucher Number Validation (Physical voucher number required or SuperAdmin auto emergency code)
+    // Voucher Number Validation
     let effectiveVoucherDigits = voucherDigits.trim();
     if (!effectiveVoucherDigits) {
       if (allowAutoVoucher) {
         effectiveVoucherDigits = `EMG-${Date.now().toString().slice(-4)}`;
       } else {
-        const msg = 'Please enter the physical voucher / bill book number.';
+        const msg = 'Please enter the bill / voucher book number.';
         setError(msg);
-        showToast({
-          type: 'error',
-          title: 'Voucher Number Required',
-          message: msg,
-        });
+        showToast({ type: 'error', title: 'Bill Number Needed', message: msg });
         triggerHaptic('error');
         return;
       }
     }
 
-    // 2. Amount Validation
+    // Amount Validation
     if (finalCalculatedAmount <= 0) {
-      const msg = 'Please enter a valid expense amount greater than ₹0.';
+      const msg = 'Please enter an amount greater than ₹0.';
       setError(msg);
-      showToast({
-        type: 'error',
-        title: 'Amount Required',
-        message: msg,
-      });
+      showToast({ type: 'error', title: 'Amount Needed', message: msg });
       triggerHaptic('error');
       return;
     }
 
-    // 3. Till Balance Validation (Bypassed if SuperAdmin Override is active)
+    // Till Balance Validation
     if (isInsufficientBalance && !allowNegative) {
-      const msg = `Insufficient ${
-        paymentMethod === 'Physical_Cash' ? 'Cash Drawer Till' : 'Bank UPI'
-      } balance (${formatINR(availableBalance)} available, ${formatINR(
-        finalCalculatedAmount
-      )} required). Use Quick Float to inject cash float from safe.`;
+      const msg = `Not enough ${paymentMethod === 'Physical_Cash' ? 'Cash in box' : 'UPI balance'}. Need ${formatINR(finalCalculatedAmount)}, but only ${formatINR(availableBalance)} available.`;
       setError(msg);
-      showToast({
-        type: 'error',
-        title: 'Insufficient Balance',
-        message: msg,
-      });
+      showToast({ type: 'error', title: 'Not Enough Money', message: msg });
       triggerHaptic('error');
       return;
     }
 
-    // 4. Mode-Specific Validations
+    // Mode-Specific Validations
     if (mode === 'Shop_Vendor') {
       if (isMultiVendor) {
         if (vendorSplits.length === 0) {
-          const msg = 'Please add at least one vendor / item line to the multi-vendor table.';
+          const msg = 'Please add at least one vendor item in the table.';
           setError(msg);
-          showToast({
-            type: 'error',
-            title: 'Vendor Line Required',
-            message: msg,
-          });
+          showToast({ type: 'error', title: 'Vendor Needed', message: msg });
           triggerHaptic('error');
           return;
         }
         const invalidItem = vendorSplits.find((v) => !v.vendor_name.trim() || Number(v.amount) <= 0);
         if (invalidItem) {
-          const msg = 'All vendor line items must have a vendor/shop name and an amount > ₹0.';
+          const msg = 'Every item must have a vendor name and amount > ₹0.';
           setError(msg);
-          showToast({
-            type: 'error',
-            title: 'Invalid Vendor Item',
-            message: msg,
-          });
+          showToast({ type: 'error', title: 'Check Table', message: msg });
           triggerHaptic('error');
           return;
         }
       } else {
         if (!categoryName) {
-          const msg = 'Please select or enter an expense category.';
+          const msg = 'Please choose an expense category.';
           setError(msg);
-          showToast({
-            type: 'error',
-            title: 'Category Required',
-            message: msg,
-          });
+          showToast({ type: 'error', title: 'Category Needed', message: msg });
           triggerHaptic('error');
           return;
         }
         if (!recipientName.trim()) {
-          const msg = 'Please enter the recipient / vendor payee name.';
+          const msg = 'Please write who was paid (shop or person name).';
           setError(msg);
-          showToast({
-            type: 'error',
-            title: 'Payee Required',
-            message: msg,
-          });
+          showToast({ type: 'error', title: 'Name Needed', message: msg });
           triggerHaptic('error');
           return;
         }
       }
     } else if (mode === 'Courier') {
       if (!courierCompany.trim()) {
-        const msg = 'Please select or enter the courier agency name.';
+        const msg = 'Please choose or write the courier agency name.';
         setError(msg);
-        showToast({
-          type: 'error',
-          title: 'Courier Agency Required',
-          message: msg,
-        });
+        showToast({ type: 'error', title: 'Courier Needed', message: msg });
         triggerHaptic('error');
         return;
       }
     } else if (mode === 'Staff_Split') {
       if (splits.length === 0) {
-        const msg = 'Please add at least one staff member to the split table.';
+        const msg = 'Please add at least one staff member to split.';
         setError(msg);
-        showToast({
-          type: 'error',
-          title: 'Staff Required',
-          message: msg,
-        });
+        showToast({ type: 'error', title: 'Staff Needed', message: msg });
         triggerHaptic('error');
         return;
       }
       const invalidSplit = splits.find((s) => !s.staffName.trim() || Number(s.amount) <= 0);
       if (invalidSplit) {
-        const msg = 'All staff split entries must have a selected staff name and an amount > ₹0.';
+        const msg = 'All staff entries must have a name and amount > ₹0.';
         setError(msg);
-        showToast({
-          type: 'error',
-          title: 'Invalid Staff Split',
-          message: msg,
-        });
+        showToast({ type: 'error', title: 'Check Staff Split', message: msg });
         triggerHaptic('error');
         return;
       }
     }
 
-    // 5. Backdating Lock Validation for Cashiers (Bypassed if F12 Backdate Override is enabled)
-    if (isBackdateBlocked) {
-      const msg = `Backdating Locked: Cashiers are restricted to recording expenses for today (${todayStr}). Past date ${paymentDate} requires F12 Emergency Backdate Override.`;
-      setError(msg);
-      showToast({
-        type: 'error',
-        title: 'Backdating Restricted',
-        message: msg,
-      });
-      triggerHaptic('error');
-      return;
-    }
-
-    // 6. Period Lock Validation (Bypassed for SuperAdmin or Override)
+    // Period Lock Validation
     if (isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer') {
-      const msg = `Accounting period for ${paymentDate} is LOCKED. Vouchers cannot be recorded for locked dates.`;
+      const msg = `Today's register has been closed. New expenses cannot be saved.`;
       setError(msg);
-      showToast({
-        type: 'error',
-        title: 'Accounting Period Locked',
-        message: msg,
-      });
+      showToast({ type: 'error', title: 'Day Closed', message: msg });
       triggerHaptic('error');
       return;
     }
 
+    // Notes minimum length check
+    if (!remarks.trim() || remarks.trim().length < 3) {
+      const msg = 'Please write a short reason for this expense (at least 3 letters).';
+      setError(msg);
+      showToast({ type: 'error', title: 'Reason Needed', message: msg });
+      triggerHaptic('error');
+      return;
+    }
+
+    // All valid -> Open Preview Modal for confirmation!
+    triggerHaptic('selection');
+    setIsPreviewOpen(true);
+  };
+
+  const executeFinalDisbursal = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSubmitting(true);
     triggerHaptic('heavy');
+
+    let effectiveVoucherDigits = voucherDigits.trim();
+    if (!effectiveVoucherDigits && allowAutoVoucher) {
+      effectiveVoucherDigits = `EMG-${Date.now().toString().slice(-4)}`;
+    }
 
     try {
       const generatedVoucherNumber = `${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()}`;
@@ -612,19 +561,20 @@ export const NewVoucherPage: React.FC = () => {
 
       showToast({
         type: 'success',
-        title: 'Expense Voucher Recorded',
-        message: `Voucher #${created.voucher_number} for ₹${created.total_amount} saved successfully.`,
+        title: 'Expense Saved',
+        message: `Bill #${created.voucher_number} for ₹${created.total_amount} paid successfully.`,
       });
 
+      setIsPreviewOpen(false);
       setSuccessVoucher(created);
       refresh();
       loadBalances();
     } catch (err: any) {
       console.error('Error creating voucher:', err);
-      const rawMsg = err?.message || 'Failed to save expense.';
+      const rawMsg = err?.message || 'Could not save expense.';
       let userFriendlyMsg = rawMsg;
       if (rawMsg.includes('duplicate key') || rawMsg.includes('voucher_number') || rawMsg.includes('Duplicate Voucher Number')) {
-        userFriendlyMsg = `Duplicate Voucher Number: Voucher #${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()} already exists in the system. Please enter the next sequential number from your physical bill book.`;
+        userFriendlyMsg = `Bill #${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()} already exists. Please check the next number in your bill book.`;
       }
       showToast({
         type: 'error',
@@ -634,8 +584,25 @@ export const NewVoucherPage: React.FC = () => {
       setError(userFriendlyMsg);
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
+
+  // Keyboard Shortcuts Listener when Preview Modal is open
+  useEffect(() => {
+    if (!isPreviewOpen) return;
+    const handlePreviewKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsPreviewOpen(false);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        executeFinalDisbursal();
+      }
+    };
+    window.addEventListener('keydown', handlePreviewKeyDown);
+    return () => window.removeEventListener('keydown', handlePreviewKeyDown);
+  }, [isPreviewOpen]);
 
   // Success Screen Keyboard Shortcuts Listener (P: Print, Space: Next, Esc: Expenses)
   useEffect(() => {
@@ -706,7 +673,7 @@ export const NewVoucherPage: React.FC = () => {
             <div className="flex justify-between items-center py-2.5">
               <span className="text-slate-500 dark:text-zinc-400 font-sans">Payment Source:</span>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] text-xs font-mono font-medium bg-slate-100 dark:bg-[#1f1f1f] text-slate-800 dark:text-zinc-300 border border-slate-200 dark:border-[#2e2e2e]">
-                {successVoucher.payment_method === 'Physical_Cash' ? 'Cash Drawer Till' : 'Online Bank / UPI'}
+                {successVoucher.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}
               </span>
             </div>
 
@@ -723,10 +690,10 @@ export const NewVoucherPage: React.FC = () => {
             <button
               type="button"
               onClick={() => printThermalVoucherSlip(successVoucher)}
-              className="w-full sm:flex-1 h-[38px] px-3.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-zinc-200 font-medium font-sans text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
+              className="w-full sm:flex-1 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-zinc-200 font-medium font-sans text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
             >
               <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-              <span>Print Thermal Slip</span>
+              <span>Print Slip</span>
             </button>
 
             <button
@@ -736,16 +703,16 @@ export const NewVoucherPage: React.FC = () => {
                 setSuccessVoucher(null);
                 handleResetForm();
               }}
-              className="w-full sm:flex-1 h-[38px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-sans text-xs font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs select-none"
+              className="w-full sm:flex-1 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-sans text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs select-none"
             >
               <Zap className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-              <span>Record Next Voucher</span>
+              <span>Add Next Expense</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActivePage('expenses')}
-              className="w-full sm:w-auto h-[38px] px-3.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-zinc-200 font-sans text-xs font-medium cursor-pointer transition-colors shadow-xs"
+              className="w-full sm:w-auto h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-zinc-200 font-sans text-xs font-medium cursor-pointer transition-colors shadow-xs"
             >
               All Expenses
             </button>
@@ -756,14 +723,14 @@ export const NewVoucherPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-20 select-none flex flex-col">
+    <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-6 select-none">
       {/* 1. Add Expense Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl px-4 lg:px-6 py-4">
+      <div className="border-b border-slate-200 dark:border-[#242424] bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl px-4 lg:px-6 py-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title & Subtitle */}
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-[#3ecf8e]" />
                 <span>Add Expense</span>
               </h1>
@@ -776,32 +743,36 @@ export const NewVoucherPage: React.FC = () => {
           {/* Right Layer: Live Balances & Actions */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <div className="flex items-center gap-1.5 font-mono text-xs">
-              <div className="h-9 px-3 flex items-center rounded-[10px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] shadow-xs">
-                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] mr-1.5 font-sans font-medium">Cash:</span>
-                <span className="font-bold text-[#3ecf8e] tabular-nums">{formatINR(cashBalance)}</span>
+              <div className="h-8 px-2.5 flex items-center gap-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1c1c1f] border border-slate-200 dark:border-[#26262a] shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
+                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] font-sans font-medium">Cash:</span>
+                <span className="font-semibold text-emerald-700 dark:text-[#3ecf8e] tabular-nums">{formatINR(cashBalance)}</span>
               </div>
-              <div className="h-9 px-3 flex items-center rounded-[10px] bg-black/[0.03] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] shadow-xs">
-                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] mr-1.5 font-sans font-medium">UPI:</span>
-                <span className="font-bold text-sky-500 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
+              <div className="h-8 px-2.5 flex items-center gap-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1c1c1f] border border-slate-200 dark:border-[#26262a] shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] font-sans font-medium">UPI:</span>
+                <span className="font-semibold text-sky-600 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('selection');
-                setIsQuickFloatOpen(true);
-              }}
-              className="h-9 px-3.5 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#3ecf8e]" />
-              <span>Add Cash</span>
-            </button>
+            {canAddCash && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  setIsQuickFloatOpen(true);
+                }}
+                className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                <span>Add Cash (F6)</span>
+              </button>
+            )}
 
             <button
               type="button"
               onClick={handleResetForm}
-              className="h-9 w-9 flex items-center justify-center rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition-all cursor-pointer shadow-xs ios-press"
+              className="h-8 w-8 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] transition-all cursor-pointer shadow-2xs"
               title="Clear Form"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -816,7 +787,7 @@ export const NewVoucherPage: React.FC = () => {
         {error && (
           <div
             ref={errorBannerRef}
-            className="p-3.5 rounded-[14px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs"
+            className="p-3.5 rounded-[12px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs"
           >
             <div className="flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
@@ -826,22 +797,24 @@ export const NewVoucherPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsQuickFloatOpen(true)}
-                className="px-3.5 py-1.5 rounded-[8px] border border-emerald-600/30 dark:border-[#3ecf8e]/30 bg-emerald-100/80 dark:bg-[#3ecf8e]/10 hover:bg-emerald-200 dark:hover:bg-[#3ecf8e]/20 text-emerald-900 dark:text-[#3ecf8e] font-sans font-semibold flex items-center gap-1 text-xs cursor-pointer transition-all shadow-2xs ios-press"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Cash</span>
-              </button>
-            </div>
+            {canAddCash && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickFloatOpen(true)}
+                  className="px-3 py-1.5 rounded-[6px] border border-emerald-600/30 dark:border-[#3ecf8e]/30 bg-emerald-100/80 dark:bg-[#3ecf8e]/10 hover:bg-emerald-200 dark:hover:bg-[#3ecf8e]/20 text-emerald-900 dark:text-[#3ecf8e] font-sans font-semibold flex items-center gap-1 text-xs cursor-pointer transition-all shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Cash</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Section 40A(3) Compliance Alert */}
         {sec40A3Check.exceeded && (
-          <div className="p-3.5 rounded-[14px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs">
+          <div className="p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs">
             <div className="flex items-start gap-2.5">
               <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -849,44 +822,47 @@ export const NewVoucherPage: React.FC = () => {
                   Cash Limit Warning (Over ₹10,000)
                 </strong>
                 <span className="text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
-                  Cash payment of {formatINR(finalCalculatedAmount)} exceeds the ₹10,000 limit allowed by tax rules. Please pay via Bank UPI instead.
+                  Cash payment of {formatINR(finalCalculatedAmount)} exceeds ₹10,000 tax limit. Please pay with Bank UPI.
                 </span>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setPaymentMethod('Online_UPI')}
-              className="px-3.5 py-1.5 rounded-[8px] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-800 dark:text-white border border-slate-300 dark:border-[#2e2e2e] font-semibold text-xs shrink-0 cursor-pointer shadow-xs transition-all ios-press"
+              className="px-3.5 py-1.5 rounded-[6px] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-800 dark:text-white border border-slate-300 dark:border-[#2e2e2e] font-semibold text-xs shrink-0 cursor-pointer shadow-xs transition-all"
             >
               Pay via Bank UPI
             </button>
           </div>
         )}
 
-        {/* Main Full-Width Single-Page Responsive Form Body */}
-        <form ref={formRef} onSubmit={handleSubmit} className="w-full space-y-4">
-          {/* 1. COMPACT MODE SELECTION TABS (Shop Expense / Staff Expense / Courier) */}
-          <div className="w-full">
-            <IOSSegmentedControl
-              options={[
-                { id: 'Shop_Vendor', label: 'Shop Expense', icon: <Store className="w-4 h-4 shrink-0" /> },
-                { id: 'Staff_Split', label: 'Staff Expense', icon: <Users className="w-4 h-4 shrink-0" /> },
-                { id: 'Courier', label: 'Courier & Parcel', icon: <Truck className="w-4 h-4 shrink-0" /> },
-              ]}
-              value={mode}
-              onChange={(val) => setMode(val as VoucherMode)}
-              size="md"
-            />
-          </div>
+        {/* Main 2-Column Responsive POS Form Body */}
+        <form ref={formRef} onSubmit={handleSubmit} className="w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+            {/* LEFT COLUMN: Modes, Basic Details, Expense Details */}
+            <div className="lg:col-span-8 space-y-4">
+              {/* 1. COMPACT MODE SELECTION TABS */}
+              <div className="w-full">
+                <SegmentedControl
+                  options={[
+                    { id: 'Shop_Vendor', label: 'Shop Bill', icon: <Store className="w-4 h-4 shrink-0" /> },
+                    { id: 'Staff_Split', label: 'Staff Food', icon: <Users className="w-4 h-4 shrink-0" /> },
+                    { id: 'Courier', label: 'Courier', icon: <Truck className="w-4 h-4 shrink-0" /> },
+                  ]}
+                  value={mode}
+                  onChange={(val) => setMode(val as VoucherMode)}
+                  size="md"
+                  fullWidth
+                />
+              </div>
 
-          {/* CARD 1: TRANSACTION & BASIC INFO (Showroom, Date, Voucher #, Amount, Payment Method) */}
-          <div className="p-4 sm:p-5 rounded-[16px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 shadow-xs space-y-4 ios-card">
-            {/* Top Sub-Row: Showroom, Date, Bill Number */}
+          {/* CARD 1: BASIC DETAILS */}
+          <div className="p-4 sm:p-5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] shadow-2xs space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Showroom / Branch */}
               <div className="space-y-1 min-w-0">
                 <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                  Showroom / Branch *
+                  Branch *
                 </label>
                 <SearchableSelect
                   value={selectedBranch}
@@ -907,32 +883,11 @@ export const NewVoucherPage: React.FC = () => {
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                    Date of Payment *
+                    Date *
                   </label>
                   {isBackdated && (
-                    <span
-                      className={cn(
-                        'text-[10px] font-mono flex items-center gap-1 font-medium',
-                        allowBackdated
-                          ? 'text-emerald-600 dark:text-[#3ecf8e]'
-                          : isBackdateRestricted
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-slate-500 dark:text-zinc-400'
-                      )}
-                    >
-                      {allowBackdated ? (
-                        <>
-                          <Zap className="w-2.5 h-2.5 text-[#3ecf8e]" />
-                          <span>Backdate Mode</span>
-                        </>
-                      ) : isBackdateRestricted ? (
-                        <>
-                          <ShieldAlert className="w-2.5 h-2.5 text-amber-500" />
-                          <span>Past Date</span>
-                        </>
-                      ) : (
-                        <span>Past Date</span>
-                      )}
+                    <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400">
+                      Past Date
                     </span>
                   )}
                 </div>
@@ -941,65 +896,43 @@ export const NewVoucherPage: React.FC = () => {
                   onChange={setPaymentDate}
                   placeholder="Select date..."
                 />
-                {isBackdateBlocked && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-sans leading-tight">
-                    ⚠️ Backdated entry is locked for cashiers.
-                  </p>
-                )}
               </div>
 
               {/* Voucher Number */}
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                    Bill / Receipt No. *
+                    Bill No. *
                   </label>
                   <span className="text-[10px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
                     Auto
                   </span>
                 </div>
-                <div className="relative flex items-center rounded-[6px] bg-slate-50/60 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 overflow-hidden min-h-[38px] shadow-xs">
-                  <span className="px-2.5 py-2 bg-slate-100 dark:bg-[#1c1c1c] text-slate-600 dark:text-[#A1A1A1] font-mono font-medium text-xs select-none shrink-0 border-r border-slate-200 dark:border-[#262626]">
+                <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 overflow-hidden h-10 min-h-[40px] shadow-2xs">
+                  <span className="px-3 h-full flex items-center bg-slate-50 dark:bg-[#1c1c1c] text-slate-600 dark:text-[#A1A1A1] font-mono font-medium text-xs select-none shrink-0 border-r border-slate-200 dark:border-[#282828]">
                     {currBranch.branch_code}-
                   </span>
                   <input
                     type="text"
                     value={voucherDigits}
                     onChange={(e) => setVoucherDigits(e.target.value.replace(/[^0-9a-zA-Z-]/g, ''))}
-                    placeholder="00001"
-                    className="w-full bg-transparent px-3 py-1.5 text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none tabular-nums"
+                    placeholder="0001"
+                    className="w-full bg-transparent px-3 py-2 text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none tabular-nums"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Bottom Sub-Row: Amount (₹) + Paid From Till */}
+            {/* Bottom Sub-Row: Amount + Paid From */}
             <div className="pt-3 border-t border-slate-100 dark:border-[#222222] grid grid-cols-1 md:grid-cols-12 gap-3.5 items-start">
-              {/* Left 7 cols: Amount Input + Chips + Words */}
+              {/* Left 7 cols: Amount Input */}
               <div className="md:col-span-7 space-y-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <label className="block text-xs font-medium text-slate-800 dark:text-[#EDEDED]">
-                    Expense Amount (₹) *
-                  </label>
+                <label className="block text-xs font-medium text-slate-800 dark:text-[#EDEDED]">
+                  Amount (₹) *
+                </label>
 
-                  {mode !== 'Staff_Split' && !(mode === 'Shop_Vendor' && isMultiVendor) && (
-                    <div className="flex items-center gap-1">
-                      {AMOUNT_INCREMENTS.map((inc) => (
-                        <button
-                          key={inc}
-                          type="button"
-                          onClick={() => handleAddAmount(inc)}
-                          className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] active:bg-[#3ecf8e]/20 border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono font-medium text-slate-700 dark:text-zinc-300 transition-all cursor-pointer shadow-2xs"
-                        >
-                          +₹{inc >= 1000 ? `${inc / 1000}k` : inc}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative flex items-center rounded-[8px] bg-slate-50/60 dark:bg-[#121212] border border-slate-200 dark:border-[#262626] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-xs overflow-hidden min-h-[44px]">
-                  <span className="pl-3.5 pr-1.5 text-lg font-mono text-slate-400 dark:text-zinc-500 font-medium select-none">
+                <div className="relative flex items-center rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e]/30 shadow-2xs overflow-hidden h-10 min-h-[40px]">
+                  <span className="pl-3.5 pr-1 text-sm font-mono text-slate-400 dark:text-zinc-500 font-medium select-none">
                     ₹
                   </span>
                   <input
@@ -1012,7 +945,7 @@ export const NewVoucherPage: React.FC = () => {
                     value={mode === 'Staff_Split' || (mode === 'Shop_Vendor' && isMultiVendor) ? finalCalculatedAmount || '' : amount}
                     onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value) || '')}
                     placeholder="0.00"
-                    className="w-full bg-transparent pl-1 pr-3.5 py-2 text-lg font-mono font-semibold tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none disabled:opacity-85 disabled:cursor-not-allowed"
+                    className="w-full bg-transparent pl-1 pr-3.5 py-2 text-sm font-mono font-semibold tabular-nums text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none disabled:opacity-85 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -1028,7 +961,7 @@ export const NewVoucherPage: React.FC = () => {
               {/* Right 5 cols: Paid From (Bank UPI vs Cash Box) */}
               <div className="md:col-span-5 space-y-1.5">
                 <label className="block text-xs font-medium text-slate-800 dark:text-[#EDEDED]">
-                  Paid From (Payment Till) *
+                  Pay Mode *
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -1039,10 +972,10 @@ export const NewVoucherPage: React.FC = () => {
                       setPaymentMethod('Online_UPI');
                     }}
                     className={cn(
-                      'p-2.5 rounded-[8px] border text-left flex flex-col justify-between cursor-pointer transition-all shadow-xs min-h-[52px]',
+                      'p-2 rounded-[6px] border text-left flex flex-col justify-between cursor-pointer transition-all shadow-2xs h-10 min-h-[40px]',
                       paymentMethod === 'Online_UPI'
                         ? 'bg-sky-500/10 border-sky-400 text-slate-900 dark:text-white ring-1 ring-sky-400/30'
-                        : 'bg-slate-50/50 dark:bg-[#121212] border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-100/60 dark:hover:bg-[#1c1c1c]'
+                        : 'bg-white dark:bg-[#181818] border-slate-200 dark:border-[#282828] text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-50 dark:hover:bg-[#202020]'
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -1050,9 +983,9 @@ export const NewVoucherPage: React.FC = () => {
                         <CreditCard className="w-3.5 h-3.5 text-sky-500" />
                         <span>Bank UPI</span>
                       </span>
-                      {paymentMethod === 'Online_UPI' && <Check className="w-3.5 h-3.5 text-sky-400 stroke-[2.5]" />}
+                      {paymentMethod === 'Online_UPI' && <Check className="w-3 h-3 text-sky-400 stroke-[2.5]" />}
                     </div>
-                    <span className="text-[10px] font-mono text-sky-500 dark:text-sky-400 tabular-nums font-semibold mt-0.5">
+                    <span className="text-[9.5px] font-mono text-sky-500 dark:text-sky-400 tabular-nums font-semibold leading-none">
                       UPI: {formatINR(upiBalance)}
                     </span>
                   </button>
@@ -1064,10 +997,10 @@ export const NewVoucherPage: React.FC = () => {
                       setPaymentMethod('Physical_Cash');
                     }}
                     className={cn(
-                      'p-2.5 rounded-[8px] border text-left flex flex-col justify-between cursor-pointer transition-all shadow-xs min-h-[52px]',
+                      'p-2 rounded-[6px] border text-left flex flex-col justify-between cursor-pointer transition-all shadow-2xs h-10 min-h-[40px]',
                       paymentMethod === 'Physical_Cash'
                         ? 'bg-emerald-500/10 border-[#3ecf8e] text-slate-900 dark:text-white ring-1 ring-[#3ecf8e]/30'
-                        : 'bg-slate-50/50 dark:bg-[#121212] border-slate-200 dark:border-[#262626] text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-100/60 dark:hover:bg-[#1c1c1c]'
+                        : 'bg-white dark:bg-[#181818] border-slate-200 dark:border-[#282828] text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-50 dark:hover:bg-[#202020]'
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -1075,9 +1008,9 @@ export const NewVoucherPage: React.FC = () => {
                         <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
                         <span>Cash Box</span>
                       </span>
-                      {paymentMethod === 'Physical_Cash' && <Check className="w-3.5 h-3.5 text-[#3ecf8e] stroke-[2.5]" />}
+                      {paymentMethod === 'Physical_Cash' && <Check className="w-3 h-3 text-[#3ecf8e] stroke-[2.5]" />}
                     </div>
-                    <span className="text-[10px] font-mono text-emerald-600 dark:text-[#3ecf8e] tabular-nums font-semibold mt-0.5">
+                    <span className="text-[9.5px] font-mono text-emerald-600 dark:text-[#3ecf8e] tabular-nums font-semibold leading-none">
                       Cash: {formatINR(cashBalance)}
                     </span>
                   </button>
@@ -1086,18 +1019,13 @@ export const NewVoucherPage: React.FC = () => {
             </div>
           </div>
 
-          {/* CARD 2: EXPENSE DETAILS & REMARKS */}
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] shadow-xs space-y-3.5">
-            {/* Requested / Ordered By (Floor Staff Member) */}
+          {/* CARD 2: EXPENSE DETAILS */}
+          <div className="p-4 sm:p-5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] shadow-2xs space-y-3.5">
+            {/* Who ordered this */}
             <div className="space-y-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                  Requested / Ordered By (Floor Staff Member - Optional)
-                </label>
-                <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-sans">
-                  Who ordered this expense
-                </span>
-              </div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
+                Staff Member (Optional)
+              </label>
               <SearchableSelect
                 value={requestedByStaffCode}
                 onChange={(val) => {
@@ -1110,20 +1038,19 @@ export const NewVoucherPage: React.FC = () => {
                   label: `${s.first_name} ${s.last_name || ''}`.trim(),
                   subLabel: s.department_name || s.designation,
                 }))}
-                placeholder="Search staff who requested this (e.g. Salesperson, Floor Manager)..."
+                placeholder="Select staff member..."
                 allowCustom={true}
               />
             </div>
 
-            {/* Mode-Specific Dynamic Inputs */}
+            {/* Mode-Specific Inputs */}
             {mode === 'Shop_Vendor' && (
               <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-[#222222]">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-800 dark:text-[#EDEDED] font-sans">
-                    Vendor &amp; Category Details
+                  <span className="text-xs font-medium text-slate-800 dark:text-[#EDEDED]">
+                    Shop Details
                   </span>
 
-                  {/* Multi-Vendor / Single Vendor Mode Toggle */}
                   <div className="flex items-center p-0.5 rounded-[6px] bg-slate-100 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#2e2e2e] self-start sm:self-auto">
                     <button
                       type="button"
@@ -1138,7 +1065,7 @@ export const NewVoucherPage: React.FC = () => {
                           : 'text-slate-500 dark:text-[#888888] hover:text-slate-800 dark:hover:text-[#dddddd]'
                       )}
                     >
-                      Single Vendor Bill
+                      Single Shop
                     </button>
                     <button
                       type="button"
@@ -1147,54 +1074,51 @@ export const NewVoucherPage: React.FC = () => {
                         setIsMultiVendor(true);
                       }}
                       className={cn(
-                        'px-2.5 py-1 text-[11px] font-medium rounded-[4px] transition-all cursor-pointer select-none flex items-center gap-1',
+                        'px-2.5 py-1 text-[11px] font-medium rounded-[4px] transition-all cursor-pointer select-none',
                         isMultiVendor
                           ? 'bg-emerald-500/15 dark:bg-[#3ecf8e]/15 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/30 dark:border-[#3ecf8e]/30 shadow-2xs font-semibold'
                           : 'text-slate-500 dark:text-[#888888] hover:text-slate-800 dark:hover:text-[#dddddd]'
                       )}
                     >
-                      <span>Multi-Vendor Breakdown</span>
-                      <span className="px-1 py-0.2 rounded text-[9px] bg-[#3ecf8e] text-zinc-900 font-bold">New</span>
+                      Multiple Shops
                     </button>
                   </div>
                 </div>
 
                 {!isMultiVendor ? (
                   <>
-                    {/* Row 1: Who was paid & Bill Number */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                          Who was paid? (Shop or Person Name) *
+                          Paid To *
                         </label>
                         <input
                           type="text"
                           value={recipientName}
                           onChange={(e) => setRecipientName(e.target.value)}
                           placeholder="e.g. Ramesh Tea Stall, Sharma Electrician"
-                          className="w-full rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50/50 dark:bg-[#121212] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-sans placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 min-h-[38px] shadow-xs"
+                          className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-sans placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
                         />
                       </div>
 
                       <div className="space-y-1">
                         <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                          Shop Bill / Receipt No. (Optional)
+                          Bill No. (Optional)
                         </label>
                         <input
                           type="text"
                           value={billNumber}
                           onChange={(e) => setBillNumber(e.target.value)}
-                          placeholder="e.g. Bill #104 or Cash Slip"
-                          className="w-full rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50/50 dark:bg-[#121212] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 min-h-[38px] shadow-xs"
+                          placeholder="e.g. Bill #104"
+                          className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
                         />
                       </div>
                     </div>
 
-                    {/* Row 2: Category & Department */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                          Expense Category *
+                          Category *
                         </label>
                         <SearchableSelect
                           value={categoryName}
@@ -1203,7 +1127,7 @@ export const NewVoucherPage: React.FC = () => {
                             value: c.category_name,
                             label: c.category_name,
                           }))}
-                          placeholder="e.g. Tea & Snacks, Electricity, Repairs..."
+                          placeholder="Select category..."
                           allowCustom={true}
                         />
                       </div>
@@ -1219,7 +1143,7 @@ export const NewVoucherPage: React.FC = () => {
                             value: d.department_name,
                             label: d.department_name,
                           }))}
-                          placeholder="e.g. Sales Counter, Housekeeping..."
+                          placeholder="Select department..."
                           allowCustom={true}
                         />
                       </div>
@@ -1239,12 +1163,6 @@ export const NewVoucherPage: React.FC = () => {
 
             {mode === 'Staff_Split' && (
               <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-[#222222]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-800 dark:text-[#EDEDED] font-sans">
-                    Staff Members Split
-                  </span>
-                </div>
-
                 <StaffSplitTable
                   splits={splits}
                   staffList={staff}
@@ -1258,17 +1176,10 @@ export const NewVoucherPage: React.FC = () => {
 
             {mode === 'Courier' && (
               <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-[#222222]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-800 dark:text-[#EDEDED] font-sans">
-                    Courier Delivery Details
-                  </span>
-                </div>
-
-                {/* Row 1: Courier Company & Tracking Number */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                      Courier Company *
+                      Courier Name *
                     </label>
                     <SearchableSelect
                       value={courierCompany}
@@ -1277,216 +1188,305 @@ export const NewVoucherPage: React.FC = () => {
                         value: c.partner_name,
                         label: c.partner_name,
                       }))}
-                      placeholder="Select courier (Maruti, DTDC, Trackon)..."
+                      placeholder="Select courier (Maruti, DTDC)..."
                       allowCustom={true}
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                      Delivery Agent Name / Tracking No. *
+                      Tracking / Agent Name *
                     </label>
                     <input
                       type="text"
                       value={trackingNumber}
                       onChange={(e) => setTrackingNumber(e.target.value)}
-                      placeholder="e.g. Ramesh Bhai (Agent) / AWB Track No."
-                      className="w-full rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50/50 dark:bg-[#121212] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 min-h-[38px] shadow-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Category & Department */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                      Expense Category (Optional)
-                    </label>
-                    <SearchableSelect
-                      value={categoryName}
-                      onChange={setCategoryName}
-                      options={categories.map((c) => ({
-                        value: c.category_name,
-                        label: c.category_name,
-                      }))}
-                      placeholder="Select category (optional)..."
-                      allowCustom={true}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                      Department (Optional)
-                    </label>
-                    <SearchableSelect
-                      value={departmentName}
-                      onChange={setDepartmentName}
-                      options={departments.map((d) => ({
-                        value: d.department_name,
-                        label: d.department_name,
-                      }))}
-                      placeholder="Select department (optional)..."
-                      allowCustom={true}
+                      placeholder="e.g. Ramesh Bhai / Track No."
+                      className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Notes / Remarks Integrated Directly in Card 2 */}
+            {/* Notes / Reason */}
             <div className="pt-2 border-t border-slate-100 dark:border-[#222222] space-y-1.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                  <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                    Notes / Remarks *
-                  </label>
-                </div>
-                <span
-                  className={cn(
-                    'px-1.5 py-0.2 rounded-[4px] border font-mono text-[10.5px] font-medium transition-colors',
-                    remarks.length >= 240
-                      ? 'bg-amber-500/10 text-amber-500 border-amber-500/30 font-bold'
-                      : remarks.length >= 3
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border-emerald-500/20'
-                      : 'bg-slate-100 dark:bg-[#202020] text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-[#2e2e2e]'
-                  )}
-                >
+                <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
+                  Reason *
+                </label>
+                <span className="font-mono text-[10.5px] text-slate-400 dark:text-zinc-500">
                   {remarks.length} / 255
                 </span>
               </div>
 
               <textarea
-                rows={3}
+                rows={2}
                 maxLength={255}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value.slice(0, 255))}
-                placeholder="Enter detailed reason, item particulars, or payment context (e.g. Evening tea & snacks for 12 sales staff during festive rush)..."
-                className="w-full rounded-[8px] border border-slate-200 dark:border-[#262626] bg-slate-50/50 dark:bg-[#121212] p-2.5 text-slate-900 dark:text-white text-xs font-sans placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 resize-none shadow-xs transition-colors leading-relaxed"
+                placeholder="Why was this money spent? (e.g. Tea for floor staff)"
+                className="w-full rounded-[6px] border border-slate-200 dark:border-[#262626] bg-slate-50/50 dark:bg-[#121212] p-2.5 text-slate-900 dark:text-white text-xs font-sans placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] resize-none shadow-2xs leading-relaxed"
               />
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-sans">
-                Max 255 characters. Minimum 3 characters required.
-              </p>
             </div>
           </div>
 
-          {/* CARD 3: ATTACH PHOTO OF BILL / CASH RECEIPT */}
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold text-slate-800 dark:text-[#EDEDED] font-sans block">
-                  Attach Photo of Bill / Receipt
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans mt-0.5 block">
-                  Upload receipt or slip (up to 4 photos)
-                </span>
+            </div>
+            {/* END LEFT COLUMN */}
+
+            {/* RIGHT COLUMN (lg:col-span-4): Attach Bill, Total Amount & Review & Pay Dock */}
+            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-4">
+              {/* CARD 3: ATTACH PHOTO */}
+              <div className="p-4 sm:p-5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#242424] shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-900 dark:text-[#EDEDED] font-sans block">
+                      Attach Bill (Optional)
+                    </span>
+                    <span className="text-[11px] text-slate-400 dark:text-[#707070] font-sans mt-0.5 block">
+                      Upload photo of bill, voucher slip, or receipt
+                    </span>
+                  </div>
+
+                  <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#202020] text-slate-500 dark:text-[#8e8e8e] text-[10px] font-mono border border-slate-200/80 dark:border-[#282828] shrink-0 tabular-nums">
+                    {photoUrls.length} / 4
+                  </span>
+                </div>
+
+                <BillUploader photoUrls={photoUrls} onChange={setPhotoUrls} maxPhotos={4} />
               </div>
 
-              <span className="px-2 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] text-slate-600 dark:text-zinc-400 text-[10px] font-mono border border-slate-200 dark:border-[#2e2e2e] shrink-0">
-                {photoUrls.length} of 4 attached
-              </span>
-            </div>
+              {/* CARD 4: TOTAL & ACTION DOCK */}
+              <div className="p-4 sm:p-5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10.5px] text-slate-400 dark:text-zinc-500 font-sans block font-medium">
+                      Total Amount
+                    </span>
+                    <span className="text-3xl font-medium font-mono text-slate-900 dark:text-white tabular-nums tracking-tight block">
+                      {formatINR(finalCalculatedAmount)}
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-[6px] text-xs font-mono font-medium bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-[#2e2e2e]">
+                    {paymentMethod === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}
+                  </span>
+                </div>
 
-            <BillUploader photoUrls={photoUrls} onChange={setPhotoUrls} maxPhotos={4} />
-          </div>
+                {/* Main Review & Pay CTA */}
+                <button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    (isInsufficientBalance && !allowNegative) ||
+                    (isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer')
+                  }
+                  className={cn(
+                    'w-full h-11 px-5 rounded-[6px] font-sans font-medium text-sm tracking-tight transition-all cursor-pointer select-none flex items-center justify-center gap-2 shadow-2xs',
+                    isInsufficientBalance && !allowNegative
+                      ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60 cursor-not-allowed'
+                      : isInsufficientBalance && allowNegative
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold'
+                      : isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer'
+                      ? 'bg-amber-600 text-white cursor-not-allowed opacity-80'
+                      : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] shadow-emerald-500/20 shadow-md font-semibold'
+                  )}
+                >
+                  <Zap className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                  <span>
+                    {submitting
+                      ? 'Checking...'
+                      : isInsufficientBalance && !allowNegative
+                      ? 'Not Enough Cash in Box'
+                      : 'Review & Pay (F2)'}
+                  </span>
+                </button>
 
-          {/* 7. ADVANCED & SIMPLE SETTLEMENT DOCK */}
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            {/* Left: Total Disbursal + Payment Till Source Badge */}
-            <div className="flex items-center gap-3">
-              <div>
-                <span className="text-[10.5px] text-slate-400 dark:text-zinc-500 font-sans block font-medium">
-                  Total Disbursal
-                </span>
-                <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
-                  {formatINR(finalCalculatedAmount)}
-                </span>
+                {/* Secondary buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-[#222222]">
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="h-8.5 px-3 flex items-center justify-center gap-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-2xs text-xs font-medium"
+                    title="Reset all form fields"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Clear</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePage('dashboard')}
+                    className="h-8.5 px-3 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] font-sans text-xs cursor-pointer transition-colors font-medium flex items-center justify-center shadow-2xs"
+                  >
+                    Cancel (ESC)
+                  </button>
+                </div>
+
+                {/* POS Keyboard hints */}
+                <div className="pt-2 border-t border-slate-100 dark:border-[#222222] flex items-center justify-between text-[11px] font-mono text-slate-400 dark:text-zinc-500">
+                  <span>F2: Save &amp; Pay</span>
+                  <span>F6: Add Cash</span>
+                  <span>Alt+1-3: Mode</span>
+                </div>
               </div>
-              <span className="px-2.5 py-1 rounded-[6px] text-xs font-mono font-medium bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-[#2e2e2e] self-center">
-                {paymentMethod === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}
-              </span>
             </div>
+            {/* END RIGHT COLUMN */}
 
-            {/* Right: Actions Cluster */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-              <button
-                type="button"
-                onClick={handleResetForm}
-                className="h-10 w-10 flex items-center justify-center rounded-[8px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-2xs shrink-0"
-                title="Reset all form fields"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActivePage('dashboard')}
-                className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] font-sans text-xs cursor-pointer transition-colors font-medium min-h-[38px] flex items-center justify-center shadow-2xs"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={
-                  submitting ||
-                  (isInsufficientBalance && !allowNegative) ||
-                  (isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer')
-                }
-                className={cn(
-                  'flex-1 sm:flex-none min-h-[40px] px-5 sm:px-6 rounded-[8px] font-sans font-semibold text-xs sm:text-sm tracking-tight transition-all cursor-pointer select-none flex items-center justify-center gap-2 shadow-xs',
-                  isInsufficientBalance && !allowNegative
-                    ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60 cursor-not-allowed'
-                    : isInsufficientBalance && allowNegative
-                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold'
-                    : isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer'
-                    ? 'bg-amber-600 text-white cursor-not-allowed opacity-80'
-                    : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] shadow-emerald-500/20 shadow-md'
-                )}
-              >
-                <Zap className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                <span>
-                  {submitting
-                    ? 'Saving...'
-                    : isInsufficientBalance && !allowNegative
-                    ? user?.role_code === 'Cashier'
-                      ? 'Insufficient Cash: Contact Store Manager'
-                      : 'Insufficient Cash: Add Cash First'
-                    : isInsufficientBalance && allowNegative
-                    ? 'Save & Pay (Overdraft Override)'
-                    : 'Save & Pay Expense'}
-                </span>
-              </button>
-            </div>
           </div>
         </form>
 
-        {/* QUICK CASH FLOAT IN-LINE TOP-UP SLIDE-OVER DRAWER (F6) */}
-        <QuickFloatDrawer
-          isOpen={isQuickFloatOpen}
-          onClose={() => setIsQuickFloatOpen(false)}
-          branchId={selectedBranch}
-          currentCashBalance={cashBalance}
-          currentUpiBalance={upiBalance}
-          onSuccess={() => {
-            loadBalances();
-            refresh();
-          }}
-        />
+        {/* PREVIEW & CONFIRMATION MODAL (Step before final payment) */}
+        {isPreviewOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-100">
+            <div className="w-full max-w-lg bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2e2e32] rounded-[12px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col font-sans">
+              {/* Modal Header */}
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-[#3ecf8e]" />
+                  <h3 className="text-base font-medium text-slate-900 dark:text-white">
+                    Review Payment
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="p-1 rounded-[6px] text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-        {/* HIGH-SPEED MULTI-BILL BATCH ENTRY MODAL (ALT+B / RUSH MODE) */}
-        <MultiBillBatchModal
-          isOpen={isBatchModalOpen}
-          onClose={() => setIsBatchModalOpen(false)}
-          categories={categories}
-          departments={departments}
-          currentCashBalance={cashBalance}
-          currentUpiBalance={upiBalance}
-          onSuccess={() => {
-            loadBalances();
-            refresh();
-          }}
-        />
+              {/* Modal Body: Voucher Summary Slip */}
+              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-[#242426] text-center space-y-1">
+                  <span className="text-[11px] font-sans text-slate-500 dark:text-zinc-400 uppercase tracking-wider block font-medium">
+                    Amount to Pay
+                  </span>
+                  <span className="text-3xl font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums tracking-tight block">
+                    {formatINR(finalCalculatedAmount)}
+                  </span>
+                  <span className="text-xs font-mono text-slate-600 dark:text-zinc-300 block">
+                    {numberToWordsINR(finalCalculatedAmount)}
+                  </span>
+                </div>
+
+                <div className="rounded-[8px] border border-slate-200 dark:border-[#242426] bg-white dark:bg-[#141416] divide-y divide-slate-100 dark:divide-white/5 text-xs">
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-500 dark:text-zinc-400">Pay Mode:</span>
+                    <span className="font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
+                      {paymentMethod === 'Physical_Cash' ? (
+                        <>
+                          <Banknote className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>Cash Box</span>
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-3.5 h-3.5 text-sky-500" />
+                          <span>Bank UPI</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-500 dark:text-zinc-400">Paid To:</span>
+                    <span className="font-medium text-slate-900 dark:text-white text-right truncate max-w-[240px]">
+                      {mode === 'Shop_Vendor'
+                        ? isMultiVendor
+                          ? `${vendorSplits.length} Vendors`
+                          : recipientName
+                        : mode === 'Courier'
+                        ? courierCompany
+                        : `${splits.length} Staff Members`}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-500 dark:text-zinc-400">Category &amp; Dept:</span>
+                    <span className="text-slate-700 dark:text-zinc-300 text-right truncate max-w-[240px]">
+                      {categoryName || 'General'} • {departmentName || 'Main Floor'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-500 dark:text-zinc-400">Bill Number:</span>
+                    <span className="font-mono text-slate-900 dark:text-white">
+                      #{currBranch.branch_code}-{voucherDigits.trim() || 'AUTO'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3">
+                    <span className="text-slate-500 dark:text-zinc-400">Date:</span>
+                    <span className="font-mono text-slate-900 dark:text-white">
+                      {format(new Date(paymentDate), 'dd MMMM yyyy')}
+                    </span>
+                  </div>
+
+                  {requestedByStaffName && (
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-slate-500 dark:text-zinc-400">Ordered By:</span>
+                      <span className="text-slate-700 dark:text-zinc-300">
+                        {requestedByStaffName}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-3 space-y-1">
+                    <span className="text-slate-500 dark:text-zinc-400 block">Reason / Notes:</span>
+                    <p className="text-slate-800 dark:text-zinc-200 leading-relaxed font-sans">
+                      {remarks}
+                    </p>
+                  </div>
+
+                  {photoUrls.length > 0 && (
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-slate-500 dark:text-zinc-400">Bill Photos:</span>
+                      <span className="text-emerald-600 dark:text-[#3ecf8e] font-mono">
+                        {photoUrls.length} attached
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="p-4 border-t border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-[#141416] flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="h-9 px-4 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1f1f1f] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-700 dark:text-zinc-300 font-medium text-xs transition-colors cursor-pointer"
+                >
+                  Go Back &amp; Edit
+                </button>
+
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeFinalDisbursal}
+                  className="h-9 px-5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                  <span>{submitting ? 'Saving...' : 'Confirm & Pay (Enter)'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* QUICK CASH FLOAT (F6) - Restricted to Managers/Admins */}
+        {canAddCash && (
+          <QuickFloatDrawer
+            isOpen={isQuickFloatOpen}
+            onClose={() => setIsQuickFloatOpen(false)}
+            branchId={selectedBranch}
+            currentCashBalance={cashBalance}
+            currentUpiBalance={upiBalance}
+            onSuccess={() => {
+              loadBalances();
+              refresh();
+            }}
+          />
+        )}
       </div>
     </div>
   );

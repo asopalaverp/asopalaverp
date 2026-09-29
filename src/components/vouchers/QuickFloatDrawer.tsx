@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Plus,
+  X,
+  Check,
 } from 'lucide-react';
 
 interface QuickFloatDrawerProps {
@@ -26,8 +28,6 @@ interface QuickFloatDrawerProps {
   currentUpiBalance: number;
   onSuccess: () => void;
 }
-
-const PRESET_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
 
 const SOURCE_OPTIONS = [
   'Main Showroom Safe',
@@ -47,7 +47,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
   const { user, can } = useAuthStore();
   const { branches, getActiveBranch } = useBranchStore();
 
-  const isFloatAllowed = can('can_inject_float');
+  const isFloatAllowed = can('can_inject_float') && user?.role_code !== 'Cashier';
 
   const [walletType, setWalletType] = useState<'Cash' | 'UPI'>('Cash');
   const [amount, setAmount] = useState<number | ''>('');
@@ -55,6 +55,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
 
   const targetCode = normalizeBranchCode(branchId);
   const activeBranch = branches.find((b) => b.branch_id === branchId || normalizeBranchCode(b.branch_id) === targetCode || normalizeBranchCode(b.branch_code) === targetCode) || getActiveBranch();
@@ -69,27 +70,15 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
       setWalletType('Cash');
       setSource('Main Showroom Safe');
       setNotes('');
+      setIsPreviewOpen(false);
     }
   }, [isOpen]);
 
-  const handleQuickAdd = (val: number) => {
-    triggerHaptic('selection');
-    setAmount((prev) => {
-      const cur = Number(prev) || 0;
-      return cur + val;
-    });
-  };
-
-  const handleSetExact = (val: number) => {
-    triggerHaptic('selection');
-    setAmount(val);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleOpenPreview = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     if (!isFloatAllowed) {
-      const msg = 'Manager Authorization Required: Only Store Managers and Admins can inject cash floats into counter tills.';
+      const msg = 'Store Manager authorization required. Cashiers cannot add cash to the till.';
       setError(msg);
       showToast({ type: 'error', title: 'Action Not Authorized', message: msg });
       triggerHaptic('error');
@@ -103,7 +92,14 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
       return;
     }
 
+    setIsPreviewOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (numAmount <= 0 || !isFloatAllowed) return;
+
     setSubmitting(true);
+    setIsPreviewOpen(false);
     setError(null);
 
     try {
@@ -158,23 +154,23 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="px-3.5 py-1.5 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors min-h-[34px]"
+          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
         >
           Cancel
         </button>
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={() => handleOpenPreview()}
           disabled={submitting || numAmount <= 0 || !isFloatAllowed}
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs min-h-[34px]"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
         >
           <Coins className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
           <span>
             {submitting
-              ? 'Adding Money...'
+              ? 'Adding...'
               : !isFloatAllowed
               ? 'Manager Access Required'
-              : `Confirm & Add ${numAmount > 0 ? formatINR(numAmount) : ''}`}
+              : `Review & Add ${numAmount > 0 ? formatINR(numAmount) : ''}`}
           </span>
         </button>
       </div>
@@ -195,7 +191,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
       }
       footer={drawerFooter}
     >
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto w-full space-y-5 font-sans">
+      <form onSubmit={handleOpenPreview} className="max-w-3xl mx-auto w-full space-y-5 font-sans">
         {!isFloatAllowed && (
           <div className="p-3.5 rounded-[8px] bg-rose-500/10 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3">
             <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
@@ -222,10 +218,10 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
                 setWalletType('Cash');
               }}
               className={cn(
-                'p-3 rounded-[10px] border text-left flex items-center gap-3 transition-all cursor-pointer',
+                'p-2.5 rounded-[6px] border text-left flex items-center gap-3 transition-all cursor-pointer shadow-2xs h-12',
                 walletType === 'Cash'
                   ? 'border-emerald-500 dark:border-[#3ecf8e] bg-emerald-50/60 dark:bg-emerald-950/20 ring-1 ring-emerald-500/30'
-                  : 'border-slate-200 dark:border-[#2e2e2e] bg-slate-50/60 dark:bg-[#1f1f1f] hover:border-slate-300 dark:hover:border-[#383838]'
+                  : 'border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] hover:border-slate-300 dark:hover:border-[#383838]'
               )}
             >
               <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center shrink-0">
@@ -248,10 +244,10 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
                 setWalletType('UPI');
               }}
               className={cn(
-                'p-3 rounded-[10px] border text-left flex items-center gap-3 transition-all cursor-pointer',
+                'p-2.5 rounded-[6px] border text-left flex items-center gap-3 transition-all cursor-pointer shadow-2xs h-12',
                 walletType === 'UPI'
                   ? 'border-blue-500 dark:border-blue-400 bg-blue-50/60 dark:bg-blue-950/20 ring-1 ring-blue-500/30'
-                  : 'border-slate-200 dark:border-[#2e2e2e] bg-slate-50/60 dark:bg-[#1f1f1f] hover:border-slate-300 dark:hover:border-[#383838]'
+                  : 'border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] hover:border-slate-300 dark:hover:border-[#383838]'
               )}
             >
               <div className="w-8 h-8 rounded-[6px] bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
@@ -269,11 +265,11 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
           </div>
         </div>
 
-        {/* 2. Amount Input & Quick Preset Chips */}
+        {/* 2. Amount Input */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-slate-800 dark:text-slate-200">
-              Injection Amount (₹) *
+              Amount to Add (₹) *
             </label>
             {numAmount > 0 && (
               <button
@@ -288,7 +284,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
           </div>
 
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-400 text-lg">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-medium text-slate-400 text-sm">
               ₹
             </span>
             <input
@@ -301,8 +297,8 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
                 setAmount(val);
                 setError(null);
               }}
-              placeholder="0"
-              className="w-full bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 rounded-[8px] pl-9 pr-4 py-2.5 text-lg font-mono font-bold tabular-nums text-slate-900 dark:text-white focus:outline-none min-h-[50px] md:min-h-[46px] shadow-xs transition-colors"
+              placeholder="0.00"
+              className="w-full bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 rounded-[6px] pl-8 pr-4 py-2 text-sm font-mono font-bold tabular-nums text-slate-900 dark:text-white focus:outline-none h-10 min-h-[40px] shadow-2xs transition-colors"
               autoFocus
             />
           </div>
@@ -314,45 +310,13 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
               <span>{numberToWordsINR(numAmount)}</span>
             </div>
           )}
-
-          {/* Fast Preset Chips */}
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-semibold block">
-              1-Tap Quick Fast-Pads
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {PRESET_AMOUNTS.map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => handleQuickAdd(val)}
-                  className="min-h-[44px] md:min-h-[30px] px-3.5 py-2 md:px-2.5 md:py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#2a2a2a] border border-slate-200 dark:border-[#2e2e2e] text-xs font-mono font-semibold text-slate-800 dark:text-zinc-200 transition-colors cursor-pointer active:scale-95 shadow-2xs flex items-center justify-center"
-                >
-                  +₹{val >= 1000 ? `${(val / 1000).toLocaleString('en-IN')}k` : val}
-                </button>
-              ))}
-
-              {numAmount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setAmount('');
-                  }}
-                  className="min-h-[44px] md:min-h-[30px] px-3.5 py-2 md:px-2.5 md:py-1.5 rounded-[6px] text-xs font-mono text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* 3. Before -> After Projected Balance Card */}
         {numAmount > 0 && (
-          <div className="p-3.5 rounded-[10px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-2 shadow-xs">
+          <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-2 shadow-2xs">
             <span className="text-[11px] font-sans text-slate-500 dark:text-zinc-400 block font-medium">
-              Projected {walletType} Till Balance After Float:
+              New {walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'} Balance:
             </span>
             <div className="flex items-center justify-between text-xs font-mono">
               <div className="text-slate-500 dark:text-zinc-400">
@@ -365,7 +329,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
               <div className="text-emerald-700 dark:text-[#3ecf8e]">
-                <span>New: </span>
+                <span>After Adding: </span>
                 <span className="font-bold text-sm tabular-nums">{formatINR(newProjectedBalance)}</span>
               </div>
             </div>
@@ -375,9 +339,9 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
         {/* 4. Fund Source Chips */}
         <div className="space-y-2">
           <label className="block text-xs font-medium text-slate-800 dark:text-slate-200">
-            Source of Float *
+            Where Did This Cash Come From? *
           </label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {SOURCE_OPTIONS.map((opt) => {
               const isSelected = source === opt;
               return (
@@ -389,10 +353,10 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
                     setSource(opt);
                   }}
                   className={cn(
-                    'min-h-[44px] md:min-h-[30px] px-3.5 py-2 md:px-2.5 md:py-1 rounded-[6px] md:rounded-[5px] text-xs font-sans transition-colors cursor-pointer font-medium border flex items-center justify-center',
+                    'h-10 min-h-[40px] px-3.5 rounded-[6px] text-xs font-sans transition-colors cursor-pointer font-medium border flex items-center justify-center shadow-2xs',
                     isSelected
-                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white font-semibold'
-                      : 'bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-[#2e2e2e] hover:bg-slate-200 dark:hover:bg-[#282828]'
+                      ? 'bg-[#3ecf8e] text-[#171717] border-[#3ecf8e] font-semibold'
+                      : 'bg-white dark:bg-[#181818] text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-[#282828] hover:bg-slate-50 dark:hover:bg-[#202020]'
                   )}
                 >
                   {opt}
@@ -405,14 +369,14 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
         {/* 5. Reference Notes */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-800 dark:text-slate-200">
-            Reference / Purpose Remarks
+            Reason / Note
           </label>
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Emergency Counter Float Injection for busy counter"
-            className="w-full bg-white dark:bg-[#141414] border border-slate-300 dark:border-[#2e2e2e] rounded-[6px] px-3 py-2 text-base md:text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] min-h-[48px] md:min-h-[40px] shadow-xs"
+            placeholder="e.g. Added morning cash float for busy counter"
+            className="w-full bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3.5 py-2 text-xs font-sans text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
           />
         </div>
 
@@ -424,6 +388,84 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
           </div>
         )}
       </form>
+
+      {/* Pre-Commit Confirmation Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424]">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Confirm Float Top-up
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Verification Slip */}
+            <div className="p-4 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#242424] space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Branch</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{activeBranch.branch_name} ({activeBranch.branch_code})</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Where to Add</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Source</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{source}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Reason</span>
+                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{notes || 'Float added to drawer'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
+                <span>Balance After Float</span>
+                <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e]">{formatINR(newProjectedBalance)}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-[#242424] flex justify-between items-baseline">
+                <span className="text-xs uppercase font-sans text-slate-500">Amount to Add</span>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-emerald-600 dark:text-[#3ecf8e]">
+                    {formatINR(numAmount)}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 dark:text-[#3ecf8e] font-sans">
+                    {numberToWordsINR(numAmount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-3.5 py-2 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-zinc-300 text-xs font-medium cursor-pointer"
+              >
+                Back & Edit
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleConfirmSubmit}
+                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{submitting ? 'Adding...' : 'Confirm & Add'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SlideOverDrawer>
   );
 };
