@@ -29,6 +29,7 @@ import { useGsapContext } from '@/hooks/useGsap';
 import { animateStaggerCards, animateErrorBanner } from '@/lib/animations';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { showToast } from '@/components/ui/ToastContainer';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { useOverrideStore } from '@/store/overrideStore';
 
 export const DailyCashClosingPage: React.FC = () => {
@@ -943,15 +944,16 @@ export const DailyCashClosingPage: React.FC = () => {
               >
                 Back & Edit
               </button>
-              <button
+              <SubmitButton
                 type="button"
-                disabled={submitting}
+                loading={submitting}
                 onClick={handleConfirmFinalSave}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-50"
+                loadingText="Locking Closing..."
+                icon={<Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                className="px-4 py-1.5 text-xs font-semibold"
               >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{submitting ? 'Locking Closing...' : 'Confirm & Lock Closing'}</span>
-              </button>
+                Confirm & Lock Closing
+              </SubmitButton>
             </div>
           </div>
         </div>

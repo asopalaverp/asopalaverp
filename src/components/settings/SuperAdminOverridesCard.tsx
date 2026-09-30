@@ -61,15 +61,6 @@ export const SuperAdminOverridesCard: React.FC = () => {
     riskLabel: string;
   }[] = [
     {
-      key: 'allowBackdatedEntries',
-      title: 'Allow Backdated Past Date Entries by Cashiers',
-      description:
-        'Allows cashiers to select and save expense vouchers for yesterday or older past dates. Normally locked to prevent retroactive changes.',
-      icon: Clock,
-      riskLevel: 'high',
-      riskLabel: 'Backdate Entry',
-    },
-    {
       key: 'allowNegativeWallet',
       title: 'Allow Payment When Cash Box is Low / Empty',
       description:

@@ -9,7 +9,7 @@ import { cn, triggerHaptic } from '@/lib/utils';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { toast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { SegmentedControl } from '@/components/ui';
+import { SegmentedControl, EmptyState } from '@/components/ui';
 import {
   Search,
   RefreshCw,
@@ -55,6 +55,8 @@ export const SecurityAuditPage: React.FC = () => {
   const [selectedLog, setSelectedLog] = useState<SecurityAuditLog | null>(null);
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const exportRef = useRef<HTMLDivElement | null>(null);
@@ -79,7 +81,7 @@ export const SecurityAuditPage: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(400);
 
-      if (data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         setLogs(data);
       } else {
         setLogs(getLocalAuditLogs());
@@ -163,6 +165,12 @@ export const SecurityAuditPage: React.FC = () => {
       return true;
     });
   }, [logs, timeFilter, selectedStream, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, currentPage, pageSize]);
 
   // Telemetry Summary Metrics
   const stats = useMemo(() => {
@@ -404,10 +412,18 @@ export const SecurityAuditPage: React.FC = () => {
         {/* 4. Logs Data Grid Table */}
         <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] overflow-hidden shadow-xs">
           {filteredLogs.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 dark:text-[#707070] space-y-2">
-              <Terminal className="w-8 h-8 mx-auto opacity-40 mb-2" />
-              <p className="text-sm font-semibold text-slate-900 dark:text-[#EDEDED]">No activity records found.</p>
-              <p className="text-xs">Try adjusting your search terms or filter above.</p>
+            <div className="p-8">
+              <EmptyState
+                icon={Terminal}
+                title="No activity records found"
+                description="No matching audit logs or system events were found for the selected branch and filter criteria."
+                actionLabel="Clear Filters"
+                onAction={() => {
+                  setSearch('');
+                  setSelectedStream('ALL');
+                  setTimeFilter('all');
+                }}
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -426,10 +442,11 @@ export const SecurityAuditPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/60 dark:divide-white/5">
-                  {filteredLogs.map((log, idx) => {
+                  {paginatedLogs.map((log, idx) => {
                     const dateObj = new Date(log.created_at || Date.now());
                     const formattedDate = format(dateObj, 'dd MMM, HH:mm:ss');
                     const isWarning = (log.event_description || '').toLowerCase().includes('void') || (log.event_description || '').toLowerCase().includes('shortage') || (log.event_description || '').toLowerCase().includes('failed');
+                    const itemIndex = (currentPage - 1) * pageSize + idx + 1;
 
                     return (
                       <tr
@@ -437,7 +454,7 @@ export const SecurityAuditPage: React.FC = () => {
                         onClick={() => setSelectedLog(log)}
                         className="hover:bg-slate-100/50 dark:hover:bg-white/5 cursor-pointer transition-colors group"
                       >
-                        <td className="py-3 px-4 text-center text-slate-400 dark:text-[#606060] text-[11px] tabular-nums">{idx + 1}</td>
+                        <td className="py-3 px-4 text-center text-slate-400 dark:text-[#606060] text-[11px] tabular-nums">{itemIndex}</td>
                         <td className="py-3 px-4 text-slate-600 dark:text-[#A1A1A1] tabular-nums whitespace-nowrap">
                           {formattedDate}
                         </td>
@@ -491,21 +508,33 @@ export const SecurityAuditPage: React.FC = () => {
             </div>
           )}
 
-          {/* Bottom Status Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 bg-slate-100/40 dark:bg-white/5 border-t border-slate-200/80 dark:border-white/10 text-xs font-mono text-slate-500 dark:text-[#8E8E93]">
+          {/* Bottom Status Bar with 10-Row Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-100/40 dark:bg-white/5 border-t border-slate-200/80 dark:border-white/10 text-xs font-mono text-slate-500 dark:text-[#8E8E93]">
             <div className="flex items-center gap-3">
               <span>
-                Showing <strong className="text-slate-900 dark:text-[#EDEDED] font-mono">{filteredLogs.length}</strong> of{' '}
-                <strong className="text-slate-900 dark:text-[#EDEDED] font-mono">{logs.length}</strong> events
+                Page <strong className="text-slate-900 dark:text-[#EDEDED] font-mono">{currentPage}</strong> of{' '}
+                <strong className="text-slate-900 dark:text-[#EDEDED] font-mono">{totalPages}</strong> ({filteredLogs.length} total)
               </span>
-              <span>&bull;</span>
-              <span>Tamper-Proof Protected</span>
             </div>
-            <div className="flex items-center gap-3 text-[11px]">
-              <span className="text-[#3ecf8e] font-medium flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#3ecf8e] animate-pulse" />
-                Live Recording
-              </span>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1C1C1E] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-[#252525] text-xs font-sans transition-colors cursor-pointer"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1C1C1E] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-[#252525] text-xs font-sans transition-colors cursor-pointer"
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>

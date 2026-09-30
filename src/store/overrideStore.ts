@@ -3,6 +3,22 @@ import { supabase } from '@/lib/supabase';
 import { showToast } from '@/components/ui/ToastContainer';
 import { triggerHaptic } from '@/lib/utils';
 
+/** C-4 Security: Read role from in-memory Zustand store, NOT from localStorage (which is spoofable). */
+const getCallerRole = (): string | null => {
+  try {
+    // Lazy import to avoid circular dependency — authStore imports overrideStore indirectly
+    const { useAuthStore } = require('@/store/authStore');
+    return useAuthStore.getState().user?.role_code ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const isCallerAuthorized = (): boolean => {
+  const role = getCallerRole();
+  return role === 'Super_Admin' || role === 'Developer';
+};
+
 export interface OverridePolicies {
   allowBackdatedEntries: boolean; // Allow cashiers to create expense entries with past/older dates
   allowNegativeWallet: boolean; // Disburse voucher even if wallet has ₹0 or insufficient funds
@@ -158,10 +174,8 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   setPolicy: (key, value, userName = 'Super_Admin', userRole = 'Super_Admin') => {
-    // Security: verify caller is Super_Admin or Developer
-    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
-    const role = authUser?.role_code;
-    if (role !== 'Super_Admin' && role !== 'Developer') {
+    // Security: verify caller is Super_Admin or Developer via in-memory Zustand state (not spoofable localStorage)
+    if (!isCallerAuthorized()) {
       console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
       return;
     }
@@ -206,10 +220,8 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   setMasterOverride: (enabled, duration = 'indefinite', userName = 'Super_Admin', userRole = 'Super_Admin') => {
-    // Security: verify caller is Super_Admin or Developer
-    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
-    const role = authUser?.role_code;
-    if (role !== 'Super_Admin' && role !== 'Developer') {
+    // Security: verify caller is Super_Admin or Developer via in-memory Zustand state (not spoofable localStorage)
+    if (!isCallerAuthorized()) {
       console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
       return;
     }
@@ -268,10 +280,8 @@ export const useOverrideStore = create<OverrideState>((set, get) => ({
   },
 
   resetAllOverrides: (userName = 'Super_Admin', userRole = 'Super_Admin') => {
-    // Security: verify caller is Super_Admin or Developer
-    const authUser = JSON.parse(localStorage.getItem('asopalav_session_user') || '{}');
-    const role = authUser?.role_code;
-    if (role !== 'Super_Admin' && role !== 'Developer') {
+    // Security: verify caller is Super_Admin or Developer via in-memory Zustand state (not spoofable localStorage)
+    if (!isCallerAuthorized()) {
       console.warn('[SECURITY] Override policy change blocked: insufficient privileges');
       return;
     }

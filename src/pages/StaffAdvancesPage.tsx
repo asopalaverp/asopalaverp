@@ -174,9 +174,9 @@ export const StaffAdvancesPage: React.FC = () => {
   );
   const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
 
-  // Pagination
+  // Pagination (10 rows per page to reduce server load)
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(10);
 
   // Popovers & Feedback
   const [selectedSlipAdvance, setSelectedSlipAdvance] = useState<StaffAdvance | null>(null);

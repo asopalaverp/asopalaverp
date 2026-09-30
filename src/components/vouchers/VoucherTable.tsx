@@ -219,9 +219,9 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   const [showTelemetryBar, setShowTelemetryBar] = useState(true);
   const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
 
-  // Pagination State
+  // Pagination State (Default 10 rows per page to reduce server load)
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(15);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Popovers & Feedback State
   const [isFilterOpen, setIsFilterOpen] = useState(false);

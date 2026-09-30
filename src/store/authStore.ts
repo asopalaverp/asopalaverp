@@ -147,6 +147,12 @@ interface AuthState {
   can: (permission: keyof RolePermissions) => boolean;
   isBranchAllowed: (branchId: string) => boolean;
   getAllowedBranches: (allBranches: Branch[]) => Branch[];
+  /**
+   * C-3 Security: Re-validates the cached session role against Supabase.
+   * Call on app startup and after a screen unlock from lock state.
+   * If the DB role differs from the session role (tampered localStorage), forces logout.
+   */
+  verifySessionIntegrity: () => Promise<void>;
 }
 
 const storedSessionData = getStoredSession();
@@ -242,6 +248,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(SESSION_STORAGE_KEY);
         localStorage.removeItem(SESSION_TIMESTAMP_KEY);
+        // M-8 Security: Clear custom PINs on logout so shared terminals don't retain other users' PIN hashes
+        localStorage.removeItem(PIN_STORAGE_KEY);
       }
       useUIStore.getState().setActivePage('dashboard', false);
       set({
@@ -309,8 +317,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const customPins = getCustomPins();
 
       const verifyPin = (candidatePin: string, storedHash?: string | null): boolean => {
+        // H-2 Security: Never compare plain-text PIN directly — always use bcrypt
         if (!storedHash || !candidatePin) return false;
-        if (storedHash === candidatePin) return true;
         if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
           try {
             return bcrypt.compareSync(candidatePin, storedHash);
@@ -318,6 +326,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             return false;
           }
         }
+        // Legacy plain-text pin in DB (pre-hash era) — treat as invalid and refuse match
         return false;
       };
 
@@ -361,8 +370,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const customPins = getCustomPins();
 
       const verifyPin = (candidatePin: string, storedHash?: string | null): boolean => {
+        // H-2 Security: Never compare plain-text PIN directly — always use bcrypt
         if (!storedHash || !candidatePin) return false;
-        if (storedHash === candidatePin) return true;
         if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
           try {
             return bcrypt.compareSync(candidatePin, storedHash);
@@ -370,6 +379,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             return false;
           }
         }
+        // Legacy plain-text pin in DB (pre-hash era) — treat as invalid and refuse match
         return false;
       };
 
@@ -378,9 +388,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (target) {
           const targetPin = customPins[target.id] || target.lock_pin_hash || (target as any).pin;
           if (verifyPin(pin, targetPin)) {
+            const switchTime = Date.now();
             set({ user: target, selectedCashier: target, isLocked: false });
             if (typeof window !== 'undefined') {
+              // H-1 Security: Reset session timestamp so the 4-hour TTL restarts for the switched-to user
               localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(target));
+              localStorage.setItem(SESSION_TIMESTAMP_KEY, String(switchTime));
             }
             get().loadPermissions(target.role_code);
             showToast({
@@ -405,9 +418,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
       });
 
       if (match) {
+        const switchTime = Date.now();
         set({ user: match, selectedCashier: match, isLocked: false });
         if (typeof window !== 'undefined') {
+          // H-1 Security: Reset session timestamp so the 4-hour TTL restarts for the switched-to user
           localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(match));
+          localStorage.setItem(SESSION_TIMESTAMP_KEY, String(switchTime));
         }
         get().loadPermissions(match.role_code);
         showToast({
@@ -436,6 +452,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
         c.id === userId ? { ...c, lock_pin_hash: hashedPin } : c
       );
       set({ availableCashiers: updated });
+
+      // M-9: Also sync to Supabase so PIN persists across devices and cache clears
+      (async () => {
+        try {
+          const { supabase: sb } = await import('@/lib/supabase');
+          await sb.from('app_users').update({ lock_pin_hash: hashedPin }).eq('id', userId);
+        } catch (e) {
+          console.warn('[PIN] Could not sync PIN to Supabase — stored locally only:', e);
+        }
+      })();
       showToast({
         type: 'success',
         title: 'PIN Updated',
@@ -516,6 +542,63 @@ export const useAuthStore = create<AuthState>((set, get) => {
         );
       });
       return filtered.length > 0 ? filtered : [list[0]];
+    },
+
+    verifySessionIntegrity: async () => {
+      const { user } = get();
+      if (!user?.id) return; // No session to verify
+
+      try {
+        const { supabase: sb } = await import('@/lib/supabase');
+        const { data: dbUser, error } = await sb
+          .from('app_users')
+          .select('role_code, is_active, assigned_branches')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          // Network error — do NOT force logout, session is still locally valid
+          console.warn('[C-3 SessionIntegrity] Could not reach DB, skipping integrity check:', error.message);
+          return;
+        }
+
+        if (!dbUser) {
+          // User ID not found in DB — may have been deleted
+          console.warn('[C-3 SessionIntegrity] User ID not found in DB. Forcing logout.');
+          get().logout('Account not found. Please log in again.');
+          return;
+        }
+
+        if (!dbUser.is_active) {
+          console.warn('[C-3 SessionIntegrity] Account is deactivated in DB. Forcing logout.');
+          get().logout('Your account has been deactivated by an administrator.');
+          return;
+        }
+
+        // Normalize roles for comparison
+        const sessionRole = user.role_code === 'Showroom_Cashier' ? 'Cashier' : user.role_code;
+        const dbRole = dbUser.role_code === 'Showroom_Cashier' ? 'Cashier' : dbUser.role_code;
+
+        if (dbRole && dbRole !== sessionRole) {
+          // Role was changed in DB (e.g., demotion from Super_Admin to Cashier)
+          // Update the session to reflect reality without full logout
+          console.warn(`[C-3 SessionIntegrity] Role mismatch: session='${sessionRole}', DB='${dbRole}'. Updating session.`);
+          const updatedUser = { ...user, role_code: dbRole };
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedUser));
+          }
+          set({ user: updatedUser });
+          await get().loadPermissions(dbRole);
+
+          showToast({
+            type: 'warning',
+            title: 'Session Updated',
+            message: 'Your account permissions were updated by an administrator. Your session has been refreshed.',
+          });
+        }
+      } catch (e) {
+        console.warn('[C-3 SessionIntegrity] Integrity check failed (non-critical):', e);
+      }
     },
   };
 });

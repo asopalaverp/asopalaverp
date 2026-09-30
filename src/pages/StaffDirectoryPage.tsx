@@ -11,6 +11,7 @@ import { SegmentedControl } from '@/components/ui';
 import { showToast } from '@/components/ui/ToastContainer';
 import bcrypt from 'bcryptjs';
 import { logSecurityEvent } from '@/lib/audit';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
   UserPlus,
   FileSpreadsheet,
@@ -317,9 +318,15 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
           {/* Target User Info Card */}
           <div className="flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828]">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-[6px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-[#3ecf8e]/30 flex items-center justify-center font-bold font-mono text-sm shrink-0">
-                {user.avatar_initials || `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || 'U'}
-              </div>
+              <UserAvatar
+                src={user.avatar_url}
+                firstName={user.first_name}
+                lastName={user.last_name}
+                name={user.username}
+                size={36}
+                shape="square"
+                className="border border-[#3ecf8e]/30 shrink-0"
+              />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-slate-900 dark:text-white truncate">
@@ -1394,9 +1401,15 @@ export const StaffDirectoryPage: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-[6px] bg-slate-200 dark:bg-[#222222] text-emerald-700 dark:text-[#3ecf8e] font-mono font-bold text-xs flex items-center justify-center border border-slate-300 dark:border-[#2e2e2e]">
-                          {u.avatar_initials || u.first_name[0]}
-                        </div>
+                        <UserAvatar
+                          src={u.avatar_url}
+                          firstName={u.first_name}
+                          lastName={u.last_name}
+                          name={u.username}
+                          size={32}
+                          shape="square"
+                          className="border border-slate-300 dark:border-[#2e2e2e] shrink-0"
+                        />
                         <div>
                           <h4 className="text-xs font-semibold text-slate-900 dark:text-white">
                             {u.first_name} {u.last_name}

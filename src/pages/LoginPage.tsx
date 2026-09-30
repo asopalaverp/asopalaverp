@@ -29,8 +29,29 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  // M-1 Security: Persist lockout to sessionStorage so page refresh doesn't reset brute-force protection
+  const [failedAttempts, setFailedAttempts] = useState<number>(() => {
+    try { return parseInt(sessionStorage.getItem('asopalav_login_failures') || '0', 10); } catch { return 0; }
+  });
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(() => {
+    try {
+      const v = sessionStorage.getItem('asopalav_login_lockout');
+      return v ? parseInt(v, 10) : null;
+    } catch { return null; }
+  });
+
+  const setFailedAttemptsP = (n: number) => {
+    setFailedAttempts(n);
+    try { sessionStorage.setItem('asopalav_login_failures', String(n)); } catch {}
+  };
+  const setLockoutUntilP = (t: number | null) => {
+    setLockoutUntil(t);
+    try {
+      if (t === null) sessionStorage.removeItem('asopalav_login_lockout');
+      else sessionStorage.setItem('asopalav_login_lockout', String(t));
+    } catch {}
+  };
 
   // Forgot password modal state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -139,10 +160,10 @@ export const LoginPage: React.FC = () => {
         try { bcrypt.compareSync(cleanPass, DUMMY_HASH); } catch {}
 
         const newAttempts = failedAttempts + 1;
-        setFailedAttempts(newAttempts);
+        setFailedAttemptsP(newAttempts);
         if (newAttempts >= 5) {
           const lockDuration = Math.min(30 * Math.pow(2, Math.floor(newAttempts / 5) - 1), 300) * 1000;
-          setLockoutUntil(Date.now() + lockDuration);
+          setLockoutUntilP(Date.now() + lockDuration);
         }
         setError('Invalid username or password. Please verify your credentials.');
         showToast({
@@ -178,10 +199,10 @@ export const LoginPage: React.FC = () => {
 
       if (!isValid) {
         const newAttempts = failedAttempts + 1;
-        setFailedAttempts(newAttempts);
+        setFailedAttemptsP(newAttempts);
         if (newAttempts >= 5) {
           const lockDuration = Math.min(30 * Math.pow(2, Math.floor(newAttempts / 5) - 1), 300) * 1000;
-          setLockoutUntil(Date.now() + lockDuration);
+          setLockoutUntilP(Date.now() + lockDuration);
         }
         setError('Invalid username or password. Please verify your credentials.');
         showToast({
@@ -203,8 +224,8 @@ export const LoginPage: React.FC = () => {
       }
 
       // 3. Successful Authentication
-      setFailedAttempts(0);
-      setLockoutUntil(null);
+      setFailedAttemptsP(0);
+      setLockoutUntilP(null);
       const normalizedRole = dbUser.role_code === 'Showroom_Cashier' ? 'Cashier' : (dbUser.role_code || 'Cashier');
       const userPayload = {
         id: dbUser.id,

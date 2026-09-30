@@ -4,6 +4,7 @@ import { Lock, Key, LogOut, Eye, EyeOff, ArrowRight, Delete, RotateCcw } from 'l
 import { AsopalavLogo } from '@/components/icons/AsopalavLogo';
 import { animateModalOpen, animateShake } from '@/lib/animations';
 import { cn, triggerHaptic } from '@/lib/utils';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 export const PinLockOverlay: React.FC = () => {
   const {
@@ -17,6 +18,9 @@ export const PinLockOverlay: React.FC = () => {
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  // L-4 Security: Track failed PIN attempts; force full logout after 5 failures
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const MAX_PIN_ATTEMPTS = 5;
   const cardRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -28,6 +32,7 @@ export const PinLockOverlay: React.FC = () => {
       setShowPin(false);
       setError(false);
       setErrorMessage('');
+      setFailedAttempts(0);
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [isLocked]);
@@ -72,8 +77,23 @@ export const PinLockOverlay: React.FC = () => {
     const success = unlockScreen(pinToTest);
     if (!success) {
       triggerHaptic('error');
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
+      // L-4 Security: After 5 failed attempts, force full logout
+      if (newAttempts >= MAX_PIN_ATTEMPTS) {
+        setErrorMessage(`Too many incorrect PIN attempts (${MAX_PIN_ATTEMPTS}/${MAX_PIN_ATTEMPTS}). Signing out for security.`);
+        setError(true);
+        animateShake(cardRef.current);
+        setTimeout(() => {
+          logout('Too many incorrect PIN attempts. Please sign in with your full credentials.');
+        }, 1200);
+        return;
+      }
+
+      const remaining = MAX_PIN_ATTEMPTS - newAttempts;
       setError(true);
-      setErrorMessage(`Incorrect PIN for ${user?.first_name || 'user'}. Please try again.`);
+      setErrorMessage(`Incorrect PIN. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before sign-out.`);
       animateShake(cardRef.current);
       setTimeout(() => {
         setPin('');
@@ -82,6 +102,7 @@ export const PinLockOverlay: React.FC = () => {
       }, 800);
     } else {
       triggerHaptic('heavy');
+      setFailedAttempts(0);
     }
   };
 
@@ -124,9 +145,15 @@ export const PinLockOverlay: React.FC = () => {
         {/* Current User Detail Banner */}
         <div className="w-full p-3 rounded-[8px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#282828] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/20 flex items-center justify-center text-xs font-mono font-bold">
-              {user?.avatar_initials || user?.first_name?.[0] || 'U'}
-            </div>
+            <UserAvatar
+              src={user?.avatar_url}
+              firstName={user?.first_name}
+              lastName={user?.last_name}
+              name={user?.username}
+              size={36}
+              shape="square"
+              className="border border-emerald-500/20 shrink-0"
+            />
             <div className="text-left">
               <h3 className="text-xs font-medium text-slate-900 dark:text-white leading-tight">
                 {user?.first_name} {user?.last_name || ''}

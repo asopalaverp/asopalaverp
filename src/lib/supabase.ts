@@ -15,11 +15,29 @@ let currentKey =
 let clientInstance: SupabaseClient = createClient(currentUrl, currentKey);
 
 /**
- * Hot-reinitialize the Supabase client when runtime credentials change
+ * Hot-reinitialize the Supabase client when runtime credentials change.
+ * M-7 Security: Validates that the new URL is a legitimate Supabase project URL
+ * before reinitializing, preventing malicious extensions from redirecting data.
  */
 export const reinitializeSupabase = (url: string, key: string): SupabaseClient => {
-  currentUrl = url.trim();
-  currentKey = key.trim();
+  const trimmedUrl = url.trim();
+  const trimmedKey = key.trim();
+
+  // Validate: must be a supabase.co URL or a custom domain containing supabase
+  const isValidSupabaseUrl = /^https:\/\/[a-z0-9-]+\.supabase\.(co|in|com)(\/.*)?$/i.test(trimmedUrl);
+  if (!isValidSupabaseUrl) {
+    console.error('[Security] reinitializeSupabase blocked: Invalid URL format. Expected *.supabase.co domain.', trimmedUrl);
+    throw new Error('Invalid Supabase URL. Only *.supabase.co project URLs are accepted.');
+  }
+
+  // Validate: anon/service key must look like a JWT (starts with 'ey')
+  if (!trimmedKey.startsWith('ey') || trimmedKey.length < 100) {
+    console.error('[Security] reinitializeSupabase blocked: Key does not look like a valid JWT.');
+    throw new Error('Invalid Supabase key format.');
+  }
+
+  currentUrl = trimmedUrl;
+  currentKey = trimmedKey;
   clientInstance = createClient(currentUrl, currentKey);
   return clientInstance;
 };
@@ -41,10 +59,15 @@ export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
 });
 
 // Automatically reinitialize on broadcast config updates
+// M-7 Security: reinitializeSupabase now validates the URL before accepting it
 if (typeof window !== 'undefined') {
   window.addEventListener('asopalav:cloud-config-updated', ((e: CustomEvent) => {
     if (e.detail?.supabaseUrl && e.detail?.supabasePublishableKey) {
-      reinitializeSupabase(e.detail.supabaseUrl, e.detail.supabasePublishableKey);
+      try {
+        reinitializeSupabase(e.detail.supabaseUrl, e.detail.supabasePublishableKey);
+      } catch (err) {
+        console.error('[Security] Cloud config update rejected:', err);
+      }
     }
   }) as EventListener);
 }

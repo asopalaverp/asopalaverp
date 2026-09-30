@@ -341,10 +341,6 @@ export const GlobalSearchModal: React.FC = () => {
     if (e.key === 'Escape') {
       e.preventDefault();
       handleClose();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      handleClose();
-      setActivePage('search');
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (displayItems.length > 0) {
@@ -574,19 +570,10 @@ export const GlobalSearchModal: React.FC = () => {
               <kbd className="px-1 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#252525] border border-slate-200 dark:border-[#2e2e2e] text-[9px]">ESC</kbd>
               <span className="ml-0.5">close</span>
             </span>
+            <span className="flex items-center gap-1 text-slate-400 dark:text-zinc-500 font-mono text-[10px]">
+              <span>Asopalav Spotlight</span>
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              handleClose();
-              setActivePage('search');
-            }}
-            className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-[#3ecf8e] font-semibold flex items-center gap-1"
-          >
-            <span>Search Hub</span>
-            <ArrowRight className="w-3 h-3" />
-          </button>
         </div>
       </div>
     </div>

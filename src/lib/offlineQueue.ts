@@ -131,12 +131,43 @@ export const useOfflineQueue = create<OfflineQueueState>((set, get) => ({
 
     set({ isSyncing: true, lastSyncStatus: 'idle' });
 
+    // C-2 Security: Validate session is still active before replaying mutations.
+    // A mutation queued hours ago may now have an expired or revoked session.
+    let currentUserId: string | null = null;
+    let currentRole: string | null = null;
+    try {
+      const { useAuthStore } = require('@/store/authStore');
+      const authUser = useAuthStore.getState().user;
+      currentUserId = authUser?.id ?? null;
+      currentRole = authUser?.role_code ?? null;
+    } catch {}
+
+    // High-risk mutation types that MUST have a verified active session to replay
+    const ROLE_GATED_TYPES: Set<string> = new Set([
+      'create_voucher',
+      'disburse_advance',
+      'float_topup',
+      'cash_closing',
+      'void_voucher',
+      'delete_voucher',
+      'waive_advance',
+      'wallet_upsert',
+    ]);
+
     let succeeded = 0;
     let failed = 0;
     const remainingMutations: OfflineMutation[] = [];
 
     for (const mutation of mutations) {
       try {
+        // C-2: Block high-risk mutations if no active authenticated session
+        if (ROLE_GATED_TYPES.has(mutation.type) && !currentUserId) {
+          console.warn(`[OfflineQueue] Blocking replay of '${mutation.type}' — no active session. Will retry after login.`);
+          remainingMutations.push(mutation);
+          failed++;
+          continue;
+        }
+
         let query: any = (supabase as any).from(mutation.table);
 
         if (mutation.action === 'insert') {

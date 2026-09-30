@@ -48,9 +48,6 @@ const ProfileSecurityPage = lazy(() =>
 const NotificationsPage = lazy(() =>
   import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage }))
 );
-const UniversalSearchPage = lazy(() =>
-  import('@/pages/UniversalSearchPage').then((m) => ({ default: m.UniversalSearchPage }))
-);
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 import { AppErrorBoundary } from '@/components/common/AppErrorBoundary';
 
@@ -85,7 +82,7 @@ const AccessDeniedView = lazy(() =>
 );
 
 import { VALID_PAGES } from '@/store/uiStore';
-import { initRealtimeSync } from '@/lib/realtimeSync';
+import { initRealtimeSync, teardownRealtimeSync } from '@/lib/realtimeSync';
 
 // Prefetch high-frequency operational routes during browser idle time
 const prefetchCoreRoutes = () => {
@@ -114,7 +111,6 @@ const CASHIER_ALLOWED_PAGES: PageId[] = [
   'closing',
   'profile',
   'notifications',
-  'search',
 ];
 
 const PAGE_PERMISSIONS: Partial<Record<PageId, keyof RolePermissions>> = {
@@ -127,7 +123,7 @@ const PAGE_PERMISSIONS: Partial<Record<PageId, keyof RolePermissions>> = {
 // Pages accessible to all authenticated users
 const PUBLIC_PAGES: PageId[] = [
   'dashboard', 'new-voucher', 'expenses', 'advances',
-  'closing', 'profile', 'notifications', 'search',
+  'closing', 'profile', 'notifications',
 ];
 
 export const App: React.FC = () => {
@@ -161,6 +157,14 @@ export const App: React.FC = () => {
     }
   }, [isAuthenticated, user, selectedBranchId, branches]);
 
+  // C-3 Security: On startup, re-validate the session role/status against Supabase DB.
+  // This catches localStorage role tampering within ~1 second of app load.
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      useAuthStore.getState().verifySessionIntegrity();
+    }
+  }, [isAuthenticated, user?.id]);
+
   // Route security guard: Redirect cashiers away from restricted pages
   useEffect(() => {
     if (!user) return;
@@ -189,7 +193,7 @@ export const App: React.FC = () => {
       try {
         localStorage.removeItem('asopalav_pos_drafts_v1');
       } catch {}
-      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v4';
+      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v5';
       if (!localStorage.getItem(FRESH_SLATE_KEY)) {
         const keysToPurge: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -218,12 +222,25 @@ export const App: React.FC = () => {
     usePrintConfigStore.getState().fetchCloudPrintConfig();
     useNotificationStore.getState().fetchCloudNotifications();
     fetchBranchesAndWallets(true);
-    const cleanupRealtime = initRealtimeSync();
+
+    // H-6: Pass user's allowed branches so financial Realtime events are branch-scoped.
+    // Super_Admin / Developer get all branches ('*'). Cashiers only see their assigned branches.
+    const currentUser = useAuthStore.getState().user;
+    const allowedBranches = currentUser?.assigned_branches ?? [];
+    const cleanupRealtime = initRealtimeSync(allowedBranches);
+
     prefetchCoreRoutes();
     return () => {
       cleanupRealtime?.();
     };
   }, [fetchBranchesAndWallets]);
+
+  // Tear down realtime channel immediately on logout so cross-branch leakage stops
+  useEffect(() => {
+    if (!isAuthenticated) {
+      teardownRealtimeSync();
+    }
+  }, [isAuthenticated]);
 
   // 4-Hour Security Session Expiration Heartbeat
   useEffect(() => {
@@ -419,8 +436,6 @@ export const App: React.FC = () => {
         return <ProfileSecurityPage />;
       case 'notifications':
         return <NotificationsPage />;
-      case 'search':
-        return <UniversalSearchPage />;
       case '404':
         return <NotFoundPage />;
       default:

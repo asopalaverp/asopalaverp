@@ -28,6 +28,7 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar';
 import { numberToWordsINR, formatINR, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { useOverrideStore } from '@/store/overrideStore';
 
 interface NewAdvanceDrawerProps {
@@ -633,15 +634,16 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
               >
                 Back & Edit
               </button>
-              <button
+              <SubmitButton
                 type="button"
-                disabled={submitting}
+                loading={submitting}
                 onClick={handleConfirmSubmit}
-                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+                loadingText="Giving Advance..."
+                icon={<Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                className="px-4 py-2 text-xs"
               >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{submitting ? 'Giving Advance...' : 'Confirm & Give Advance'}</span>
-              </button>
+                Confirm & Give Advance
+              </SubmitButton>
             </div>
           </div>
         </div>

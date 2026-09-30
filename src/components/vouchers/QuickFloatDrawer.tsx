@@ -5,6 +5,7 @@ import { erpService } from '@/lib/erpService';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { formatINR, numberToWordsINR, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import {
   Coins,
   Wallet,
@@ -453,15 +454,16 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
               >
                 Back & Edit
               </button>
-              <button
+              <SubmitButton
                 type="button"
-                disabled={submitting}
+                loading={submitting}
                 onClick={handleConfirmSubmit}
-                className="px-4 py-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+                loadingText="Adding Float..."
+                icon={<Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                className="px-4 py-2 text-xs"
               >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{submitting ? 'Adding...' : 'Confirm & Add'}</span>
-              </button>
+                Confirm & Add
+              </SubmitButton>
             </div>
           </div>
         </div>

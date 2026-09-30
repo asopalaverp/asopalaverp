@@ -447,7 +447,12 @@ class ERPService {
       }
     };
 
-    const validVouchers = vouchers.filter((v) => v.status === 'Approved' || v.status === undefined);
+    // H-3 Fix: Exclude Advance_Settlement vouchers from Tally export — they are accounting records only.
+    // The cash outflow was already recorded at advance disbursement time. Including them would double-count.
+    const validVouchers = vouchers.filter((v) =>
+      (v.status === 'Approved' || v.status === undefined) &&
+      v.payment_type !== 'Advance_Settlement'
+    );
 
     const sanitizeCsvCell = (str: string) => {
       const sanitized = (str || '').replace(/"/g, '""');
@@ -998,7 +1003,33 @@ class ERPService {
     approverName: string,
     approverRole: string
   ): Promise<ExpenseVoucher> {
-    if (approverRole !== 'Super_Admin' && approverRole !== 'Store_Manager') {
+    // H-8 Security: Re-fetch the approver's TRUE role from Supabase DB.
+    // The client-passed approverRole cannot be trusted — localStorage role_code is spoofable.
+    // We also re-fetch the voucher's live status so we don't approve an already-voided voucher.
+    let verifiedApproverRole = approverRole;
+    try {
+      // Look up the approver's live role from the DB using their username (stored in approverName or from authStore)
+      const { useAuthStore } = await import('@/store/authStore');
+      const authUser = useAuthStore.getState().user;
+      if (authUser?.id) {
+        const { data: dbUser } = await supabase
+          .from('app_users')
+          .select('role_code, is_active')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (dbUser?.role_code) {
+          verifiedApproverRole = dbUser.role_code;
+          if (!dbUser.is_active) {
+            throw new Error('Your account has been deactivated. Cannot approve voucher.');
+          }
+        }
+      }
+    } catch (e: any) {
+      if (e?.message?.includes('deactivated')) throw e;
+      console.warn('[approveVoucher] Could not verify approver role from DB, using session role:', e);
+    }
+
+    if (verifiedApproverRole !== 'Super_Admin' && verifiedApproverRole !== 'Store_Manager') {
       throw new Error('Only Super Admin or Store Manager can approve high-value vouchers.');
     }
 
@@ -1144,6 +1175,17 @@ class ERPService {
     }
 
     // 3. Check Wallet Liquidity & Deduct Consolidated Batch Amount
+    // M-10 Security: Apply ₹50,000 approval gate to batch mode.
+    // Individual items and batch total are both checked.
+    const hasHighValueItem = items.some((i) => i.amount > 50000);
+    const batchTotalExceedsGate = totalBatchAmount > 50000;
+    if ((hasHighValueItem || batchTotalExceedsGate) && userRole !== 'Super_Admin' && userRole !== 'Developer') {
+      const reason = hasHighValueItem
+        ? `One or more batch items exceed ₹50,000. High-value batch payments require Super Admin approval.`
+        : `Batch total (₹${totalBatchAmount.toLocaleString('en-IN')}) exceeds ₹50,000. Batch requires Super Admin approval.`;
+      throw new Error(reason);
+    }
+
     const currentWallet = await this.getBranchWallet(branch_id);
     const allowNegative = useOverrideStore.getState().isNegativeWalletAllowed();
     let newRunningBalance = 0;
@@ -1246,6 +1288,23 @@ class ERPService {
   }
 
   async voidVoucher(voucher: ExpenseVoucher, reason: string, userName: string, userRole: string) {
+    // H-4 Security: Re-fetch the voucher's TRUE status from DB before refunding wallet.
+    // The client-passed voucher.status cannot be trusted — a buggy/malicious client could set it to 'Approved'
+    // for a Pending_Approval voucher to trigger an unearned wallet credit.
+    let verifiedStatus: ExpenseVoucher['status'] = voucher.status;
+    try {
+      const { data: liveVoucher } = await supabase
+        .from('expense_vouchers')
+        .select('status, payment_method, total_amount, branch_id')
+        .eq('voucher_number', voucher.voucher_number)
+        .maybeSingle();
+      if (liveVoucher?.status) {
+        verifiedStatus = liveVoucher.status as ExpenseVoucher['status'];
+      }
+    } catch (e) {
+      console.warn('[voidVoucher] Could not re-fetch voucher status from DB, using client-provided status:', e);
+    }
+
     // 1. Update status
     try {
       const { error } = await supabase
@@ -1274,8 +1333,8 @@ class ERPService {
       });
     }
 
-    // 2. Refund to Branch Wallet (ONLY if previously Approved and deducted from balance)
-    if (voucher.status === 'Approved') {
+    // 2. Refund to Branch Wallet (ONLY if DB-verified status is 'Approved' and funds were deducted)
+    if (verifiedStatus === 'Approved') {
       const currentWallet = await this.getBranchWallet(voucher.branch_id);
       let newBalance = 0;
       if (voucher.payment_method === 'Physical_Cash') {
@@ -1334,10 +1393,51 @@ class ERPService {
     userRole: string,
     reason: string
   ) {
+    // H-5 Security: Whitelist allowed update fields.
+    // total_amount changes are BLOCKED — they require separate wallet delta reconciliation.
+    // status changes are BLOCKED — use approveVoucher() or voidVoucher() instead.
+    // id, voucher_number, branch_id changes are always blocked.
+    const ALLOWED_UPDATE_FIELDS: (keyof ExpenseVoucher)[] = [
+      'payment_date',
+      'payment_type',
+      'payment_method',
+      'bank_utr_number',
+      'recipient_name',
+      'category_name',
+      'department_name',
+      'department_code',
+      'courier_partner_name',
+      'requested_by_staff_code',
+      'requested_by_staff_name',
+      'bill_number',
+      'bill_photo_urls',
+      'remarks',
+      'vendor_splits',
+    ];
+
+    const sanitizedUpdates: Record<string, any> = {};
+    const blockedFields: string[] = [];
+
+    for (const key of Object.keys(updates) as (keyof ExpenseVoucher)[]) {
+      if (ALLOWED_UPDATE_FIELDS.includes(key)) {
+        sanitizedUpdates[key] = updates[key];
+      } else {
+        blockedFields.push(key);
+      }
+    }
+
+    if (blockedFields.length > 0) {
+      console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}. Use dedicated functions for amount/status changes.`);
+    }
+
+    if (Object.keys(sanitizedUpdates).length === 0) {
+      throw new Error('No valid fields to update. Amount and status changes require dedicated operations.');
+    }
+
     try {
       const { error } = await supabase
         .from('expense_vouchers')
-        .update(updates)
+        .update(sanitizedUpdates)
         .eq('voucher_number', voucherNumber);
       if (error) throw error;
     } catch (e) {
@@ -1346,7 +1446,7 @@ class ERPService {
         type: 'update_voucher',
         table: 'expense_vouchers',
         action: 'update',
-        payload: updates,
+        payload: sanitizedUpdates,
         matchField: 'voucher_number',
         matchValue: voucherNumber,
         description: `Update voucher ${voucherNumber}`,
@@ -1359,13 +1459,13 @@ class ERPService {
       actionType: 'Update_Voucher',
       targetEntity: 'expense_vouchers',
       targetIdentifier: voucherNumber,
-      eventDescription: `Modified voucher ${voucherNumber}: ${Object.keys(updates).join(', ')}`,
+      eventDescription: `Modified voucher ${voucherNumber}: ${Object.keys(sanitizedUpdates).join(', ')}${blockedFields.length > 0 ? ` [BLOCKED: ${blockedFields.join(', ')}]` : ''}`,
       justification: reason || 'Super Admin correction',
     });
 
     useVoucherStore.getState().invalidateVouchers();
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('asopalav:vouchers-updated', { detail: { action: 'UPDATE', voucherNumber, updates } }));
+      window.dispatchEvent(new CustomEvent('asopalav:vouchers-updated', { detail: { action: 'UPDATE', voucherNumber, updates: sanitizedUpdates } }));
     }
   }
 
@@ -1813,6 +1913,13 @@ class ERPService {
 
     // 1. If cash was returned, credit Cash Wallet
     if (params.cashReturnedAmount > 0) {
+      // M-6 Security: Check if accounting period is locked before crediting wallet
+      const settlementDate = format(new Date(), 'yyyy-MM-dd');
+      const isPeriodLocked = await this.checkIsPeriodLocked(settlementDate);
+      if (isPeriodLocked && params.userRole !== 'Super_Admin' && params.userRole !== 'Developer') {
+        throw new Error(`Cannot record settlement: Accounting period for ${settlementDate} is LOCKED. Contact Super Admin to unlock.`);
+      }
+
       const currentWallet = await this.getBranchWallet(params.branchId);
       currentWallet.cash_balance += params.cashReturnedAmount;
       await this.updateBranchWallet(currentWallet);
@@ -1847,13 +1954,16 @@ class ERPService {
         branch_id: params.branchId,
         branch_code: params.branchCode,
         payment_date: format(new Date(), 'yyyy-MM-dd'),
-        payment_type: 'Shop_Vendor',
+        // H-3 Fix: Use 'Advance_Settlement' payment_type so Tally export excludes this from
+        // cash flow totals. Funds were already debited at advance disbursement time.
+        // Double-counting in Tally export is prevented by filtering payment_type !== 'Advance_Settlement'.
+        payment_type: 'Advance_Settlement',
         payment_method: 'Physical_Cash',
         total_amount: params.billsSubmittedAmount,
         recipient_name: target.staff_name,
         category_name: 'Staff Advance Settlement Bill',
         department_name: 'Staff Imprest',
-        remarks: `Settlement bill for Advance #${params.receiptNumber} (${target.purpose})`,
+        remarks: `[ADV-SETTLEMENT] Bill for Advance #${params.receiptNumber} (${target.purpose}) — excluded from Tally cash flow. Original debit was at advance disbursement.`,
         bill_photo_urls: params.settlementProofs || [],
         created_by_name: params.userName,
         status: 'Approved',

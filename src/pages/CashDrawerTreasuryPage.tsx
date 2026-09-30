@@ -10,6 +10,7 @@ import { useOverrideStore } from '@/store/overrideStore';
 import { SafeDropDrawer } from '@/components/treasury/SafeDropDrawer';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { MetricCard } from '@/components/ui/MetricCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { AccessDeniedView } from '@/components/common/AccessDeniedView';
 import {
   Wallet,
@@ -149,12 +150,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL');
   const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
   const [customDate, setCustomDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
-  const [ledgerViewMode, setLedgerViewMode] = useState<'statement' | 'timeline'>('statement');
+  const [ledgerViewMode, setLedgerViewMode] = useState<'table' | 'timeline'>('table');
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI'>('ALL');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
   const [clipboardToast, setClipboardToast] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Safe Drop Drawer State
   const [isSafeDropOpen, setIsSafeDropOpen] = useState(false);
@@ -341,6 +344,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const ledgerTotalSum = useMemo(() => {
     return filteredAllocations.reduce((acc, curr) => acc + (Number(curr.credit_amount) || 0), 0);
   }, [filteredAllocations]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAllocations.length / pageSize));
+  const paginatedAllocations = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAllocations.slice(start, start + pageSize);
+  }, [filteredAllocations, currentPage, pageSize]);
 
   const handleExportLedger = (format: 'csv' | 'json' | 'sql') => {
     setIsExportMenuOpen(false);
@@ -854,31 +863,31 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <History className="w-3.5 h-3.5 text-[#3ecf8e]" />
                 <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                  Treasury Statement &amp; History
+                  Treasury Ledger &amp; History
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10">
                   {filteredAllocations.length}
                 </span>
               </div>
 
-              {/* View Switch: Statement Table vs Timeline Cards */}
+              {/* View Switch: Table vs Timeline Cards */}
               <div className="inline-flex rounded-[8px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200/80 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => {
                     triggerHaptic('selection');
-                    setLedgerViewMode('statement');
+                    setLedgerViewMode('table');
                   }}
                   className={cn(
                     'px-2.5 py-1 rounded-[6px] text-[11px] font-sans flex items-center gap-1 transition-all cursor-pointer',
-                    ledgerViewMode === 'statement'
+                    ledgerViewMode === 'table'
                       ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs'
                       : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
                   )}
-                  title="Tabular accounting statement"
+                  title="Tabular accounting ledger"
                 >
                   <Table className="w-3 h-3" />
-                  <span className="hidden sm:inline">Statement</span>
+                  <span className="hidden sm:inline">Ledger</span>
                 </button>
                 <button
                   type="button"
@@ -928,8 +937,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </div>
             </div>
 
-            {/* TABULAR STATEMENT VIEW */}
-            {ledgerViewMode === 'statement' ? (
+            {/* TABULAR LEDGER VIEW */}
+            {ledgerViewMode === 'table' ? (
               <div className="border border-slate-200 dark:border-[#242424] rounded-[8px] overflow-hidden bg-white dark:bg-[#171717]">
                 <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
                   <table className="w-full border-collapse text-left text-xs font-mono">
@@ -944,7 +953,24 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#242424]">
-                      {filteredAllocations.map((entry, idx) => {
+                      {filteredAllocations.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 px-4 text-center">
+                            <EmptyState
+                              icon={History}
+                              title="No treasury records found"
+                              description="No cash float top-ups, safe drops, or wallet transactions found for the selected filter criteria."
+                              actionLabel="Clear Filters"
+                              onAction={() => {
+                                setLedgerSearch('');
+                                setLedgerWalletFilter('ALL');
+                                setDateFilter('this_month');
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedAllocations.map((entry, idx) => {
                         const parsed = parseLedgerNotes(entry.remarks);
                         const isCredit = Number(entry.credit_amount) > 0;
                         const isUpi = entry.wallet_type === 'UPI';
@@ -983,7 +1009,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                             </td>
                           </tr>
                         );
-                      })}
+                      })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -992,7 +1019,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               /* TIMELINE FEED VIEW */
               <div className="rounded-[8px] border border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#171717] p-3.5">
                 <div className="relative pl-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-[#282828] space-y-3.5 max-h-[520px] overflow-y-auto pr-1">
-                  {filteredAllocations.map((entry, idx) => {
+                  {paginatedAllocations.map((entry, idx) => {
                     const parsed = parseLedgerNotes(entry.remarks);
                     const isCredit = Number(entry.credit_amount) > 0;
                     const amountValue = isCredit ? Number(entry.credit_amount) : Number(entry.debit_amount) || 0;
@@ -1109,22 +1136,51 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                   })}
 
                   {filteredAllocations.length === 0 && (
-                    <div className="py-12 text-center text-xs font-sans text-slate-400 dark:text-[#737373]">
-                      No treasury records found matching the current filters.
+                    <div className="py-8">
+                      <EmptyState
+                        icon={History}
+                        title="No treasury records found"
+                        description="No cash float top-ups, safe drops, or wallet transactions found for the selected filter criteria."
+                        actionLabel="Clear Filters"
+                        onAction={() => {
+                          setLedgerSearch('');
+                          setLedgerWalletFilter('ALL');
+                          setDateFilter('this_month');
+                        }}
+                      />
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Ledger Summary Footer */}
-            <div className="p-3 bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[8px] flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-600 dark:text-[#A1A1A1] font-sans font-medium">
-                Total Top-ups ({filteredAllocations.length} entries)
-              </span>
-              <span className="font-medium text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
-                {formatINR(treasurySummary.totalFloatTopups)}
-              </span>
+            {/* 10-Row Pagination Footer */}
+            <div className="p-3 bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[8px] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-[#A1A1A1]">
+                <span>
+                  Page <strong className="text-slate-900 dark:text-white font-mono">{currentPage}</strong> of{' '}
+                  <strong className="text-slate-900 dark:text-white font-mono">{totalPages}</strong> ({filteredAllocations.length} total)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>

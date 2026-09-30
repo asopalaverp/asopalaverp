@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import { showToast } from '@/components/ui/ToastContainer';
 import { cn } from '@/lib/utils';
 import { logSecurityEvent } from '@/lib/audit';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
   Lock,
   Check,
@@ -392,17 +393,14 @@ export const ProfileSecurityPage: React.FC = () => {
           {/* User Identity Pill */}
           <div className="flex items-center gap-3">
             <div className="relative">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={user?.first_name}
-                  className="w-11 h-11 rounded-full object-cover border border-black/[0.08] dark:border-white/15 shadow-xs"
-                />
-              ) : (
-                <div className="w-11 h-11 rounded-full bg-[#3ecf8e] text-[#171717] flex items-center justify-center font-bold text-sm tracking-wider shadow-xs">
-                  {user?.avatar_initials || user?.first_name?.slice(0, 2).toUpperCase() || 'AS'}
-                </div>
-              )}
+              <UserAvatar
+                src={avatarUrl}
+                firstName={user?.first_name}
+                lastName={user?.last_name}
+                name={user?.username}
+                size={44}
+                className="border border-black/[0.08] dark:border-white/15 shadow-xs"
+              />
               <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#3ecf8e] ring-2 ring-white dark:ring-[#141416]" />
             </div>
 
@@ -485,17 +483,14 @@ export const ProfileSecurityPage: React.FC = () => {
 
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pt-1">
                     <div className="relative group">
-                      {avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt="Profile Avatar"
-                          className="w-24 h-24 rounded-full object-cover border-2 border-slate-200 dark:border-[#333333] shadow-sm group-hover:opacity-90 transition-opacity"
-                        />
-                      ) : (
-                        <div className="w-24 h-24 rounded-full bg-[#007a4d] text-white flex items-center justify-center font-bold text-2xl font-sans shadow-inner">
-                          {user?.avatar_initials || user?.first_name?.slice(0, 2).toUpperCase() || 'AS'}
-                        </div>
-                      )}
+                      <UserAvatar
+                        src={avatarUrl}
+                        firstName={user?.first_name}
+                        lastName={user?.last_name}
+                        name={user?.username}
+                        size={96}
+                        className="border-2 border-slate-200 dark:border-[#333333] shadow-sm group-hover:opacity-90 transition-opacity"
+                      />
 
                       <button
                         type="button"

@@ -14,7 +14,6 @@ export type PageId =
   | 'settings'
   | 'profile'
   | 'notifications'
-  | 'search'
   | '404';
 
 export const VALID_PAGES: PageId[] = [
@@ -29,7 +28,6 @@ export const VALID_PAGES: PageId[] = [
   'settings',
   'profile',
   'notifications',
-  'search',
 ];
 
 export type ThemeMode = 'dark' | 'light' | 'soft-dark';

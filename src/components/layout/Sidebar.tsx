@@ -34,6 +34,7 @@ import { BrandLogo } from '@/components/icons/BrandLogo';
 import { useBrandStore } from '@/store/brandStore';
 import { cn } from '@/lib/utils';
 import { RolePermissions } from '@/types/database';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface NavItem {
   id: PageId;
@@ -557,17 +558,14 @@ export const Sidebar: React.FC = () => {
                 isProfilePopoverOpen && 'ring-2 ring-[#3ecf8e]'
               )}
             >
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.first_name || 'User'}
-                  className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shadow-xs"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shadow-xs">
-                  {userInitials}
-                </div>
-              )}
+              <UserAvatar
+                src={user?.avatar_url}
+                firstName={user?.first_name}
+                lastName={user?.last_name}
+                name={user?.username}
+                size={32}
+                className="border border-emerald-500/40 shadow-xs"
+              />
               {/* Online status indicator dot */}
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#3ecf8e] border-2 border-white dark:border-[#141414] rounded-full" />
             </button>
@@ -577,17 +575,14 @@ export const Sidebar: React.FC = () => {
               <div className="absolute left-[calc(100%+8px)] bottom-0 z-50 w-64 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl p-3.5 space-y-3 font-sans animate-in fade-in zoom-in-95 duration-150">
                 {/* User Info Header */}
                 <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-[#262626]">
-                  {user?.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.first_name || 'User'}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-[#3ecf8e] shadow-xs shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-sm flex items-center justify-center shadow-xs shrink-0">
-                      {userInitials}
-                    </div>
-                  )}
+                  <UserAvatar
+                    src={user?.avatar_url}
+                    firstName={user?.first_name}
+                    lastName={user?.last_name}
+                    name={user?.username}
+                    size={40}
+                    className="border-2 border-[#3ecf8e] shadow-xs shrink-0"
+                  />
                   <div className="truncate min-w-0">
                     <p className="text-xs font-semibold text-slate-900 dark:text-white leading-tight truncate">
                       {user?.first_name
@@ -701,17 +696,14 @@ export const Sidebar: React.FC = () => {
               )}
             >
               <div className="flex items-center gap-2.5 min-w-0 w-full">
-                {user?.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.first_name || 'User'}
-                    className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shrink-0 shadow-2xs"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                    {userInitials}
-                  </div>
-                )}
+                <UserAvatar
+                  src={user?.avatar_url}
+                  firstName={user?.first_name}
+                  lastName={user?.last_name}
+                  name={user?.username}
+                  size={32}
+                  className="border border-emerald-500/40 shrink-0 shadow-2xs"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-xs text-slate-900 dark:text-white truncate leading-tight group-hover:text-emerald-600 dark:group-hover:text-[#3ecf8e] transition-colors">
                     {user?.first_name

@@ -30,6 +30,7 @@ import {
 } from '@/components/icons/AppIcons';
 import { useBrandStore } from '@/store/brandStore';
 import { useOverrideStore } from '@/store/overrideStore';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface TopbarProps {
   onOpenKeyboardHelp?: () => void;
@@ -262,71 +263,59 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             <Calculator className="w-4 h-4 stroke-[1.8]" />
           </button>
 
-          {/* 4. Cloud Sync Status Pill */}
-          <button
-            type="button"
-            onClick={() => {
-              if (mutations.length > 0 || !isOnline) {
-                processSyncQueue();
+          {/* 4. Cloud Sync Status Pill — only shown when there's something to act on */}
+          {(!isOnline || isSyncing || mutations.length > 0) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (mutations.length > 0 || !isOnline) {
+                  processSyncQueue();
+                }
+              }}
+              disabled={isSyncing}
+              aria-label={`Cloud Sync: ${!isOnline ? 'Offline' : isSyncing ? 'Syncing...' : `${mutations.length} Pending`}`}
+              className={cn(
+                'flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs select-none cursor-pointer',
+                !isOnline
+                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/15'
+                  : isSyncing
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e]'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 animate-pulse'
+              )}
+              title={
+                !isOnline
+                  ? `Offline: ${mutations.length} transactions queued locally. Click to retry connection.`
+                  : isSyncing
+                  ? 'Syncing offline mutations to cloud...'
+                  : `${mutations.length} offline transactions pending. Click to sync now.`
               }
-            }}
-            disabled={isSyncing}
-            aria-label={`Cloud Sync: ${!isOnline ? 'Offline' : isSyncing ? 'Syncing...' : mutations.length > 0 ? `${mutations.length} Pending` : 'Cloud Connected'}`}
-            className={cn(
-              'flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs select-none cursor-pointer',
-              !isOnline
-                ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/15'
-                : isSyncing
-                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e]'
-                : mutations.length > 0
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 animate-pulse'
-                : 'border-slate-200/80 dark:border-[#242424] bg-slate-50/50 dark:bg-[#181818] text-slate-700 dark:text-[#a1a1a1] hover:border-slate-300 dark:hover:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020]'
-            )}
-            title={
-              !isOnline
-                ? `Offline: ${mutations.length} transactions queued locally. Click to retry connection.`
-                : isSyncing
-                ? 'Syncing offline mutations to cloud...'
-                : mutations.length > 0
-                ? `${mutations.length} offline transactions pending. Click to sync now.`
-                : 'Supabase Cloud Connected — All data in sync'
-            }
-          >
-            {!isOnline ? (
-              <>
-                <CloudOff className="w-4 h-4 text-rose-500 stroke-[1.8] animate-pulse shrink-0" />
-                <span className="hidden sm:inline text-xs font-medium text-rose-600 dark:text-rose-400">Offline</span>
-                {mutations.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400">
+            >
+              {!isOnline ? (
+                <>
+                  <CloudOff className="w-4 h-4 text-rose-500 stroke-[1.8] animate-pulse shrink-0" />
+                  <span className="hidden sm:inline text-xs font-medium text-rose-600 dark:text-rose-400">Offline</span>
+                  {mutations.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400">
+                      {mutations.length}
+                    </span>
+                  )}
+                </>
+              ) : isSyncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 dark:text-[#3ecf8e] stroke-[1.8] shrink-0" />
+                  <span className="hidden sm:inline text-xs font-medium text-emerald-600 dark:text-[#3ecf8e]">Syncing</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 text-amber-500 stroke-[1.8] shrink-0" />
+                  <span className="hidden sm:inline text-xs font-medium text-amber-600 dark:text-amber-400">Sync</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400">
                     {mutations.length}
                   </span>
-                )}
-              </>
-            ) : isSyncing ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 dark:text-[#3ecf8e] stroke-[1.8] shrink-0" />
-                <span className="hidden sm:inline text-xs font-medium text-emerald-600 dark:text-[#3ecf8e]">Syncing</span>
-              </>
-            ) : mutations.length > 0 ? (
-              <>
-                <RefreshCw className="w-4 h-4 text-amber-500 stroke-[1.8] shrink-0" />
-                <span className="hidden sm:inline text-xs font-medium text-amber-600 dark:text-amber-400">Sync</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                  {mutations.length}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#3ecf8e]"></span>
-                </span>
-                <span className="hidden xl:inline text-xs font-medium text-slate-700 dark:text-zinc-300 font-sans">
-                  Connected
-                </span>
-              </>
-            )}
-          </button>
+                </>
+              )}
+            </button>
+          )}
 
           {/* 5. User Profile Avatar & Menu */}
           <div className="relative" ref={userMenuRef}>
@@ -345,17 +334,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             >
               {/* Avatar Photo / Initials */}
               <div className="relative w-6 h-6 shrink-0 flex items-center justify-center">
-                {user?.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={userFullName}
-                    className="w-6 h-6 rounded-full object-cover border border-emerald-500/30 shrink-0 shadow-2xs"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
-                    {userInitials}
-                  </div>
-                )}
+                <UserAvatar
+                  src={user?.avatar_url}
+                  firstName={user?.first_name}
+                  lastName={user?.last_name}
+                  name={user?.username || userFullName}
+                  size={24}
+                  className="border border-emerald-500/30 shrink-0 shadow-2xs"
+                />
                 {unreadNotifs > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#141414]" />
                 )}
@@ -379,17 +365,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                 {/* Header User Card */}
                 <div className="p-3 bg-slate-50 dark:bg-[#141414] border-b border-slate-200/80 dark:border-[#242424]">
                   <div className="flex items-center gap-2.5">
-                    {user?.avatar_url ? (
-                      <img
-                        src={user.avatar_url}
-                        alt={userFullName}
-                        className="w-9 h-9 rounded-full object-cover border border-emerald-500/50 shadow-xs shrink-0"
-                      />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#3ecf8e] text-[#171717] font-mono font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
-                        {userInitials}
-                      </div>
-                    )}
+                    <UserAvatar
+                      src={user?.avatar_url}
+                      firstName={user?.first_name}
+                      lastName={user?.last_name}
+                      name={user?.username || userFullName}
+                      size={36}
+                      className="border border-emerald-500/50 shadow-xs shrink-0"
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
                         {userFullName}

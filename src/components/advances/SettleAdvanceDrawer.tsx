@@ -18,6 +18,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/ToastContainer';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 
 interface SettleAdvanceDrawerProps {
   onSuccess: () => void;
@@ -515,15 +516,16 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
               >
                 Back & Edit
               </button>
-              <button
+              <SubmitButton
                 type="button"
-                disabled={submitting}
+                loading={submitting}
                 onClick={handleConfirmFinalSubmit}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-50"
+                loadingText="Saving Settlement..."
+                icon={<Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                className="px-4 py-1.5 text-xs font-semibold"
               >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{submitting ? 'Saving...' : 'Confirm & Save'}</span>
-              </button>
+                Confirm & Save
+              </SubmitButton>
             </div>
           </div>
         </div>

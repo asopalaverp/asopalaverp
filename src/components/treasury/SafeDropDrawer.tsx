@@ -5,6 +5,7 @@ import { erpService } from '@/lib/erpService';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { formatINR, numberToWordsINR, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import {
   ShieldCheck,
   Wallet,
@@ -145,15 +146,16 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
         >
           Cancel
         </button>
-        <button
+        <SubmitButton
           type="button"
           onClick={() => handleOpenPreview()}
           disabled={submitting || numAmount <= 0 || isOverBalance}
-          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans transition-colors cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+          submitting={submitting}
+          submittingText="Moving Cash..."
+          size="lg"
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-          <span>{submitting ? 'Moving Cash...' : `Review & Move Cash`}</span>
-        </button>
+          Review &amp; Move Cash
+        </SubmitButton>
       </div>
     </>
   );
@@ -436,15 +438,15 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
               >
                 Back & Edit
               </button>
-              <button
+              <SubmitButton
                 type="button"
-                disabled={submitting}
+                submitting={submitting}
+                submittingText="Moving..."
                 onClick={handleConfirmSubmit}
-                className="px-4 py-2 rounded-[6px] bg-amber-500 hover:bg-amber-400 text-[#171717] text-xs font-medium cursor-pointer flex items-center gap-1.5 shadow-xs"
+                size="md"
               >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{submitting ? 'Moving...' : 'Confirm & Move'}</span>
-              </button>
+                Confirm &amp; Move
+              </SubmitButton>
             </div>
           </div>
         </div>

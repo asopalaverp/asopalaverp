@@ -11,6 +11,8 @@ import { BillUploader } from '@/components/vouchers/BillUploader';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { SegmentedControl } from '@/components/ui';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { QuickFloatDrawer } from '@/components/vouchers/QuickFloatDrawer';
 import { cn, formatINR, numberToWordsINR, printThermalVoucherSlip, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -785,30 +787,23 @@ export const NewVoucherPage: React.FC = () => {
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Error Alert Banner */}
         {error && (
-          <div
-            ref={errorBannerRef}
-            className="p-3.5 rounded-[12px] bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs"
-          >
-            <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
-              <div>
-                <strong className="block font-semibold text-rose-900 dark:text-rose-200 text-xs">Please check:</strong>
-                <span className="text-rose-700 dark:text-rose-300 text-xs font-medium leading-relaxed">{error}</span>
-              </div>
-            </div>
-
-            {canAddCash && (
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsQuickFloatOpen(true)}
-                  className="px-3 py-1.5 rounded-[6px] border border-emerald-600/30 dark:border-[#3ecf8e]/30 bg-emerald-100/80 dark:bg-[#3ecf8e]/10 hover:bg-emerald-200 dark:hover:bg-[#3ecf8e]/20 text-emerald-900 dark:text-[#3ecf8e] font-sans font-semibold flex items-center gap-1 text-xs cursor-pointer transition-all shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Cash</span>
-                </button>
-              </div>
-            )}
+          <div ref={errorBannerRef}>
+            <ErrorBanner
+              type="error"
+              title="Please check:"
+              message={error}
+              actionText={
+                (error.toLowerCase().includes('cash') || error.toLowerCase().includes('insufficient') || error.toLowerCase().includes('shortage') || error.toLowerCase().includes('balance')) && canAddCash
+                  ? 'Add Cash to Box'
+                  : undefined
+              }
+              onAction={
+                (error.toLowerCase().includes('cash') || error.toLowerCase().includes('insufficient') || error.toLowerCase().includes('shortage') || error.toLowerCase().includes('balance')) && canAddCash
+                  ? () => setIsQuickFloatOpen(true)
+                  : undefined
+              }
+              onClose={() => setError(null)}
+            />
           </div>
         )}
 
@@ -1303,22 +1298,25 @@ export const NewVoucherPage: React.FC = () => {
 
                 {/* Secondary buttons */}
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-[#222222]">
+                  {/* Clear — rose/destructive tone */}
                   <button
                     type="button"
                     onClick={handleResetForm}
-                    className="h-8.5 px-3 flex items-center justify-center gap-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] transition-colors cursor-pointer shadow-2xs text-xs font-medium"
+                    className="h-9 px-3 flex items-center justify-center gap-1.5 rounded-[6px] border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/50 active:scale-[0.98] transition-all cursor-pointer text-xs font-medium"
                     title="Reset all form fields"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
                     <span>Clear</span>
                   </button>
 
+                  {/* Cancel — neutral slate with X feel */}
                   <button
                     type="button"
                     onClick={() => setActivePage('dashboard')}
-                    className="h-8.5 px-3 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-slate-50 dark:bg-[#1a1a1a] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222] font-sans text-xs cursor-pointer transition-colors font-medium flex items-center justify-center shadow-2xs"
+                    className="h-9 px-3 rounded-[6px] border border-slate-300 dark:border-[#333333] bg-white dark:bg-[#1f1f1f] text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#2a2a2a] hover:border-slate-400 dark:hover:border-[#444] active:scale-[0.98] font-sans text-xs cursor-pointer transition-all font-medium flex items-center justify-center gap-1.5 shadow-2xs"
                   >
-                    Cancel (ESC)
+                    <span className="font-mono text-[10px] px-1 py-0.5 rounded-[3px] bg-slate-100 dark:bg-[#2a2a2a] border border-slate-200 dark:border-[#3a3a3a] text-slate-500 dark:text-zinc-400 leading-none">ESC</span>
+                    <span>Cancel</span>
                   </button>
                 </div>
 
@@ -1459,15 +1457,15 @@ export const NewVoucherPage: React.FC = () => {
                   Go Back &amp; Edit
                 </button>
 
-                <button
+                <SubmitButton
                   type="button"
-                  disabled={submitting}
+                  submitting={submitting}
+                  submittingText="Saving..."
                   onClick={executeFinalDisbursal}
-                  className="h-9 px-5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  size="md"
                 >
-                  <Check className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>{submitting ? 'Saving...' : 'Confirm & Pay (Enter)'}</span>
-                </button>
+                  Confirm &amp; Pay (Enter)
+                </SubmitButton>
               </div>
             </div>
           </div>
