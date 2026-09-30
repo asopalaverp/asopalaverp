@@ -20,6 +20,8 @@ coverage/
 # Database dumps, scripts & exports
 database/
 scripts/
+supabase/
+r2-cors.json
 *.sql
 *.sqlite
 
