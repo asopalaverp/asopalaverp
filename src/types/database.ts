@@ -201,7 +201,7 @@ export interface ExpenseVoucher {
   branch_id: string;
   branch_code: string;
   payment_date: string;
-  payment_type: 'Shop_Vendor' | 'Staff_Split' | 'Courier';
+  payment_type: 'Shop_Vendor' | 'Staff_Split' | 'Courier' | 'Advance_Settlement';
   payment_method: 'Physical_Cash' | 'Online_UPI';
   bank_utr_number?: string | null;
   total_amount: number;
