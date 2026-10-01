@@ -310,10 +310,6 @@ export const LoginPage: React.FC = () => {
         <div className="bg-white dark:bg-[#1c1c1c] border border-slate-200/80 dark:border-[#2e2e2e] rounded-[12px] p-6 sm:p-8 space-y-6 shadow-xl">
           {/* Card Header */}
           <div className="space-y-1.5 text-left">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[6px] bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-emerald-700 dark:text-[#3ecf8e] text-[11px] font-mono font-medium mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
-              <span>ERP Station</span>
-            </div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white font-sans">
               Welcome back
             </h1>
@@ -426,7 +422,7 @@ export const LoginPage: React.FC = () => {
       {/* FORGOT PASSWORD MODAL                                                     */}
       {/* ========================================================================= */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
           <div className="w-full max-w-md bg-white dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2e2e2e] pb-3">
               <div className="flex items-center gap-2">

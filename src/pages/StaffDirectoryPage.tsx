@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
@@ -33,7 +33,6 @@ import {
   ArrowDown,
   Download,
   Code,
-  Copy,
   Terminal,
   MoreVertical,
   ChevronDown,
@@ -126,7 +125,6 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
     password: string;
     pin: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,7 +135,6 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
       setShowConfirmPassword(false);
       setError('');
       setSuccessData(null);
-      setCopied(false);
       setIsPreviewOpen(false);
     }
   }, [isOpen, user]);
@@ -163,23 +160,6 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
     setShowPassword(true);
     setShowConfirmPassword(true);
     setError('');
-  };
-
-  const handleCopyCredentials = () => {
-    if (!successData && !newPassword) return;
-    const passToCopy = successData?.password || newPassword;
-    const pinToCopy = successData?.pin || pin;
-    const text = `Asopalav Login Details:\nUsername: @${user.username}\nPassword: ${passToCopy}${
-      pinToCopy ? `\nPIN: ${pinToCopy}` : ''
-    }`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    showToast({
-      type: 'info',
-      title: 'Details Copied',
-      message: `Login details for @${user.username} copied to clipboard.`,
-    });
-    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -281,7 +261,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
+    <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e]">
       <div
         className="w-full max-w-md bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
         role="dialog"
@@ -373,23 +353,13 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyCredentials}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied!' : 'Copy Login Details'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="py-2 px-4 rounded-[6px] bg-slate-100 dark:bg-[#242424] hover:bg-slate-200 dark:hover:bg-[#2c2c2c] text-slate-700 dark:text-[#EDEDED] font-medium transition-all cursor-pointer"
-                >
-                  Done
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold transition-all cursor-pointer shadow-xs text-center"
+              >
+                Done
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -531,7 +501,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
       {/* Pre-Commit Confirmation Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 bg-black/75 flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
               <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">
@@ -604,13 +574,13 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
 export const StaffDirectoryPage: React.FC = () => {
   const { user, can, getAllowedBranches } = useAuthStore();
-  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
+  const isDeveloper = isPrivilegedAdminRole(user?.role_code);
   const { branches, selectedBranchId } = useBranchStore();
   const { setBulkImportOpen } = useUIStore();
   const { staff, refresh } = useVouchers();
 
   const allowedBranches = getAllowedBranches(branches);
-  const canViewAll = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer' || can('can_view_all_branches');
+  const canViewAll = isPrivilegedAdminRole(user?.role_code) || can('can_view_all_branches');
 
   const [activeTab, setActiveTab] = useState<'logins' | 'staff'>('logins');
   const [search, setSearch] = useState('');
@@ -634,7 +604,6 @@ export const StaffDirectoryPage: React.FC = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
-  const [clipboardToast, setClipboardToast] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
@@ -796,12 +765,6 @@ export const StaffDirectoryPage: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeRowDropdownId]);
-
-  const copyToClipboard = useCallback((text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setClipboardToast(label);
-    setTimeout(() => setClipboardToast(null), 2200);
-  }, []);
 
   const handleOpenCreateUser = () => {
     setSelectedRecord(undefined);
@@ -1066,7 +1029,7 @@ export const StaffDirectoryPage: React.FC = () => {
   return (
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Staff Directory Header */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -1109,7 +1072,7 @@ export const StaffDirectoryPage: React.FC = () => {
             </button>
 
             {/* Export Menu */}
-            <div className="relative" ref={exportRef}>
+            <div className="relative z-20" ref={exportRef}>
               <button
                 type="button"
                 onClick={() => setIsExportOpen(!isExportOpen)}
@@ -1120,11 +1083,11 @@ export const StaffDirectoryPage: React.FC = () => {
                 <ChevronDown className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
               </button>
               {isExportOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[12px] shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={() => handleExportData('csv')}
-                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     CSV format
@@ -1133,7 +1096,7 @@ export const StaffDirectoryPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleExportData('json')}
-                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.03] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                     >
                       <Code className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                       JSON format
@@ -1170,7 +1133,7 @@ export const StaffDirectoryPage: React.FC = () => {
       {/* 2. Main Studio Content */}
       <main className="px-4 lg:px-6 py-4 space-y-4">
         {/* Studio Filter Controls Bar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/80 dark:bg-[#1a1a1c]/80 backdrop-blur-md p-3 rounded-[12px] border border-slate-200/80 dark:border-white/10 shadow-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50 dark:bg-[#181818] p-3 rounded-[12px] border border-slate-200 dark:border-[#282828] shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
             {/* Tabs: Cashier Logins / Floor Staff */}
             <SegmentedControl
@@ -1694,43 +1657,6 @@ export const StaffDirectoryPage: React.FC = () => {
                                       <Key className="w-3.5 h-3.5 text-amber-500" />
                                       <span>Reset Password & PIN</span>
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        copyToClipboard(u.username, 'Copied Username');
-                                        setActiveRowDropdownId(null);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white"
-                                    >
-                                      <Copy className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070]" />
-                                      <span>Copy Username</span>
-                                    </button>
-                                    {u.email && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          copyToClipboard(u.email || '', 'Copied Email');
-                                          setActiveRowDropdownId(null);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white"
-                                      >
-                                        <Copy className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070]" />
-                                        <span>Copy Email</span>
-                                      </button>
-                                    )}
-                                    {isDeveloper && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          copyToClipboard(JSON.stringify(u, null, 2), 'Copied JSON');
-                                          setActiveRowDropdownId(null);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white cursor-pointer"
-                                      >
-                                        <Code className="w-3.5 h-3.5 text-sky-500" />
-                                        <span>Copy User JSON</span>
-                                      </button>
-                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2174,18 +2100,6 @@ export const StaffDirectoryPage: React.FC = () => {
                                       {s.is_active ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                                       <span>{s.is_active ? 'Mark Resigned / Left' : 'Reactivate Staff'}</span>
                                     </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        copyToClipboard(s.staff_code, 'Copied Staff ID');
-                                        setActiveRowDropdownId(null);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white"
-                                    >
-                                      <Copy className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070]" />
-                                      <span>Copy Staff ID</span>
-                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -2246,17 +2160,6 @@ export const StaffDirectoryPage: React.FC = () => {
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
               <span>Export CSV</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                copyToClipboard(Array.from(selectedIds).join(', '), 'Copied Selected IDs');
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#222222] hover:bg-slate-100 dark:hover:bg-[#282828] text-xs font-mono transition-colors cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
-              <span>Copy IDs</span>
             </button>
 
             <button

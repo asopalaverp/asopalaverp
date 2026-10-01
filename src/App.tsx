@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useLayoutEffect, Suspense, lazy } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore, PageId } from '@/store/uiStore';
 import { useBrandStore } from '@/store/brandStore';
-import { usePrintConfigStore } from '@/store/printConfigStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { RolePermissions } from '@/types/database';
 import { useHotkeys } from '@/hooks/useHotkeys';
@@ -140,7 +139,7 @@ export const App: React.FC = () => {
   // Branch boundary guard: Ensure single-branch users never see unauthorized branch data
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    const isSuper = user.role_code === 'Super_Admin' || user.role_code === 'Developer';
+    const isSuper = isPrivilegedAdminRole(user.role_code);
     if (!isSuper && branches.length > 0) {
       const allowed = getAllowedBranches(branches);
       const isCurrentAllowed = allowed.some(
@@ -219,7 +218,6 @@ export const App: React.FC = () => {
 
     useBrandStore.getState().applyBrandToDocument();
     useBrandStore.getState().fetchBrandSettings();
-    usePrintConfigStore.getState().fetchCloudPrintConfig();
     useNotificationStore.getState().fetchCloudNotifications();
     fetchBranchesAndWallets(true);
 
@@ -255,11 +253,13 @@ export const App: React.FC = () => {
 
     const handleFocus = () => {
       useAuthStore.getState().checkSessionExpiry();
+      fetchBranchesAndWallets(false);
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         useAuthStore.getState().checkSessionExpiry();
+        fetchBranchesAndWallets(false);
       }
     };
 
@@ -271,7 +271,7 @@ export const App: React.FC = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchBranchesAndWallets]);
 
   // Global Uncaught Error & Unhandled Rejection Listeners for Animated Toasts
   useEffect(() => {

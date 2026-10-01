@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { useBranchStore } from '@/store/branchStore';
@@ -17,8 +17,6 @@ import {
 } from '@/types/database';
 import { formatINR, formatDate, cn } from '@/lib/utils';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
-import { BrandIdentitySetup } from '@/components/settings/BrandIdentitySetup';
-import { ThermalPrinterCustomizer } from '@/components/settings/ThermalPrinterCustomizer';
 import { useNotificationStore } from '@/store/notificationStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast, showToast } from '@/components/ui/ToastContainer';
@@ -26,7 +24,6 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   Building2,
   Tags,
-  Printer,
   Briefcase,
   Truck,
   Coins,
@@ -40,7 +37,6 @@ import {
   Search,
   Download,
   Code2,
-  Copy,
   Terminal,
   ChevronDown,
   X,
@@ -58,8 +54,6 @@ import {
 } from 'lucide-react';
 
 export type SettingsTabId =
-  | 'brand'
-  | 'print'
   | 'periods'
   | 'branches'
   | 'categories'
@@ -75,7 +69,7 @@ type TableDensity = 'compact' | 'normal' | 'relaxed';
 interface SettingsTabMeta {
   id: SettingsTabId;
   name: string;
-  group: 'HARDWARE & PRINTING' | 'SHOWROOM MASTER DATA';
+  group: 'SHOWROOM MASTER DATA';
   tableName?: string;
   icon: LucideIcon;
   description: string;
@@ -84,24 +78,7 @@ interface SettingsTabMeta {
 }
 
 const SETTINGS_TABS: SettingsTabMeta[] = [
-  // 1. BRAND & HARDWARE
-  {
-    id: 'brand',
-    name: 'Brand & Logo',
-    group: 'HARDWARE & PRINTING',
-    tableName: 'brand_settings',
-    icon: Sparkles,
-    description: 'Shop logo, company name, GST number, address, and live receipt preview',
-  },
-  {
-    id: 'print',
-    name: 'Thermal Slip & Printer',
-    group: 'HARDWARE & PRINTING',
-    icon: Printer,
-    description: 'ESC/POS 80mm/58mm receipt paper format, GSTIN, header, copy count, and footer customizer',
-  },
-
-  // 2. SHOWROOM MASTER DATA GROUP (ERP Master Catalogues)
+  // SHOWROOM MASTER DATA GROUP (ERP Master Catalogues)
   {
     id: 'periods',
     name: 'Monthly Accounts Lock',
@@ -201,8 +178,8 @@ export const ShowroomSettingsPage: React.FC = () => {
   const { categories, departments, couriers, refresh } = useVouchers();
   const { broadcast, setBroadcast } = useNotificationStore();
 
-  // Active Tab State (Default to 'brand')
-  const [activeTabId, setActiveTabId] = useState<SettingsTabId>('brand');
+  // Active Tab State (Default to 'periods')
+  const [activeTabId, setActiveTabId] = useState<SettingsTabId>('periods');
   const [density] = useState<TableDensity>('normal');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -275,7 +252,7 @@ export const ShowroomSettingsPage: React.FC = () => {
     }
   }, []);
 
-  const isAuthorizedAdmin = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
+  const isAuthorizedAdmin = isPrivilegedAdminRole(user?.role_code);
 
   useEffect(() => {
     if (isAuthorizedAdmin) {
@@ -767,10 +744,10 @@ export const ShowroomSettingsPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 1. TOP HEADER & UNIFIED SMART SECTION SELECTOR                            */}
       {/* ========================================================================= */}
-      <div className="border-b border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-[#161618]/90 backdrop-blur-xl px-4 sm:px-6 lg:px-8 py-3.5">
+      <div className="border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414] px-4 sm:px-6 lg:px-8 py-3.5 relative z-30">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-[6px] bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shadow-2xs">
+            <div className="w-8 h-8 rounded-[6px] bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 flex items-center justify-center text-[#3ecf8e] shadow-2xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -780,27 +757,20 @@ export const ShowroomSettingsPage: React.FC = () => {
                 </h1>
               </div>
               <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans hidden sm:block">
-                Centralized ERP configuration, brand customization, hardware printers, and master records
+                Centralized ERP configuration, master catalogues, branch settings, and system rules
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Unified Smart Section Dropdown */}
-            <div className="relative min-w-[260px]">
+            <div className="relative min-w-[260px] z-30">
               <SearchableSelect
-                options={[
-                  ...SETTINGS_TABS.filter(t => t.group === 'SHOWROOM MASTER DATA').map(t => ({
-                    value: t.id,
-                    label: t.name,
-                    badge: counts[t.id] !== undefined ? `${counts[t.id]} items` : undefined,
-                  })),
-                  ...SETTINGS_TABS.filter(t => t.group === 'HARDWARE & PRINTING').map(t => ({
-                    value: t.id,
-                    label: t.name,
-                    badge: 'Hardware',
-                  })),
-                ]}
+                options={SETTINGS_TABS.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                  badge: counts[t.id] !== undefined ? `${counts[t.id]} items` : undefined,
+                }))}
                 value={activeTabId}
                 onChange={(val: string) => {
                   setActiveTabId(val as SettingsTabId);
@@ -823,7 +793,7 @@ export const ShowroomSettingsPage: React.FC = () => {
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-white dark:bg-[#141414]">
         {/* Main Pane Header */}
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 border-b border-slate-200/80 dark:border-white/10">
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 border-b border-slate-200 dark:border-[#282828]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg sm:text-xl font-medium tracking-tight text-slate-900 dark:text-white font-sans flex items-center gap-2.5">
@@ -846,7 +816,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                       toast.info('Refreshing records...');
                     }}
                     disabled={isLoading}
-                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-all cursor-pointer shadow-xs"
+                    className="h-8.5 w-8.5 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] transition-all cursor-pointer shadow-xs"
                     title="Refresh Records"
                   >
                     <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-[#3ecf8e]')} />
@@ -857,7 +827,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setBulkImportOpen(true, activeTabId as any)}
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
                       <span>Import CSV</span>
@@ -865,20 +835,20 @@ export const ShowroomSettingsPage: React.FC = () => {
                   )}
 
                   {/* Export Menu */}
-                  <div className="relative group">
+                  <div className="relative group z-20">
                     <button
                       type="button"
-                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Export</span>
                       <ChevronDown className="w-3 h-3 text-slate-400" />
                     </button>
-                    <div className="absolute right-0 top-full mt-1.5 w-36 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 rounded-[8px] shadow-2xl py-1.5 hidden group-hover:block z-40 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute right-0 top-full mt-1.5 w-36 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] shadow-2xl py-1.5 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-150">
                       <button
                         type="button"
                         onClick={handleExportCsv}
-                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                       >
                         <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
                         <span>CSV format</span>
@@ -886,7 +856,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleExportJson}
-                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                        className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                       >
                         <Code2 className="w-3.5 h-3.5 text-amber-500" />
                         <span>JSON format</span>
@@ -913,25 +883,7 @@ export const ShowroomSettingsPage: React.FC = () => {
           {/* Main Pane Body Container */}
           <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
             {/* =================================================================== */}
-            {/* VIEW 1: BRAND & IDENTITY STUDIO                                     */}
-            {/* =================================================================== */}
-            {activeTabId === 'brand' && (
-              <div className="animate-in fade-in">
-                <BrandIdentitySetup />
-              </div>
-            )}
-
-            {/* =================================================================== */}
-            {/* VIEW 2: THERMAL SLIP & PRINTER CUSTOMIZER                           */}
-            {/* =================================================================== */}
-            {activeTabId === 'print' && (
-              <div className="animate-in fade-in">
-                <ThermalPrinterCustomizer />
-              </div>
-            )}
-
-            {/* =================================================================== */}
-            {/* VIEW 3: GLOBAL BROADCAST COMPOSER                                   */}
+            {/* VIEW 1: GLOBAL BROADCAST COMPOSER                                   */}
             {/* =================================================================== */}
             {activeTabId === 'broadcasts' && (
               <div className="max-w-3xl space-y-6 rounded-[12px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] p-6 shadow-xs animate-in fade-in">
@@ -1503,7 +1455,7 @@ export const ShowroomSettingsPage: React.FC = () => {
       {/* PERIOD LOCK AUDIT MODAL (PRE-COMMIT VERIFICATION SLIP)                    */}
       {/* ========================================================================= */}
       {lockModalOpen && targetPeriod && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"
@@ -1613,7 +1565,7 @@ export const ShowroomSettingsPage: React.FC = () => {
       {/* GLOBAL BROADCAST PRE-COMMIT CONFIRMATION PREVIEW MODAL                    */}
       {/* ========================================================================= */}
       {isBroadcastPreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"

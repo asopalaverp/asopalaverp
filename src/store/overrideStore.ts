@@ -16,7 +16,14 @@ const getCallerRole = (): string | null => {
 
 const isCallerAuthorized = (): boolean => {
   const role = getCallerRole();
-  return role === 'Super_Admin' || role === 'Developer';
+  if (!role) return false;
+  const normalized = role.toLowerCase().replace(/[\s_-]+/g, '');
+  return (
+    normalized === 'superadmin' ||
+    normalized === 'admin' ||
+    normalized === 'developer' ||
+    normalized === 'owner'
+  );
 };
 
 export interface OverridePolicies {

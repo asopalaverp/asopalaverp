@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
+import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { animateDrawerOpen, animateDrawerClose } from '@/lib/animations';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -15,7 +15,6 @@ export interface SlideOverDrawerProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   badge?: React.ReactNode;
-  copyId?: string;
   size?: DrawerSize;
   allowExpand?: boolean;
   contentClassName?: string;
@@ -40,7 +39,6 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   title,
   subtitle,
   badge,
-  copyId,
   size = 'full',
   allowExpand = true,
   contentClassName,
@@ -51,7 +49,6 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { isSidebarCollapsed } = useUIStore();
   const { isMobile, isTablet } = useDeviceType();
@@ -88,13 +85,6 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
     }
   }, [isOpen, isMobile]);
 
-  const handleCopyId = () => {
-    if (!copyId) return;
-    navigator.clipboard.writeText(copyId);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
   if (!isOpen || !mounted) return null;
 
   // Determine current width class: full screen if user toggled expand, otherwise standard drawer size
@@ -105,7 +95,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
       {/* 1. Backdrop covering the ENTIRE viewport including sidebar and topbar */}
       <div
         ref={backdropRef}
-        className="fixed inset-0 bg-black/70 dark:bg-black/80 transition-opacity backdrop-blur-sm z-0"
+        className="fixed inset-0 bg-black/75 transition-opacity z-0"
         onClick={handleClose}
       />
 
@@ -126,35 +116,14 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
           {/* iOS Sheet Grabber Handle for Mobile */}
           <div className="sm:hidden w-10 h-1.5 rounded-full bg-black/25 dark:bg-white/25 mx-auto mt-2.5 mb-1 shrink-0" />
 
-          {/* 1. iOS 16 Frosted Header */}
-          <div className="px-5 py-3.5 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl shrink-0 z-10">
+          {/* 1. Studio Header */}
+          <div className="px-5 py-3.5 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between bg-white dark:bg-[#141414] shrink-0 z-10">
             <div className="flex items-center gap-2.5 min-w-0 pr-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-sm font-medium text-slate-900 dark:text-white tracking-tight font-sans truncate">
                     {title}
                   </h2>
-
-                  {copyId && (
-                    <button
-                      type="button"
-                      onClick={handleCopyId}
-                      title="Copy ID to clipboard"
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#222222] hover:bg-slate-200 dark:hover:bg-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono transition-colors cursor-pointer"
-                    >
-                      {isCopied ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-600 dark:text-[#3ecf8e] stroke-[2.5]" />
-                          <span className="text-emerald-600 dark:text-[#3ecf8e] font-medium font-sans">COPIED</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-2.5 h-2.5" />
-                          <span className="font-sans font-medium">COPY</span>
-                        </>
-                      )}
-                    </button>
-                  )}
 
                   {badge}
                 </div>
@@ -211,7 +180,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
 
           {/* 3. Sticky Enterprise Footer */}
           {footer && (
-            <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-slate-200 dark:border-[#1f1f1f] bg-slate-50/95 dark:bg-[#141414]/95 backdrop-blur-md shrink-0 mt-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 z-10 pb-safe">
+            <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-slate-200 dark:border-[#1f1f1f] bg-slate-50 dark:bg-[#141414] shrink-0 mt-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 z-10 pb-safe">
               {footer}
             </div>
           )}

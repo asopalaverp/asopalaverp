@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
 import { StaffAdvance } from '@/types/database';
@@ -9,7 +9,6 @@ import { useScrollLock } from '@/hooks/useScrollLock';
 import { differenceInDays } from 'date-fns';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { SegmentedControl } from '@/components/ui';
-import { ThermalReceiptSlip } from '@/components/ui/ThermalReceiptSlip';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -23,7 +22,6 @@ import {
   Trash2,
   Calendar,
   Receipt,
-  Printer,
   PenTool,
   User,
   Zap,
@@ -41,7 +39,6 @@ import {
   Sparkles,
   Clock,
   Code,
-  Copy,
   Check,
   SlidersHorizontal,
   BarChart3,
@@ -68,7 +65,7 @@ type SortField =
   | 'status';
 type SortOrder = 'asc' | 'desc';
 type TableDensity = 'compact' | 'normal' | 'relaxed';
-type SubViewTab = 'grid' | 'salary_payroll' | 'analytics_staff' | 'analytics_dept';
+type SubViewTab = 'grid' | 'analytics_staff' | 'analytics_dept';
 
 type ColumnKey =
   | 'receipt_number'
@@ -141,7 +138,7 @@ function generateAdvanceSqlInsert(a: StaffAdvance): string {
 export const StaffAdvancesPage: React.FC = () => {
   const { setAdvanceModalOpen, setSettleTargetAdvance } = useUIStore();
   const { user, can } = useAuthStore();
-  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
+  const isDeveloper = isPrivilegedAdminRole(user?.role_code);
   const { selectedBranchId } = useBranchStore();
 
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
@@ -179,11 +176,9 @@ export const StaffAdvancesPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Popovers & Feedback
-  const [selectedSlipAdvance, setSelectedSlipAdvance] = useState<StaffAdvance | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
-  const [clipboardToast, setClipboardToast] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const exportRef = useRef<HTMLDivElement | null>(null);
@@ -193,14 +188,11 @@ export const StaffAdvancesPage: React.FC = () => {
     type: null,
     advance: null,
     reason: '',
-    month: 'Current Month (25th Payroll)',
+    month: 'Current Month (Salary Deduction)',
     isSubmitting: false,
   });
 
-  // HR Payroll Sync State
-  const [selectedPayrollMonth, setSelectedPayrollMonth] = useState<string>('March 2026 Payroll (25th)');
-  const [selectedPayrollIds, setSelectedPayrollIds] = useState<Set<string>>(new Set());
-  const [isPayrollProcessing, setIsPayrollProcessing] = useState<boolean>(false);
+
 
   useScrollLock(Boolean(actionModal.type));
 
@@ -279,122 +271,7 @@ export const StaffAdvancesPage: React.FC = () => {
     }
   };
 
-  const handleExportHRPayrollCSV = () => {
-    try {
-      const csvContent = erpService.generateHRPayrollDeductionCSV(advances, selectedPayrollMonth);
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `HR_Payroll_Deductions_${selectedPayrollMonth.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast({
-        type: 'success',
-        title: 'Payroll CSV Exported',
-        message: `HR Payroll deduction schedule downloaded for ${selectedPayrollMonth}`,
-      });
-      triggerHaptic('success');
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Export Failed',
-        message: err.message || 'Failed to generate payroll CSV',
-      });
-    }
-  };
 
-  const handleAutoFlag30DayOverdues = async () => {
-    setIsPayrollProcessing(true);
-    try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const overdueAdvances = advances.filter(
-        (a) =>
-          a.status === 'Active_Unsettled' &&
-          Number(a.unsettled_balance) > 0 &&
-          new Date(a.advance_date) <= thirtyDaysAgo
-      );
-
-      if (overdueAdvances.length === 0) {
-        showToast({
-          type: 'info',
-          title: 'No 30+ Day Overdues',
-          message: 'All active advances are within the normal 30-day grace period.',
-        });
-        return;
-      }
-
-      const overdueIds = overdueAdvances.map((a) => a.id);
-      const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
-      const res = await erpService.batchFlagOverdueForSalaryDeduction(
-        overdueIds,
-        selectedPayrollMonth,
-        userName,
-        selectedBranchId
-      );
-
-      showToast({
-        type: 'success',
-        title: 'Overdue Advances Flagged',
-        message: `Flagged ${res.count} overdue advances totaling ${formatINR(res.totalAmount)} for salary deduction`,
-      });
-      triggerHaptic('success');
-      await fetchAdvances();
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Auto-Flag Failed',
-        message: err.message || 'Failed to auto-flag overdue advances',
-      });
-    } finally {
-      setIsPayrollProcessing(false);
-    }
-  };
-
-  const handleBatchClearPayrollDeductions = async () => {
-    if (selectedPayrollIds.size === 0) {
-      showToast({
-        type: 'warning',
-        title: 'No Rows Selected',
-        message: 'Select at least one advance to mark as cleared by HR payroll.',
-      });
-      return;
-    }
-
-    setIsPayrollProcessing(true);
-    try {
-      const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
-      const userRole = user?.role_code || 'Super_Admin';
-      const res = await erpService.batchClearSalaryDeductions(
-        Array.from(selectedPayrollIds),
-        userName,
-        userRole,
-        `HR Payroll processed for ${selectedPayrollMonth}`,
-        selectedBranchId
-      );
-
-      showToast({
-        type: 'success',
-        title: 'Payroll Deductions Cleared',
-        message: `Successfully marked ${res.count} advances (${formatINR(res.totalAmount)}) as Settled via Salary Deduction`,
-      });
-      setSelectedPayrollIds(new Set());
-      triggerHaptic('success');
-      await fetchAdvances();
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Clear Deductions Failed',
-        message: err.message || 'Failed to clear salary deductions',
-      });
-    } finally {
-      setIsPayrollProcessing(false);
-    }
-  };
 
   useEffect(() => {
     fetchAdvances();
@@ -434,18 +311,6 @@ export const StaffAdvancesPage: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeRowDropdownId]);
-
-  const copyToClipboard = useCallback((text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setClipboardToast(label);
-    showToast({
-      type: 'info',
-      title: 'Copied to Clipboard',
-      message: label,
-    });
-    triggerHaptic('selection');
-    setTimeout(() => setClipboardToast(null), 2500);
-  }, []);
 
   // Departments list
   const departmentsList = useMemo(() => {
@@ -876,10 +741,11 @@ export const StaffAdvancesPage: React.FC = () => {
         month: '',
         isSubmitting: false,
       });
-      copyToClipboard(
-        actionModal.advance.receipt_number,
-        `Flagged for ${actionModal.month} payroll deduction`
-      );
+      showToast({
+        type: 'success',
+        title: 'Salary Deduction',
+        message: `Advance #${actionModal.advance.receipt_number} flagged for ${actionModal.month} salary deduction`,
+      });
     } catch (err: any) {
       setActionModal((prev) => ({
         ...prev,
@@ -932,16 +798,8 @@ export const StaffAdvancesPage: React.FC = () => {
 
   return (
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
-      {/* Toast Notification */}
-      {clipboardToast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-3.5 py-2 rounded-[6px] bg-slate-900 dark:bg-[#171717] text-white border border-slate-700 dark:border-[#2e2e2e] shadow-lg animate-in fade-in slide-in-from-bottom-3 duration-200 text-xs font-mono">
-          <Check className="w-3.5 h-3.5 text-[#3ecf8e] stroke-[2.5]" />
-          <span>{clipboardToast}</span>
-        </div>
-      )}
-
       {/* 1. Staff Advances Header */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+      <div className="relative z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -965,7 +823,6 @@ export const StaffAdvancesPage: React.FC = () => {
             <SegmentedControl
               options={[
                 { id: 'grid', label: 'All Advances', icon: <Layers className="w-3.5 h-3.5" /> },
-                { id: 'salary_payroll', label: 'HR Payroll Sync', icon: <Flag className="w-3.5 h-3.5" /> },
                 { id: 'analytics_staff', label: 'By Staff', icon: <Users className="w-3.5 h-3.5" /> },
                 { id: 'analytics_dept', label: 'By Department', icon: <Building2 className="w-3.5 h-3.5" /> },
               ]}
@@ -979,7 +836,7 @@ export const StaffAdvancesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[10px] border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
+                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
@@ -987,14 +844,14 @@ export const StaffAdvancesPage: React.FC = () => {
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 rounded-[14px] bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border border-slate-200/80 dark:border-white/15 shadow-2xl p-1.5 z-40 space-y-0.5 text-xs font-mono animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1 z-50 space-y-0.5 text-xs font-mono animate-in fade-in zoom-in-95 duration-100">
                   <button
                     type="button"
                     onClick={handleExportCSV}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-[8px] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
                       <span>Export CSV</span>
                     </div>
                     <span className="text-[10px] text-slate-400 dark:text-[#707070]">.csv</span>
@@ -1004,7 +861,7 @@ export const StaffAdvancesPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleExportJSON}
-                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-[8px] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -1036,7 +893,7 @@ export const StaffAdvancesPage: React.FC = () => {
       {/* Main Container Area */}
       <main className="px-4 lg:px-6 py-4 space-y-4 flex-1">
         {/* Filter Controls Bar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50/80 dark:bg-[#18181a] border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#282828] shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
             {/* Search Box */}
             <div className="relative flex-1 sm:w-64">
@@ -1290,7 +1147,7 @@ export const StaffAdvancesPage: React.FC = () => {
                       key={adv.id}
                       onClick={() => {
                         triggerHaptic();
-                        setSelectedSlipAdvance(adv);
+                        handleToggleSelect(adv.id);
                       }}
                       className={cn(
                         'flex items-center justify-between p-3.5 rounded-[12px] bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] hover:border-[#3ecf8e]/40 transition-all cursor-pointer gap-3 select-none',
@@ -1695,7 +1552,7 @@ export const StaffAdvancesPage: React.FC = () => {
                               </span>
                             ) : adv.status === 'Flagged_Salary_Deduction' ? (
                               <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
-                                Salary Cut ({adv.salary_deduction_month || 'Payroll'})
+                                Salary Cut ({adv.salary_deduction_month || 'Salary'})
                               </span>
                             ) : (
                               <span
@@ -1737,7 +1594,7 @@ export const StaffAdvancesPage: React.FC = () => {
                                           type: 'flag_salary',
                                           advance: adv,
                                           reason: '',
-                                          month: 'March 2026 Payroll (25th)',
+                                          month: 'March 2026 (Salary Cut)',
                                           isSubmitting: false,
                                         })
                                       }
@@ -1754,15 +1611,7 @@ export const StaffAdvancesPage: React.FC = () => {
                                 </span>
                               )}
 
-                              {/* View / Print Slip Button */}
-                              <button
-                                type="button"
-                                onClick={() => setSelectedSlipAdvance(adv)}
-                                title="View & Print Advance Slip (80mm Thermal)"
-                                className="p-1 rounded text-slate-400 dark:text-[#707070] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-colors cursor-pointer"
-                              >
-                                <Receipt className="w-3.5 h-3.5" />
-                              </button>
+
 
                               {/* Dev context menu */}
                               <button
@@ -1777,7 +1626,7 @@ export const StaffAdvancesPage: React.FC = () => {
                               </button>
                             </div>
 
-                            {/* Context Dropdown with Smart Placement */}
+                              {/* Context Dropdown with Smart Placement */}
                             {isDropdownOpen && (
                               <div
                                 className={cn(
@@ -1785,18 +1634,6 @@ export const StaffAdvancesPage: React.FC = () => {
                                   idx >= Math.max(1, paginatedAdvances.length - 2) ? 'bottom-8' : 'top-8'
                                 )}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedSlipAdvance(adv);
-                                    setActiveRowDropdownId(null);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-[#EDEDED] cursor-pointer"
-                                >
-                                  <Receipt className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                                  <span>View / Print Slip</span>
-                                </button>
-
                                 {isUnsettled && (
                                   <>
                                     <button
@@ -1806,7 +1643,7 @@ export const StaffAdvancesPage: React.FC = () => {
                                           type: 'flag_salary',
                                           advance: adv,
                                           reason: '',
-                                          month: 'Current Month (25th Payroll)',
+                                          month: 'Current Month (Salary Deduction)',
                                           isSubmitting: false,
                                         });
                                         setActiveRowDropdownId(null);
@@ -1837,7 +1674,7 @@ export const StaffAdvancesPage: React.FC = () => {
                                   </>
                                 )}
 
-                                {(user?.role_code === 'Super_Admin' || user?.role_code === 'Store_Manager') && (
+                                {(isPrivilegedAdminRole(user?.role_code) || user?.role_code === 'Store_Manager') && (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1855,54 +1692,6 @@ export const StaffAdvancesPage: React.FC = () => {
                                     <Trash2 className="w-3.5 h-3.5" />
                                     <span>Delete Advance</span>
                                   </button>
-                                )}
-
-                                <div className="my-1 border-t border-slate-200 dark:border-[#262626]" />
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    copyToClipboard(adv.receipt_number, 'Receipt # copied');
-                                    setActiveRowDropdownId(null);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-[#EDEDED] cursor-pointer"
-                                >
-                                  <Copy className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
-                                  <span>Copy Receipt #</span>
-                                </button>
-
-                                {isDeveloper && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        copyToClipboard(
-                                          JSON.stringify(adv, null, 2),
-                                          'Advance JSON copied'
-                                        );
-                                        setActiveRowDropdownId(null);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-[#EDEDED] cursor-pointer"
-                                    >
-                                      <Code className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                                      <span>Copy as JSON</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        copyToClipboard(
-                                          generateAdvanceSqlInsert(adv),
-                                          'SQL INSERT copied'
-                                        );
-                                        setActiveRowDropdownId(null);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-[#EDEDED] cursor-pointer"
-                                    >
-                                      <Terminal className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                                      <span>Copy as SQL</span>
-                                    </button>
-                                  </>
                                 )}
                               </div>
                             )}
@@ -2006,351 +1795,7 @@ export const StaffAdvancesPage: React.FC = () => {
           </div>
         )}
 
-        {/* 6. Sub-View: HR Payroll Sync & Salary Deduction Schedule */}
-        {activeSubTab === 'salary_payroll' && (
-          <div className="space-y-4">
-            {/* Top Payroll Control & Metric Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
-                    Flagged for Deduction
-                  </span>
-                  <span className="p-1.5 rounded-[4px] bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                    <Flag className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-                <div className="mt-2 text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
-                  {formatINR(
-                    advances
-                      .filter((a) => a.status === 'Flagged_Salary_Deduction')
-                      .reduce((s, a) => s + (Number(a.unsettled_balance) || 0), 0)
-                  )}
-                </div>
-                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
-                  {advances.filter((a) => a.status === 'Flagged_Salary_Deduction').length} staff advances queued
-                </p>
-              </div>
 
-              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
-                    30+ Day Overdue (Eligible)
-                  </span>
-                  <span className="p-1.5 rounded-[4px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-                <div className="mt-2 text-xl font-bold font-mono text-rose-600 dark:text-rose-400">
-                  {formatINR(
-                    advances
-                      .filter(
-                        (a) =>
-                          a.status === 'Active_Unsettled' &&
-                          differenceInDays(new Date(), new Date(a.advance_date)) >= 30
-                      )
-                      .reduce((s, a) => s + (Number(a.unsettled_balance) || 0), 0)
-                  )}
-                </div>
-                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
-                  {
-                    advances.filter(
-                      (a) =>
-                        a.status === 'Active_Unsettled' &&
-                        differenceInDays(new Date(), new Date(a.advance_date)) >= 30
-                    ).length
-                  }{' '}
-                  unsettled over 30 days
-                </p>
-              </div>
-
-              <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-slate-500 dark:text-[#888888] uppercase tracking-wider">
-                    Cleared via Payroll
-                  </span>
-                  <span className="p-1.5 rounded-[4px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-600 dark:text-[#3ecf8e]">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-                <div className="mt-2 text-xl font-bold font-mono text-emerald-600 dark:text-[#3ecf8e]">
-                  {formatINR(
-                    advances
-                      .filter((a) => a.status === 'Cleared_Salary_Deduction')
-                      .reduce((s, a) => s + (Number(a.advance_amount) || 0), 0)
-                  )}
-                </div>
-                <p className="text-[11px] font-mono text-slate-400 dark:text-[#707070] mt-1">
-                  {advances.filter((a) => a.status === 'Cleared_Salary_Deduction').length} advances settled via HR
-                </p>
-              </div>
-            </div>
-
-            {/* Actions Bar & Cycle Selector */}
-            <div className="p-4 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="w-64">
-                  <label className="text-[10px] uppercase font-mono text-slate-400 dark:text-[#707070] block mb-1">
-                    Payroll Deduction Cycle
-                  </label>
-                  <SearchableSelect
-                    size="sm"
-                    options={[
-                      'March 2026 Payroll (25th)',
-                      'April 2026 Payroll (25th)',
-                      'May 2026 Payroll (25th)',
-                      'June 2026 Payroll (25th)',
-                    ]}
-                    value={selectedPayrollMonth}
-                    onChange={(val) => setSelectedPayrollMonth(val)}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-                <button
-                  type="button"
-                  disabled={isPayrollProcessing}
-                  onClick={handleAutoFlag30DayOverdues}
-                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] hover:border-amber-500 text-slate-700 dark:text-[#EDEDED] text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Automatically flag all advances older than 30 days"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Auto-Flag 30+ Day Overdues</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={selectedPayrollIds.size === 0 || isPayrollProcessing}
-                  onClick={handleBatchClearPayrollDeductions}
-                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-purple-600 hover:bg-purple-700 text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 shadow-xs"
-                >
-                  <CheckSquare className="w-3.5 h-3.5" />
-                  <span>Mark Selected Cleared ({selectedPayrollIds.size})</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExportHRPayrollCSV}
-                  className="h-8.5 px-3 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export HR Payroll CSV</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Payroll Schedule Table */}
-            <div className="rounded-[12px] border border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414] overflow-hidden shadow-xs">
-              <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-[#3ecf8e]" />
-                  <h3 className="text-xs font-mono font-medium text-slate-900 dark:text-white">
-                    HR Payroll Schedule — {selectedPayrollMonth}
-                  </h3>
-                </div>
-                <span className="text-xs font-mono text-slate-500 dark:text-[#888888]">
-                  {advances.filter((a) => a.status === 'Flagged_Salary_Deduction' || (a.status === 'Active_Unsettled' && differenceInDays(new Date(), new Date(a.advance_date)) >= 15)).length} eligible advances
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#242424] text-slate-500 dark:text-[#707070] font-mono text-xs">
-                      <th className="py-2.5 px-3 w-10 text-center border-r border-slate-200 dark:border-[#242424]">
-                        <input
-                          type="checkbox"
-                          checked={
-                            advances
-                              .filter((a) => a.status === 'Flagged_Salary_Deduction')
-                              .length > 0 &&
-                            advances
-                              .filter((a) => a.status === 'Flagged_Salary_Deduction')
-                              .every((a) => selectedPayrollIds.has(a.id))
-                          }
-                          onChange={(e) => {
-                            const flagged = advances.filter(
-                              (a) => a.status === 'Flagged_Salary_Deduction'
-                            );
-                            if (e.target.checked) {
-                              setSelectedPayrollIds(new Set(flagged.map((a) => a.id)));
-                            } else {
-                              setSelectedPayrollIds(new Set());
-                            }
-                          }}
-                          className="rounded-[4px] border-slate-300 dark:border-[#383838] bg-white dark:bg-[#171717] text-[#3ecf8e] focus:ring-[#3ecf8e]"
-                        />
-                      </th>
-                      <th className="py-2.5 px-3 border-r border-slate-200 dark:border-[#242424] w-28">
-                        Receipt #
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424]">
-                        Staff Member
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] w-28">
-                        Advance Date
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center w-24">
-                        Ageing
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-28">
-                        Advance (₹)
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-28">
-                        Settled (₹)
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right w-32 font-semibold">
-                        Deduction Due (₹)
-                      </th>
-                      <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center w-40">
-                        Status / Cycle
-                      </th>
-                      <th className="py-2.5 px-3 text-right w-28">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#1f1f1f] font-mono">
-                    {advances
-                      .filter(
-                        (a) =>
-                          a.status === 'Flagged_Salary_Deduction' ||
-                          (a.status === 'Active_Unsettled' &&
-                            differenceInDays(new Date(), new Date(a.advance_date)) >= 15)
-                      )
-                      .map((adv) => {
-                        const days = differenceInDays(new Date(), new Date(adv.advance_date));
-                        const isFlagged = adv.status === 'Flagged_Salary_Deduction';
-                        const isSelected = selectedPayrollIds.has(adv.id);
-
-                        return (
-                          <tr
-                            key={adv.id}
-                            className={cn(
-                              'hover:bg-slate-50/80 dark:hover:bg-[#1a1a1a] transition-colors',
-                              isSelected ? 'bg-purple-50/40 dark:bg-purple-950/20' : ''
-                            )}
-                          >
-                            <td className="py-2 px-3 text-center border-r border-slate-100 dark:border-[#1f1f1f]">
-                              {isFlagged ? (
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => {
-                                    const next = new Set(selectedPayrollIds);
-                                    if (next.has(adv.id)) next.delete(adv.id);
-                                    else next.add(adv.id);
-                                    setSelectedPayrollIds(next);
-                                  }}
-                                  className="rounded-[4px] border-slate-300 dark:border-[#383838] bg-white dark:bg-[#171717] text-[#3ecf8e] focus:ring-[#3ecf8e]"
-                                />
-                              ) : (
-                                <span className="text-slate-300 dark:text-[#444444]">—</span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 border-r border-slate-100 dark:border-[#1f1f1f] text-slate-800 dark:text-[#EDEDED] font-medium">
-                              {adv.receipt_number}
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f]">
-                              <div className="font-sans font-medium text-slate-900 dark:text-white">
-                                {adv.staff_name}
-                              </div>
-                              <div className="text-[11px] text-slate-400 dark:text-[#707070]">
-                                {adv.staff_code} • {adv.department_name}
-                              </div>
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1]">
-                              {formatDate(adv.advance_date)}
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-center">
-                              <span
-                                className={cn(
-                                  'px-2 py-0.5 rounded-[4px] text-[10px] font-mono',
-                                  days >= 30
-                                    ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20'
-                                    : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20'
-                                )}
-                              >
-                                {days}d overdue
-                              </span>
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right text-slate-900 dark:text-white tabular-nums">
-                              {formatINR(adv.advance_amount)}
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
-                              {formatINR(adv.bills_submitted_amount + adv.cash_returned_amount)}
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-right font-bold text-rose-600 dark:text-rose-400 tabular-nums text-sm">
-                              {formatINR(adv.unsettled_balance)}
-                            </td>
-                            <td className="py-2 px-3.5 border-r border-slate-100 dark:border-[#1f1f1f] text-center">
-                              {isFlagged ? (
-                                <span className="px-2 py-0.5 rounded-[4px] text-[10px] bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
-                                  {adv.salary_deduction_month || selectedPayrollMonth}
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-[4px] text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-                                  Eligible for Cut
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              {isFlagged ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedSlipAdvance(adv)}
-                                  className="p-1 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222222]"
-                                  title="View Slip"
-                                >
-                                  <Receipt className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActionModal({
-                                      type: 'flag_salary',
-                                      advance: adv,
-                                      reason: '',
-                                      month: selectedPayrollMonth,
-                                      isSubmitting: false,
-                                    });
-                                  }}
-                                  className="px-2 py-1 rounded-[4px] bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 hover:bg-purple-100 border border-purple-200 dark:border-purple-500/20 text-[11px]"
-                                >
-                                  Flag Cut
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                    {advances.filter(
-                      (a) =>
-                        a.status === 'Flagged_Salary_Deduction' ||
-                        (a.status === 'Active_Unsettled' &&
-                          differenceInDays(new Date(), new Date(a.advance_date)) >= 15)
-                    ).length === 0 && (
-                      <tr>
-                        <td colSpan={10} className="p-8 text-center text-slate-500 dark:text-[#888888] font-sans">
-                          <CheckCircle2 className="w-8 h-8 text-[#3ecf8e] mx-auto mb-2 opacity-80" />
-                          <div className="font-medium text-slate-900 dark:text-white">
-                            No overdue or flagged salary deductions
-                          </div>
-                          <div className="text-xs text-slate-400 mt-1">
-                            All staff advances are currently settled or within the normal advance cycle.
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* 7. Sub-View: By Staff Member */}
         {activeSubTab === 'analytics_staff' && (
@@ -2423,6 +1868,20 @@ export const StaffAdvancesPage: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                  {staffMemberAnalytics.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-0 border-none">
+                        <EmptyState
+                          icon={Users}
+                          title="No staff member advances found"
+                          description="There are currently no staff advances recorded for any staff member in this showroom."
+                          actionLabel="Give Advance"
+                          onAction={() => setAdvanceModalOpen(true)}
+                          className="py-12"
+                        />
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -2491,16 +1950,30 @@ export const StaffAdvancesPage: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                  {departmentAnalytics.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-0 border-none">
+                        <EmptyState
+                          icon={Building2}
+                          title="No department advances found"
+                          description="There are currently no staff advances categorized by department in this showroom."
+                          actionLabel="Give Advance"
+                          onAction={() => setAdvanceModalOpen(true)}
+                          className="py-12"
+                        />
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* 8. Action Confirmation Modal (Salary Deduction / Waive / Delete - iOS 16 Dialog) */}
+        {/* 8. Action Confirmation Modal (Salary Deduction / Waive / Delete - Studio Dialog) */}
         {actionModal.type && actionModal.advance && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
-            <div className="w-full max-w-md bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/15 rounded-[18px] shadow-2xl p-5 space-y-4 text-xs font-sans">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in duration-150">
+            <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[12px] shadow-2xl p-5 space-y-4 text-xs font-sans">
               <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-white/10">
                 <div
                   className={cn(
@@ -2555,18 +2028,18 @@ export const StaffAdvancesPage: React.FC = () => {
                 {actionModal.type === 'flag_salary' && (
                   <div className="space-y-1">
                     <label className="text-xs text-slate-600 dark:text-[#A1A1A1] block font-mono">
-                      Payroll Month for Deduction *
+                      Salary Month for Deduction *
                     </label>
                     <SearchableSelect
                       options={[
-                        'March 2026 Payroll (25th)',
-                        'April 2026 Payroll (25th)',
-                        'May 2026 Payroll (25th)',
-                        'June 2026 Payroll (25th)',
+                        'March 2026 (Salary Cut)',
+                        'April 2026 (Salary Cut)',
+                        'May 2026 (Salary Cut)',
+                        'June 2026 (Salary Cut)',
                       ]}
                       value={actionModal.month}
                       onChange={(val) => setActionModal((prev) => ({ ...prev, month: val }))}
-                      searchPlaceholder="Search payroll month..."
+                      searchPlaceholder="Search deduction month..."
                     />
                   </div>
                 )}
@@ -2629,96 +2102,6 @@ export const StaffAdvancesPage: React.FC = () => {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
-
-        {/* Thermal Receipt Slip Modal (With Digital Touch Signature) */}
-        {selectedSlipAdvance && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-md select-none font-sans overflow-y-auto">
-            <div className="relative w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[12px] p-6 shadow-2xl flex flex-col items-center space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between w-full pb-3 border-b border-slate-200 dark:border-[#282828]">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-[#3ecf8e]" />
-                  <h3 className="text-sm font-mono font-medium text-slate-900 dark:text-white">
-                    Advance Receipt #{selectedSlipAdvance.receipt_number}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSlipAdvance(null)}
-                  className="p-1 rounded text-slate-400 dark:text-[#707070] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="w-full flex justify-center py-2">
-                <ThermalReceiptSlip
-                  data={{
-                    title: 'Staff Advance Payout Slip',
-                    storeName: 'Asopalav Silk & Sarees',
-                    storeCode: selectedSlipAdvance.branch_code,
-                    storeCity: 'Ahmedabad',
-                    referenceNo: selectedSlipAdvance.receipt_number,
-                    dateTime: formatDate(selectedSlipAdvance.advance_date),
-                    cashierName: selectedSlipAdvance.disbursed_by_name || 'Cashier',
-                    walletType:
-                      selectedSlipAdvance.payment_method === 'Physical_Cash'
-                        ? 'Physical_Cash'
-                        : 'Online_UPI',
-                    totalAmount: Number(selectedSlipAdvance.advance_amount) || 0,
-                    items: [
-                      {
-                        label: 'Staff Member:',
-                        value: `${selectedSlipAdvance.staff_name} (${selectedSlipAdvance.staff_code})`,
-                        isBold: true,
-                      },
-                      {
-                        label: 'Department:',
-                        value: selectedSlipAdvance.department_name || 'Showroom',
-                      },
-                      {
-                        label: 'Designation:',
-                        value: selectedSlipAdvance.designation || 'Showroom Staff',
-                      },
-                      { label: 'Reason / Purpose:', value: selectedSlipAdvance.purpose },
-                      {
-                        label: 'Remaining Due:',
-                        value: formatINR(selectedSlipAdvance.unsettled_balance),
-                      },
-                    ],
-                    doubleEntry: {
-                      dr: 'Staff Imprest Advance A/c',
-                      cr:
-                        selectedSlipAdvance.payment_method === 'Physical_Cash'
-                          ? 'Cash Drawer A/c'
-                          : 'Bank UPI A/c',
-                    },
-                    stampText:
-                      selectedSlipAdvance.unsettled_balance === 0
-                        ? 'SETTLED'
-                        : selectedSlipAdvance.status === 'Flagged_Salary_Deduction'
-                        ? 'SALARY CUT'
-                        : 'GIVEN',
-                    stampVariant:
-                      selectedSlipAdvance.unsettled_balance === 0 ? 'approved' : 'injected',
-                    signatureUrl: selectedSlipAdvance.signature_image_url || undefined,
-                    signeeName: selectedSlipAdvance.staff_name,
-                  }}
-                  onPrint={() => window.print()}
-                />
-              </div>
-
-              <div className="w-full pt-3 flex justify-end border-t border-slate-200 dark:border-[#282828]">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSlipAdvance(null)}
-                  className="px-4 py-1.5 rounded-[6px] bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:bg-slate-200 dark:hover:bg-[#282828] hover:text-slate-900 dark:hover:text-white text-xs font-mono cursor-pointer transition-colors"
-                >
-                  Close Slip
-                </button>
-              </div>
             </div>
           </div>
         )}

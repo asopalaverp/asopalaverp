@@ -114,7 +114,7 @@ export const PinLockOverlay: React.FC = () => {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-3 select-none font-sans overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 select-none font-sans overflow-y-auto"
     >
       <div
         ref={cardRef}

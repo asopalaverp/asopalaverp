@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useOverrideStore, OverrideDuration, OverridePolicies } from '@/store/overrideStore';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -45,7 +45,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
     nextValue?: boolean;
   }>({ open: false, type: 'master' });
 
-  const isSuperAdmin = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
+  const isSuperAdmin = isPrivilegedAdminRole(user?.role_code);
   if (!isSuperAdmin) return null;
 
   const anyActive = isAnyOverrideActive();
@@ -503,7 +503,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
       {/* CONFIRMATION PREVIEW MODAL                                                */}
       {/* ========================================================================= */}
       {confirmModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"

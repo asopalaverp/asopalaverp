@@ -5,7 +5,6 @@ export * from './MetricCard';
 export * from './DatePicker';
 export * from './SearchableSelect';
 export * from './SlideOverDrawer';
-export * from './ThermalReceiptSlip';
 export * from './AnimatedCounter';
 export * from './ImageLightbox';
 export * from './ToastContainer';

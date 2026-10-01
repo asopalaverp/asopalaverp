@@ -25,6 +25,17 @@ import {
   StaffMember,
 } from '@/types/database';
 
+export const isPrivilegedAdminRole = (role?: string | null): boolean => {
+  if (!role) return false;
+  const normalized = role.toLowerCase().replace(/[\s_-]+/g, '');
+  return (
+    normalized === 'superadmin' ||
+    normalized === 'admin' ||
+    normalized === 'developer' ||
+    normalized === 'owner'
+  );
+};
+
 export interface CreateVoucherParams {
   voucher: Omit<ExpenseVoucher, 'id' | 'created_at'>;
   splits?: Array<{
@@ -737,9 +748,9 @@ class ERPService {
       }
     }
 
-    // 1. Period Lock Guard (Super Admin can bypass)
+    // 1. Period Lock Guard (Super Admin / Admin can bypass)
     const isLocked = await this.checkIsPeriodLocked(voucher.payment_date);
-    if (isLocked && userRole !== 'Super_Admin') {
+    if (isLocked && !isPrivilegedAdminRole(userRole)) {
       throw new Error(`Cannot record voucher: Accounting Period for date ${voucher.payment_date} is LOCKED.`);
     }
 
@@ -1029,8 +1040,8 @@ class ERPService {
       console.warn('[approveVoucher] Could not verify approver role from DB, using session role:', e);
     }
 
-    if (verifiedApproverRole !== 'Super_Admin' && verifiedApproverRole !== 'Store_Manager') {
-      throw new Error('Only Super Admin or Store Manager can approve high-value vouchers.');
+    if (!isPrivilegedAdminRole(verifiedApproverRole) && verifiedApproverRole !== 'Store_Manager') {
+      throw new Error('Only Super Admin, Admin, or Store Manager can approve high-value vouchers.');
     }
 
     // 1. Deduct from Branch Wallet
@@ -1170,7 +1181,7 @@ class ERPService {
 
     // 2. Period Lock Check
     const isLocked = await this.checkIsPeriodLocked(payment_date);
-    if (isLocked && userRole !== 'Super_Admin' && userRole !== 'Developer') {
+    if (isLocked && !isPrivilegedAdminRole(userRole)) {
       throw new Error(`Cannot record batch: Accounting period for date ${payment_date} is LOCKED.`);
     }
 
@@ -1179,10 +1190,10 @@ class ERPService {
     // Individual items and batch total are both checked.
     const hasHighValueItem = items.some((i) => i.amount > 50000);
     const batchTotalExceedsGate = totalBatchAmount > 50000;
-    if ((hasHighValueItem || batchTotalExceedsGate) && userRole !== 'Super_Admin' && userRole !== 'Developer') {
+    if ((hasHighValueItem || batchTotalExceedsGate) && !isPrivilegedAdminRole(userRole)) {
       const reason = hasHighValueItem
-        ? `One or more batch items exceed ₹50,000. High-value batch payments require Super Admin approval.`
-        : `Batch total (₹${totalBatchAmount.toLocaleString('en-IN')}) exceeds ₹50,000. Batch requires Super Admin approval.`;
+        ? `One or more batch items exceed ₹50,000. High-value batch payments require Super Admin or Admin approval.`
+        : `Batch total (₹${totalBatchAmount.toLocaleString('en-IN')}) exceeds ₹50,000. Batch requires Super Admin or Admin approval.`;
       throw new Error(reason);
     }
 
@@ -1393,10 +1404,7 @@ class ERPService {
     userRole: string,
     reason: string
   ) {
-    // H-5 Security: Whitelist allowed update fields.
-    // total_amount changes are BLOCKED — they require separate wallet delta reconciliation.
-    // status changes are BLOCKED — use approveVoucher() or voidVoucher() instead.
-    // id, voucher_number, branch_id changes are always blocked.
+    const isPrivileged = isPrivilegedAdminRole(userRole);
     const ALLOWED_UPDATE_FIELDS: (keyof ExpenseVoucher)[] = [
       'payment_date',
       'payment_type',
@@ -1415,6 +1423,10 @@ class ERPService {
       'vendor_splits',
     ];
 
+    if (isPrivileged) {
+      ALLOWED_UPDATE_FIELDS.push('total_amount');
+    }
+
     const sanitizedUpdates: Record<string, any> = {};
     const blockedFields: string[] = [];
 
@@ -1427,11 +1439,11 @@ class ERPService {
     }
 
     if (blockedFields.length > 0) {
-      console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}. Use dedicated functions for amount/status changes.`);
+      console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}.`);
     }
 
     if (Object.keys(sanitizedUpdates).length === 0) {
-      throw new Error('No valid fields to update. Amount and status changes require dedicated operations.');
+      throw new Error('No valid fields to update.');
     }
 
     try {
@@ -1916,8 +1928,8 @@ class ERPService {
       // M-6 Security: Check if accounting period is locked before crediting wallet
       const settlementDate = format(new Date(), 'yyyy-MM-dd');
       const isPeriodLocked = await this.checkIsPeriodLocked(settlementDate);
-      if (isPeriodLocked && params.userRole !== 'Super_Admin' && params.userRole !== 'Developer') {
-        throw new Error(`Cannot record settlement: Accounting period for ${settlementDate} is LOCKED. Contact Super Admin to unlock.`);
+      if (isPeriodLocked && !isPrivilegedAdminRole(params.userRole)) {
+        throw new Error(`Cannot record settlement: Accounting period for ${settlementDate} is LOCKED. Contact Super Admin or Admin to unlock.`);
       }
 
       const currentWallet = await this.getBranchWallet(params.branchId);

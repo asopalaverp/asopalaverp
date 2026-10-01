@@ -35,12 +35,12 @@ export const ImageLightbox: React.FC = () => {
   return (
     <div
       onClick={closeLightbox}
-      className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-xl flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-200"
     >
       {/* Top Controls Bar */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl flex items-center justify-between p-2 rounded-[8px] bg-white/90 dark:bg-[#171717]/90 border border-slate-200 dark:border-[#282828] backdrop-blur-xl shadow-2xl"
+        className="w-full max-w-xl flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl"
       >
         <span className="text-xs font-mono font-medium text-slate-900 dark:text-white px-2 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#3ecf8e]" />
@@ -105,12 +105,12 @@ export const ImageLightbox: React.FC = () => {
             transform: `scale(${scale}) rotate(${rotation}deg)`,
             transition: 'transform 0.15s ease-out',
           }}
-          className="max-w-full max-h-[78vh] object-contain rounded-[10px] border border-slate-200/80 dark:border-[#333333] shadow-2xl bg-white dark:bg-[#1a1a1a]"
+          className="max-w-full max-h-[78vh] object-contain rounded-[6px] border border-slate-200 dark:border-[#282828] shadow-2xl bg-white dark:bg-[#141414]"
         />
       </div>
 
       {/* Bottom Hint */}
-      <div className="text-[11px] font-mono text-zinc-300 dark:text-zinc-400 px-3 py-1 rounded-full bg-black/50 dark:bg-black/60 backdrop-blur-md border border-white/10 shadow-lg">
+      <div className="text-[11px] font-mono text-zinc-300 dark:text-zinc-400 px-3 py-1 rounded-full bg-[#181818] border border-[#282828] shadow-lg">
         Tap anywhere outside or press ESC to close
       </div>
     </div>

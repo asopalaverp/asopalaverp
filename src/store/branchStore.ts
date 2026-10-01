@@ -134,9 +134,14 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     const now = Date.now();
     const { lastFetched, branches } = get();
 
-    // Cache valid for 5 minutes
-    if (!force && lastFetched > 0 && branches.length >= DEFAULT_BRANCHES.length && now - lastFetched < 5 * 60 * 1000) {
-      return;
+    // Cache valid for 5 minutes when not forced; 30-second cooldown when forced to prevent burning Postgres quotas
+    if (lastFetched > 0 && branches.length >= DEFAULT_BRANCHES.length) {
+      if (!force && now - lastFetched < 5 * 60 * 1000) {
+        return;
+      }
+      if (force && now - lastFetched < 30 * 1000) {
+        return;
+      }
     }
 
     if (branchFetchInFlight) {
@@ -176,4 +181,12 @@ export const useBranchStore = create<BranchState>((set, get) => ({
     return branchFetchInFlight;
   },
 }));
+
+/**
+ * Consolidated into src/lib/realtimeSync.ts 'asopalav-live-sync' channel.
+ * Kept as a lightweight no-op export for backwards compatibility.
+ */
+export const initWalletRealtimeSubscription = () => {
+  // Consolidated into single channel via initRealtimeSync()
+};
 

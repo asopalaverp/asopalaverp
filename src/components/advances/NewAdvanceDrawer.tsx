@@ -20,7 +20,6 @@ import {
   Building2,
   Tag,
   PenTool,
-  Printer,
   Plus,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -267,9 +266,10 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
         <button
           type="button"
           onClick={handleClose}
-          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
         >
-          Cancel
+          <X className="w-3.5 h-3.5" />
+          <span>Cancel</span>
         </button>
 
         <button
@@ -284,7 +284,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
           )}
         >
           <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-          <span>{submitting ? 'Giving Advance...' : 'Review & Give Advance'}</span>
+          <span>{submitting ? 'Saving...' : 'Give Advance'}</span>
         </button>
       </div>
     </>
@@ -564,7 +564,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
 
       {/* Pre-Commit Verification Modal */}
       {isPreviewOpen && selectedStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424]">
               <div className="flex items-center gap-2">

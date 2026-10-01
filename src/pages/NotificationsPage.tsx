@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type NotificationCategoryFilter =
   | 'all'
@@ -185,7 +186,7 @@ export const NotificationsPage: React.FC = () => {
   return (
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Notifications Header (Non-sticky) */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-[1600px] mx-auto w-full">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -351,16 +352,13 @@ export const NotificationsPage: React.FC = () => {
               );
             })
           ) : (
-            <div className="p-12 text-center rounded-[12px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] space-y-3">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto stroke-[1.5]" />
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                  No notifications in this category
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans max-w-md mx-auto">
-                  All system operations, cash float limits, and staff advance settlements are currently verified and up to date.
-                </p>
-              </div>
+            <div className="rounded-[12px] bg-white dark:bg-[#18181a] border border-slate-200/80 dark:border-[#242424] overflow-hidden">
+              <EmptyState
+                icon={Bell}
+                title="No notifications in this category"
+                description="All system operations, cash float limits, and staff advance settlements are currently verified and up to date."
+                className="py-14"
+              />
             </div>
           )}
         </div>
@@ -370,7 +368,7 @@ export const NotificationsPage: React.FC = () => {
       {/* CLEAR ALL NOTIFICATIONS CONFIRMATION PREVIEW MODAL                        */}
       {/* ========================================================================= */}
       {isClearAllModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"

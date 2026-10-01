@@ -30,7 +30,6 @@ import {
   Download,
   FileSpreadsheet,
   Code,
-  Copy,
   Terminal,
   MoreVertical,
   ChevronDown,
@@ -155,7 +154,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI'>('ALL');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
-  const [clipboardToast, setClipboardToast] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -211,12 +209,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeRowDropdownId]);
-
-  const copyToClipboard = useCallback((text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setClipboardToast(label);
-    setTimeout(() => setClipboardToast(null), 2200);
-  }, []);
 
   const loadTreasuryData = async () => {
     setLoading(true);
@@ -458,7 +450,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   return (
     <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Cash & Bank Header */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl">
+      <div className="relative z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -514,23 +506,23 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-[#2e2e2e] rounded-[8px] shadow-2xl py-1 z-40 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] shadow-2xl p-1 z-50 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
                   <button
                     type="button"
                     onClick={() => handleExportLedger('csv')}
-                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242428] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                    className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] rounded-[4px] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    CSV format
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+                    <span>CSV format</span>
                   </button>
                   {isDeveloper && (
                     <button
                       type="button"
                       onClick={() => handleExportLedger('json')}
-                      className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#242428] flex items-center gap-2 cursor-pointer font-mono transition-colors"
+                      className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] rounded-[4px] flex items-center gap-2 cursor-pointer font-mono transition-colors"
                     >
                       <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                      JSON format
+                      <span>JSON format</span>
                     </button>
                   )}
                 </div>
@@ -857,7 +849,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
         {/* Right Column: Cash History Ledger */}
         <div className="lg:col-span-5 space-y-3">
-          <div className="stagger-card p-4 rounded-[16px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md space-y-3 shadow-xs">
+          <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-3 shadow-xs">
             {/* Header with Title & Count Badge */}
             <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-white/10">
               <div className="flex items-center gap-2">
@@ -1119,16 +1111,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(String(amountValue), `Copied ₹${amountValue}`)}
-                                className="px-1.5 py-0.5 rounded-[4px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white text-[10px] font-sans transition-colors cursor-pointer"
-                              >
-                                Copy ₹
-                              </button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1197,7 +1179,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
       {/* 5. Pre-Commit Verification Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#242424]">
               <div className="flex items-center gap-2">
@@ -1266,14 +1248,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Floating Toast Notification */}
-      {clipboardToast && (
-        <div className="fixed bottom-6 right-6 z-50 px-3.5 py-2 rounded-[6px] bg-slate-900 dark:bg-[#1c1c1c] text-white font-mono text-xs shadow-2xl flex items-center gap-2 border border-slate-700 dark:border-[#2e2e2e] animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <Check className="w-3.5 h-3.5 text-[#3ecf8e] stroke-[3]" />
-          <span>{clipboardToast}</span>
         </div>
       )}
       </div>

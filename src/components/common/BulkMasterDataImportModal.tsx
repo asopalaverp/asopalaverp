@@ -23,7 +23,6 @@ import {
   HelpCircle,
   FileText,
   AlertOctagon,
-  Copy,
   Database,
   AlertCircle,
 } from 'lucide-react';
@@ -957,7 +956,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
                             </span>
                           ) : item.isBatchDuplicate ? (
                             <span className="text-amber-600 dark:text-amber-400 font-sans font-medium flex items-center gap-1">
-                              <Copy className="w-3 h-3 text-amber-500 shrink-0" />
+                              <Layers className="w-3 h-3 text-amber-500 shrink-0" />
                               <span>Duplicate row in file (Will be skipped)</span>
                             </span>
                           ) : (
@@ -980,7 +979,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
                             </span>
                           ) : item.isBatchDuplicate ? (
                             <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                              <Copy className="w-3.5 h-3.5" />
+                              <Layers className="w-3.5 h-3.5" />
                               <span>Duplicate</span>
                             </span>
                           ) : (
@@ -1025,7 +1024,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
 
       {/* Discard Confirmation Modal Overlay */}
       {showDiscardConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in font-sans">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 animate-fade-in font-sans">
           <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#262626] rounded-[8px] p-5 shadow-2xl space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
@@ -1070,7 +1069,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
       )}
       {/* Pre-Commit Confirmation Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 bg-black/75 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
               <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">

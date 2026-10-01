@@ -197,7 +197,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
                 alt={`Bill Photo #${idx + 1}`}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 backdrop-blur-xs">
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => openLightbox(url)}

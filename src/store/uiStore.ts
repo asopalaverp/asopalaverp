@@ -55,6 +55,7 @@ interface UIState {
   toggleTheme: () => void;
   setNavVisible: (visible: boolean) => void;
   openDrawer: (voucher: ExpenseVoucher) => void;
+  setActiveDrawerVoucher: (voucher: ExpenseVoucher | null) => void;
   closeDrawer: () => void;
   openLightbox: (url: string) => void;
   closeLightbox: () => void;
@@ -183,6 +184,7 @@ export const useUIStore = create<UIState>((set) => ({
   },
   setNavVisible: (isNavVisible) => set({ isNavVisible }),
   openDrawer: (voucher) => set({ activeDrawerVoucher: voucher }),
+  setActiveDrawerVoucher: (voucher) => set({ activeDrawerVoucher: voucher }),
   closeDrawer: () => set({ activeDrawerVoucher: null }),
   openLightbox: (url) => set({ activeLightboxUrl: url }),
   closeLightbox: () => set({ activeLightboxUrl: null }),

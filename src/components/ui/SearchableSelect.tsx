@@ -270,7 +270,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       )}
       <div
         ref={containerRef}
-        className={cn('relative w-full text-xs font-sans', isOpen ? 'z-50' : 'z-auto', className)}
+        className={cn('relative w-full text-xs font-sans', isOpen ? 'z-[9999]' : 'z-auto', className)}
         onKeyDown={handleKeyDown}
       >
         {/* Trigger Button (Supabase Studio Standard Select) */}
@@ -305,7 +305,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           </span>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {clearable && value && !disabled && (
+            {clearable && value && value !== 'ALL' && value !== 'all' && !disabled && (
               <span
                 role="button"
                 tabIndex={0}
@@ -329,8 +329,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         {isOpen && (
           <div
             className={cn(
-              'absolute z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl overflow-hidden w-full left-0 right-0 animate-in fade-in zoom-in-95 duration-100',
-              computedPlacement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+              'absolute z-[9999] rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl overflow-hidden w-full left-0 right-0 animate-in fade-in zoom-in-95 duration-100',
+              computedPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',
               size === 'sm' ? 'min-w-[120px]' : 'min-w-[200px]',
               align === 'right' && 'right-0 left-auto',
               popupClassName
@@ -338,7 +338,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           >
             {/* Search Input Box (only shown if more than 5 options) */}
             {normalizedOptions.length > 5 && (
-              <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-[#141416]">
+              <div className="p-2 border-b border-slate-100 dark:border-[#242424] bg-slate-50 dark:bg-[#141414]">
                 <div className="relative flex items-center">
                   <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#707070] absolute left-2.5 pointer-events-none" />
                   <input
@@ -351,7 +351,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       setHighlightedIndex(0);
                     }}
                     placeholder={searchPlaceholder}
-                    className="w-full bg-white dark:bg-[#1f1f23] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] text-xs pl-8 pr-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-white/10 focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e] transition-colors font-sans min-h-[30px]"
+                    className="w-full bg-white dark:bg-[#1c1c1c] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#707070] text-xs pl-8 pr-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#282828] focus:outline-none focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 transition-colors font-sans min-h-[30px]"
                   />
                 </div>
               </div>
@@ -359,17 +359,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
             {/* Custom Input Quick Pick */}
             {allowCustom && search.trim() && !isExactMatch && (
-              <div className="p-1.5 border-b border-slate-100 dark:border-white/5 bg-emerald-500/5">
+              <div className="p-1.5 border-b border-slate-100 dark:border-[#242424] bg-[#3ecf8e]/5">
                 <button
                   type="button"
                   onClick={() => handleSelect(search.trim())}
-                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-[8px] text-xs font-sans font-semibold text-emerald-700 dark:text-[#3ecf8e] hover:bg-emerald-500/15 transition-colors cursor-pointer text-left ios-press"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] text-xs font-sans font-semibold text-emerald-700 dark:text-[#3ecf8e] hover:bg-[#3ecf8e]/15 transition-colors cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                     <span>Use &ldquo;<span className="font-bold">{search.trim()}</span>&rdquo;</span>
                   </div>
-                  <span className="text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-800 dark:text-[#3ecf8e] px-1.5 py-0.5 rounded-[4px]">
+                  <span className="text-[10px] font-mono uppercase bg-[#3ecf8e]/20 text-emerald-800 dark:text-[#3ecf8e] px-1.5 py-0.5 rounded-[4px]">
                     Custom
                   </span>
                 </button>
@@ -377,7 +377,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             )}
 
             {/* Options List */}
-            <div ref={listRef} role="listbox" className="max-h-64 overflow-y-auto p-1.5 space-y-1">
+            <div ref={listRef} role="listbox" className="max-h-60 overflow-y-auto p-1 space-y-0.5">
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((opt, idx) => {
                   const isSelected = opt.value === String(value ?? '');
@@ -392,9 +392,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       onClick={() => handleSelect(opt.value)}
                       onMouseEnter={() => setHighlightedIndex(idx)}
                       className={cn(
-                        'flex items-center justify-between px-2.5 py-1.5 rounded-[6px] text-xs cursor-pointer transition-colors group select-none font-sans min-h-[30px]',
+                        'flex items-center justify-between px-2.5 py-1.5 rounded-[4px] text-xs cursor-pointer transition-colors group select-none font-sans min-h-[30px]',
                         isSelected
-                          ? 'bg-emerald-500/10 text-emerald-800 dark:text-[#3ecf8e] font-semibold border border-emerald-500/20'
+                          ? 'bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] font-semibold border border-[#3ecf8e]/20'
                           : isHighlighted
                           ? 'bg-slate-100 dark:bg-[#222222] text-slate-900 dark:text-white font-medium'
                           : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222] hover:text-slate-900 dark:hover:text-white'
@@ -418,7 +418,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
                       <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
                         {opt.badge && (
-                          <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10 whitespace-nowrap font-medium">
+                          <span className="px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono bg-slate-100 dark:bg-[#242424] text-slate-600 dark:text-[#A1A1A1] border border-slate-200 dark:border-[#303030] whitespace-nowrap font-medium">
                             {opt.badge}
                           </span>
                         )}

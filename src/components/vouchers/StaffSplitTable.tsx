@@ -122,7 +122,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
             className="h-10 min-h-[40px] px-3.5 rounded-[6px] bg-white dark:bg-[#1f1f1f] hover:bg-emerald-50 dark:hover:bg-[#3ecf8e]/10 text-slate-800 dark:text-zinc-100 hover:text-emerald-700 dark:hover:text-[#3ecf8e] border border-slate-200 dark:border-[#2e2e2e] hover:border-emerald-500/40 dark:hover:border-[#3ecf8e]/40 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5] text-emerald-600 dark:text-[#3ecf8e]" />
-            <span>Add Staff Member</span>
+            <span>Staff Member</span>
           </button>
         </div>
       </div>
@@ -149,12 +149,10 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
         {/* Desktop Rows (sm+) */}
         <div className="hidden sm:block">
           {splits.map((row, idx) => {
-            const rowZIndex = (splits.length - idx) * 10;
             return (
               <div
                 key={idx}
-                style={{ zIndex: rowZIndex }}
-                className="relative grid grid-cols-12 gap-2.5 items-center px-4 py-2.5 hover:bg-slate-50/70 dark:hover:bg-[#1c1c1c] transition-colors border-b border-slate-100 dark:border-[#222222] last:border-b-0"
+                className="relative focus-within:z-50 hover:z-20 grid grid-cols-12 gap-2.5 items-center px-4 py-2.5 hover:bg-slate-50/70 dark:hover:bg-[#1c1c1c] transition-colors border-b border-slate-100 dark:border-[#222222] last:border-b-0"
               >
                 <div className="col-span-1 text-xs font-mono font-medium text-slate-400 dark:text-zinc-500 tabular-nums">
                   #{idx + 1}
@@ -234,12 +232,10 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
         {/* Mobile Allocation Cards (< sm) */}
         <div className="block sm:hidden p-3 space-y-3">
           {splits.map((row, idx) => {
-            const rowZIndex = (splits.length - idx) * 10;
             return (
               <div
                 key={idx}
-                style={{ zIndex: rowZIndex }}
-                className="relative p-3.5 rounded-[8px] bg-slate-50/60 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] space-y-3"
+                className="relative focus-within:z-50 hover:z-20 p-3.5 rounded-[8px] bg-slate-50/60 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#262626] space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-mono font-medium text-slate-600 dark:text-zinc-400">
@@ -334,7 +330,7 @@ export const StaffSplitTable: React.FC<StaffSplitTableProps> = ({
 
         {splits.length === 0 && (
           <div className="py-10 text-center text-xs font-sans text-slate-500 dark:text-zinc-400">
-            No staff members added yet. Click &ldquo;Add Staff Member&rdquo; above to allocate expenses.
+            No staff members added yet. Click &ldquo;+ Staff Member&rdquo; above to allocate expenses.
           </div>
         )}
 

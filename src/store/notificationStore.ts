@@ -161,12 +161,16 @@ export const useNotificationStore = create<NotificationState>()(
 
       getNotificationsForUser: (userRole = 'Super_Admin', branchId) => {
         const { notifications } = get();
+        const normRole = (userRole || '').toLowerCase().replace(/[\s_-]+/g, '');
+        const isPrivileged = normRole === 'superadmin' || normRole === 'admin' || normRole === 'developer' || normRole === 'owner';
         return notifications.filter((n) => {
           const roleMatches =
+            isPrivileged ||
             userRole === 'Super_Admin' ||
+            userRole === 'Admin' ||
             n.target_roles.includes(userRole) ||
             n.target_roles.includes('*');
-          const branchMatches = !branchId || !n.branch_id || n.branch_id === branchId || n.branch_id === '*';
+          const branchMatches = !branchId || isPrivileged || !n.branch_id || n.branch_id === branchId || n.branch_id === '*';
           return roleMatches && branchMatches;
         });
       },

@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertOctagon, RotateCcw, Home, Copy, Check, Terminal } from 'lucide-react';
+import { AlertOctagon, RotateCcw, Home, Terminal } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -9,7 +9,6 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
-  copied: boolean;
 }
 
 export class AppErrorBoundary extends Component<Props, State> {
@@ -17,11 +16,10 @@ export class AppErrorBoundary extends Component<Props, State> {
     hasError: false,
     error: null,
     errorInfo: null,
-    copied: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, errorInfo: null, copied: false };
+    return { hasError: true, error, errorInfo: null };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -37,19 +35,6 @@ export class AppErrorBoundary extends Component<Props, State> {
   private handleHardReload = () => {
     window.localStorage.removeItem('asopalav-erp-cache');
     window.location.reload();
-  };
-
-  private handleCopyDiagnostic = () => {
-    const diagnostic = `[Asopalav ERP Diagnostic Trace]
-Error: ${this.state.error?.message || 'Unknown'}
-Stack: ${this.state.error?.stack || 'None'}
-ComponentStack: ${this.state.errorInfo?.componentStack || 'None'}
-Timestamp: ${new Date().toISOString()}
-UserAgent: ${navigator.userAgent}`;
-
-    navigator.clipboard.writeText(diagnostic);
-    this.setState({ copied: true });
-    setTimeout(() => this.setState({ copied: false }), 2000);
   };
 
   public render() {
@@ -84,14 +69,6 @@ UserAgent: ${navigator.userAgent}`;
                   <Terminal className="w-3 h-3 text-rose-500" />
                   Exception Stack Trace
                 </span>
-                <button
-                  type="button"
-                  onClick={this.handleCopyDiagnostic}
-                  className="px-2 py-0.5 rounded-[4px] bg-white dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#282828] border border-slate-200 dark:border-[#303030] text-slate-600 dark:text-zinc-400 text-[10px] transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  {this.state.copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  <span>{this.state.copied ? 'Copied' : 'Copy Trace'}</span>
-                </button>
               </div>
 
               <p className="text-rose-600 dark:text-rose-400 font-medium break-all">

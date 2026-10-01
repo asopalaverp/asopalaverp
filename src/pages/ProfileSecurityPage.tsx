@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
@@ -63,7 +63,7 @@ export const ProfileSecurityPage: React.FC = () => {
   // Tab State
   const [activeTabId, setActiveTabId] = useState<ProfileTabId>('account');
 
-  const isSuperAdminOrDev = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer';
+  const isSuperAdminOrDev = isPrivilegedAdminRole(user?.role_code);
 
   // Profile Information State
   const [firstName, setFirstName] = useState(user?.first_name || '');
@@ -388,7 +388,7 @@ export const ProfileSecurityPage: React.FC = () => {
   return (
     <div className="min-h-full flex-1 flex flex-col bg-slate-50 dark:bg-[#121214] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Profile Hero Bar (Non-sticky, scrolls naturally) */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-black/[0.06] dark:border-white/[0.08] backdrop-blur-2xl bg-white/85 dark:bg-[#141416]/85">
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-[1600px] mx-auto">
           {/* User Identity Pill */}
           <div className="flex items-center gap-3">
@@ -437,7 +437,7 @@ export const ProfileSecurityPage: React.FC = () => {
       {/* 2. Top Segmented Navigation Tabs */}
       <div className="px-4 lg:px-6 pt-4 max-w-[1600px] mx-auto w-full">
         <div className="overflow-x-auto no-scrollbar py-1">
-          <div className="flex items-center gap-2 bg-slate-200/70 dark:bg-white/10 p-1 rounded-[12px] border border-black/[0.04] dark:border-white/10 backdrop-blur-xl max-w-full">
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#181818] p-1 rounded-[12px] border border-slate-200 dark:border-[#282828] max-w-full">
             {PROFILE_TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTabId === tab.id;
@@ -470,14 +470,14 @@ export const ProfileSecurityPage: React.FC = () => {
             <div className="space-y-6 animate-in fade-in duration-150">
               <form onSubmit={handleOpenProfilePreview} className="space-y-6">
                 {/* Photo & Identity Hero Card */}
-                <div className="p-5 rounded-[12px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-xs space-y-5">
+                <div className="p-5 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs space-y-5">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-900 dark:text-white font-sans flex items-center gap-2">
                       <User className="w-4 h-4 text-[#3ecf8e]" />
                       <span>Profile Picture &amp; Identity</span>
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
-                      Your avatar is displayed on thermal expense receipt vouchers and system audit logs.
+                      Your avatar is displayed on user profiles and system audit logs.
                     </p>
                   </div>
 
@@ -545,7 +545,7 @@ export const ProfileSecurityPage: React.FC = () => {
                 </div>
 
                 {/* Form Details Card */}
-                <div className="p-5 rounded-[12px] bg-white/80 dark:bg-[#1a1a1c]/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-xs space-y-4">
+                <div className="p-5 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs space-y-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-[#777777] font-mono">
                     Personal Details
                   </h3>
@@ -926,7 +926,7 @@ export const ProfileSecurityPage: React.FC = () => {
       {/* 1. SAVE PROFILE PRE-COMMIT CONFIRMATION PREVIEW MODAL                     */}
       {/* ========================================================================= */}
       {isProfilePreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"
@@ -1007,7 +1007,7 @@ export const ProfileSecurityPage: React.FC = () => {
       {/* 2. UPDATE SECURITY PRE-COMMIT CONFIRMATION PREVIEW MODAL                  */}
       {/* ========================================================================= */}
       {isSecurityPreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"

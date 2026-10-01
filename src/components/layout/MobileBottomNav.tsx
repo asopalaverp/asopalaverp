@@ -50,7 +50,7 @@ export const MobileBottomNav: React.FC = () => {
         aria-label="Mobile Navigation"
         className={cn(
           'lg:hidden fixed bottom-3 left-3 right-3 z-40 select-none touch-manipulation max-w-md mx-auto',
-          'rounded-[12px] bg-white/95 dark:bg-[#161616]/95 border border-slate-200/80 dark:border-[#282828] shadow-2xl backdrop-blur-md',
+          'rounded-[12px] bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#282828] shadow-2xl',
           'pb-[env(safe-area-inset-bottom,0px)]'
         )}
       >
@@ -214,7 +214,7 @@ export const MobileBottomNav: React.FC = () => {
               triggerHaptic('light');
               setIsQuickActionOpen(false);
             }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+            className="fixed inset-0 bg-black/75 transition-opacity animate-in fade-in duration-150"
           />
 
           {/* Studio Action Sheet Container */}

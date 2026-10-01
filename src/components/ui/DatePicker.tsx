@@ -15,7 +15,7 @@ import {
   subMonths,
 } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Lock, ShieldAlert, Zap } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { showToast } from '@/components/ui/ToastContainer';
 import { cn, triggerHaptic } from '@/lib/utils';
@@ -72,7 +72,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const hasBackdateRights = useMemo(() => {
     if (allowPastDatesOverride) return true;
     if (!user) return true;
-    if (user.role_code === 'Super_Admin' || user.role_code === 'Developer') return true;
+    if (isPrivilegedAdminRole(user.role_code)) return true;
     if (can('can_backdate_voucher')) return true;
     if (isBackdatedAllowed()) return true;
     return false;
@@ -298,7 +298,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       {/* Calendar Dropdown Popover */}
       {isOpen && (
         <div className={cn(
-          "absolute top-full mt-1.5 z-50 w-[300px] sm:w-[320px] rounded-[16px] bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-100 font-sans",
+          "absolute top-full mt-1.5 z-[9999] w-[300px] sm:w-[320px] rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-3.5 animate-in fade-in zoom-in-95 duration-100 font-sans",
           align === 'right' ? 'right-0 left-auto' : 'left-0'
         )}>
           {/* Header Note for Cashiers */}

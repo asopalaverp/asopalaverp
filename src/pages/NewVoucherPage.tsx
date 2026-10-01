@@ -14,7 +14,7 @@ import { SegmentedControl } from '@/components/ui';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { QuickFloatDrawer } from '@/components/vouchers/QuickFloatDrawer';
-import { cn, formatINR, numberToWordsINR, printThermalVoucherSlip, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
+import { cn, formatINR, numberToWordsINR, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -31,7 +31,6 @@ import {
   Sparkles,
   Plus,
   Zap,
-  Printer,
   FileText,
   Users,
   Package,
@@ -606,16 +605,13 @@ export const NewVoucherPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handlePreviewKeyDown);
   }, [isPreviewOpen]);
 
-  // Success Screen Keyboard Shortcuts Listener (P: Print, Space: Next, Esc: Expenses)
+  // Success Screen Keyboard Shortcuts Listener (Space: Next, Esc: Expenses)
   useEffect(() => {
     if (!successVoucher) return;
     const handleSuccessKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
 
-      if (e.key === 'p' || e.key === 'P') {
-        e.preventDefault();
-        printThermalVoucherSlip(successVoucher);
-      } else if (e.key === ' ' || e.code === 'Space') {
+      if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         triggerHaptic('success');
         setSuccessVoucher(null);
@@ -630,7 +626,7 @@ export const NewVoucherPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleSuccessKeyDown);
   }, [successVoucher]);
 
-  // SUCCESS STATE MODAL & THERMAL RECEIPT FLOW
+  // SUCCESS STATE MODAL
   if (successVoucher) {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4 font-sans select-none space-y-4 animate-in fade-in duration-200">
@@ -642,7 +638,7 @@ export const NewVoucherPage: React.FC = () => {
 
           <div className="space-y-1">
             <h2 className="text-xl sm:text-2xl font-medium text-slate-900 dark:text-white font-sans tracking-tight">
-              Expense Saved & Paid Successfully!
+              Expense Saved &amp; Paid Successfully!
             </h2>
             <p className="text-xs font-mono text-slate-500 dark:text-zinc-400">
               Bill #{successVoucher.voucher_number} • {currBranch.branch_name}
@@ -691,15 +687,6 @@ export const NewVoucherPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
             <button
               type="button"
-              onClick={() => printThermalVoucherSlip(successVoucher)}
-              className="w-full sm:flex-1 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-zinc-200 font-medium font-sans text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-zinc-400" />
-              <span>Print Slip</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => {
                 triggerHaptic('success');
                 setSuccessVoucher(null);
@@ -727,7 +714,7 @@ export const NewVoucherPage: React.FC = () => {
   return (
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] pb-6 select-none">
       {/* 1. Add Expense Header (2-Layer Layout: Left Title & Subtitle, Right Actions) */}
-      <div className="border-b border-slate-200 dark:border-[#242424] bg-white/90 dark:bg-[#141414]/90 backdrop-blur-xl px-4 lg:px-6 py-3.5">
+      <div className="border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414] px-4 lg:px-6 py-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title & Subtitle */}
           <div>
@@ -746,12 +733,10 @@ export const NewVoucherPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <div className="flex items-center gap-1.5 font-mono text-xs">
               <div className="h-8 px-2.5 flex items-center gap-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1c1c1f] border border-slate-200 dark:border-[#26262a] shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
                 <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] font-sans font-medium">Cash:</span>
                 <span className="font-semibold text-emerald-700 dark:text-[#3ecf8e] tabular-nums">{formatINR(cashBalance)}</span>
               </div>
               <div className="h-8 px-2.5 flex items-center gap-1.5 rounded-[6px] bg-slate-50 dark:bg-[#1c1c1f] border border-slate-200 dark:border-[#26262a] shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                 <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] font-sans font-medium">UPI:</span>
                 <span className="font-semibold text-sky-600 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
               </div>
@@ -1025,8 +1010,12 @@ export const NewVoucherPage: React.FC = () => {
                 value={requestedByStaffCode}
                 onChange={(val) => {
                   setRequestedByStaffCode(val);
-                  const found = staff.find((s) => s.staff_code === val);
-                  setRequestedByStaffName(found ? `${found.first_name} ${found.last_name || ''}`.trim() : val);
+                  if (!val) {
+                    setRequestedByStaffName('');
+                  } else {
+                    const found = staff.find((s) => s.staff_code === val);
+                    setRequestedByStaffName(found ? `${found.first_name} ${found.last_name || ''}`.trim() : val);
+                  }
                 }}
                 options={staff.map((s) => ({
                   value: s.staff_code,
@@ -1035,6 +1024,7 @@ export const NewVoucherPage: React.FC = () => {
                 }))}
                 placeholder="Select staff member..."
                 allowCustom={true}
+                clearable={true}
               />
             </div>
 
@@ -1124,6 +1114,7 @@ export const NewVoucherPage: React.FC = () => {
                           }))}
                           placeholder="Select category..."
                           allowCustom={true}
+                          clearable={true}
                         />
                       </div>
 
@@ -1140,6 +1131,7 @@ export const NewVoucherPage: React.FC = () => {
                           }))}
                           placeholder="Select department..."
                           allowCustom={true}
+                          clearable={true}
                         />
                       </div>
                     </div>
@@ -1185,6 +1177,7 @@ export const NewVoucherPage: React.FC = () => {
                       }))}
                       placeholder="Select courier (Maruti, DTDC)..."
                       allowCustom={true}
+                      clearable={true}
                     />
                   </div>
 
@@ -1335,7 +1328,7 @@ export const NewVoucherPage: React.FC = () => {
 
         {/* PREVIEW & CONFIRMATION MODAL (Step before final payment) */}
         {isPreviewOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in duration-100">
             <div className="w-full max-w-lg bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2e2e32] rounded-[12px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col font-sans">
               {/* Modal Header */}
               <div className="px-5 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">

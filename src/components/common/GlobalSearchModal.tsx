@@ -430,7 +430,7 @@ export const GlobalSearchModal: React.FC = () => {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans"
+      className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 select-none font-sans"
       onKeyDown={handleKeyDown}
     >
       <div

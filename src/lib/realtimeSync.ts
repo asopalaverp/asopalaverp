@@ -3,7 +3,7 @@ import { useBranchStore } from '@/store/branchStore';
 import { useVoucherStore } from '@/store/voucherStore';
 import { BranchWallet, ExpenseVoucher } from '@/types/database';
 import { showToast } from '@/components/ui/ToastContainer';
-import { formatINR } from '@/lib/utils';
+import { formatINR, normalizeBranchCode } from '@/lib/utils';
 
 // L-3 Fix: Use a ref-style flag that can be reset cleanly on HMR or teardown
 let activeChannel: ReturnType<typeof supabase.channel> | null = null;
@@ -61,6 +61,7 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
             branchStore.setWallets({
               ...branchStore.wallets,
               [updatedWallet.branch_id]: updatedWallet,
+              [normalizeBranchCode(updatedWallet.branch_id)]: updatedWallet,
             });
             window.dispatchEvent(new CustomEvent('asopalav:wallet-updated', { detail: updatedWallet }));
           }
@@ -240,6 +241,24 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
           if (!shouldPassEvent(rec?.branch_id)) return;
           window.dispatchEvent(new Event('asopalav:ledger-updated'));
           window.dispatchEvent(new Event('asopalav:wallet-updated'));
+        }
+      )
+      // 7. Live Security Audit Logs (global stream push)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'security_audit_logs' },
+        (payload) => {
+          if (payload.new) {
+            window.dispatchEvent(new CustomEvent('asopalav:audit-log-created', { detail: payload.new }));
+          }
+        }
+      )
+      // 8. Live Notifications
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_notifications' },
+        () => {
+          window.dispatchEvent(new Event('asopalav:notifications-updated'));
         }
       )
       .subscribe((status, err) => {

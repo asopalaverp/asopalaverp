@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUIStore, PageId } from '@/store/uiStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import {
@@ -76,7 +76,7 @@ export const Sidebar: React.FC = () => {
 
   const allowedBranches = getAllowedBranches(branches);
   const activeBranch = getActiveBranch();
-  const canViewAll = user?.role_code === 'Super_Admin' || user?.role_code === 'Developer' || can('can_view_all_branches');
+  const canViewAll = isPrivilegedAdminRole(user?.role_code) || can('can_view_all_branches');
   const isBranchSwitcherEnabled = canViewAll || allowedBranches.length > 1;
 
   // Close dropdowns on outside click or Escape
@@ -794,7 +794,7 @@ export const Sidebar: React.FC = () => {
         onClick={() => {
           setMobileSidebarOpen(false);
         }}
-        className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
+        className="fixed inset-0 bg-black/75 transition-opacity duration-200 animate-in fade-in"
       />
 
       {/* 2. Full-Screen Mobile Drawer Container */}

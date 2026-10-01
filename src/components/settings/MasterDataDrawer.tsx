@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useScrollLock } from '@/hooks/useScrollLock';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
 import { Branch, AppUser, StaffMember, ExpenseCategory, Department, CourierPartner, AppRole } from '@/types/database';
@@ -11,12 +11,12 @@ import {
   Trash2,
   AlertCircle,
   Code2,
-  Copy,
   Check,
   Save,
   CheckCircle2,
   ShieldCheck,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import { cn, cleanIndianPhoneInput } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -50,8 +50,9 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 }) => {
   const { user } = useAuthStore();
   const { branches } = useBranchStore();
-  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
-  const isSuperAdmin = user?.role_code === 'Super_Admin' || isDeveloper;
+  const isPrivileged = isPrivilegedAdminRole(user?.role_code);
+  const isDeveloper = isPrivileged;
+  const isSuperAdmin = isPrivileged;
   const isEdit = Boolean(record);
 
   useScrollLock(isOpen);
@@ -64,7 +65,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   const [deleteReason, setDeleteReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -197,12 +197,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
-  };
-
-  const handleCopyText = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCode(label);
-    setTimeout(() => setCopiedCode(null), 1800);
   };
 
   const handleInitiateSave = useCallback((e?: React.FormEvent) => {
@@ -458,9 +452,10 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-transparent hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-800 dark:text-zinc-200 text-xs font-medium font-sans transition-colors cursor-pointer"
         >
-          Cancel
+          <X className="w-3.5 h-3.5" />
+          <span>Cancel</span>
         </button>
         <button
           type="button"
@@ -468,6 +463,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           disabled={loading}
           className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-semibold font-sans transition-colors cursor-pointer shadow-xs"
         >
+          <Save className="w-3.5 h-3.5" />
           <span>{loading ? 'Saving...' : 'Save'}</span>
           <span className="font-mono text-[10px] text-[#171717]/80 bg-black/10 px-1 py-0.5 rounded leading-none">
             Ctrl ↵
@@ -1258,7 +1254,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
       {/* Pre-Commit Confirmation Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 bg-black/75 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#2a2a2a] rounded-[12px] shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-[#242424]">
               <div className="w-8 h-8 rounded-[6px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] flex items-center justify-center">

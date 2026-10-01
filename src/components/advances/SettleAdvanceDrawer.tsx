@@ -188,9 +188,10 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
         <button
           type="button"
           onClick={handleClose}
-          className="h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
+          className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#202020] text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-[#282828] text-xs font-medium font-sans cursor-pointer transition-colors"
         >
-          Cancel
+          <X className="w-3.5 h-3.5" />
+          <span>Cancel</span>
         </button>
 
         <button
@@ -205,7 +206,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
           )}
         >
           <Check className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-          <span>Review & Save</span>
+          <span>Settle</span>
         </button>
       </div>
     </>
@@ -219,7 +220,6 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
         title={`Settle Advance #${adv.receipt_number}`}
         subtitle={`${adv.staff_name} (${adv.staff_code}) • Advance: ${formatINR(adv.advance_amount)}`}
         badge={drawerBadge}
-        copyId={adv.receipt_number}
         size="full"
         footer={drawerFooter}
       >
@@ -449,7 +449,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
 
       {/* Pre-Commit Settlement Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">

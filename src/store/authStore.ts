@@ -12,6 +12,18 @@ export interface CashierProfile extends AppUser {
   pin?: string;
 }
 
+export const isPrivilegedAdminRole = (role?: string | null): boolean => {
+  if (!role) return false;
+  const normalized = role.trim().toLowerCase().replace(/[- ]/g, '_');
+  return (
+    normalized === 'super_admin' ||
+    normalized === 'superadmin' ||
+    normalized === 'admin' ||
+    normalized === 'developer' ||
+    normalized === 'owner'
+  );
+};
+
 const DEFAULT_SUPER_PERMISSIONS: RolePermissions = {
   role_code: 'Super_Admin',
   can_create_voucher: true,
@@ -19,7 +31,7 @@ const DEFAULT_SUPER_PERMISSIONS: RolePermissions = {
   can_backdate_voucher: true,
   can_disburse_advance: true,
   can_settle_advance: true,
-  max_advance_limit: 100000.0,
+  max_advance_limit: 10000000.0,
   can_inject_float: true,
   can_verify_f9_closing: true,
   can_export_tally: true,
@@ -163,7 +175,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
   return {
     user: initialSession,
     sessionLoginTime: initialTimestamp,
-    permissions: initialSession?.role_code === 'Super_Admin' || initialSession?.role_code === 'Developer'
+    permissions: isPrivilegedAdminRole(initialSession?.role_code)
       ? DEFAULT_SUPER_PERMISSIONS
       : initialSession?.role_code === 'Store_Manager'
       ? DEFAULT_MANAGER_PERMISSIONS
@@ -485,11 +497,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
         console.warn('Error loading role permissions from database:', e);
       }
 
-      if (roleCode === 'Super_Admin' || roleCode === 'Developer') {
+      if (isPrivilegedAdminRole(roleCode)) {
         set({ permissions: DEFAULT_SUPER_PERMISSIONS });
       } else if (roleCode === 'Store_Manager') {
         set({ permissions: DEFAULT_MANAGER_PERMISSIONS });
-      } else if (roleCode === 'Cashier') {
+      } else if (roleCode === 'Cashier' || roleCode === 'Showroom_Cashier') {
         set({ permissions: DEFAULT_CASHIER_PERMISSIONS });
       } else if (roleCode === 'Auditor') {
         set({ permissions: DEFAULT_AUDITOR_PERMISSIONS });
@@ -500,7 +512,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     can: (permission) => {
       const { permissions, user } = get();
-      if (user?.role_code === 'Super_Admin' || user?.role_code === 'Developer') return true;
+      if (isPrivilegedAdminRole(user?.role_code)) return true;
       if (!permissions) return false;
       return Boolean(permissions[permission]);
     },
@@ -508,7 +520,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     isBranchAllowed: (branchId: string) => {
       const { user, can } = get();
       if (!user) return false;
-      const isSuper = user.role_code === 'Super_Admin' || user.role_code === 'Developer' || can('can_view_all_branches');
+      const isSuper = isPrivilegedAdminRole(user.role_code) || can('can_view_all_branches');
       if (branchId === 'ALL') return isSuper;
       if (isSuper) return true;
 
@@ -528,7 +540,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const { user, can } = get();
       const list = allBranches && allBranches.length > 0 ? allBranches : DEFAULT_BRANCHES;
       if (!user) return [list[0]];
-      const isSuper = user.role_code === 'Super_Admin' || user.role_code === 'Developer' || can('can_view_all_branches');
+      const isSuper = isPrivilegedAdminRole(user.role_code) || can('can_view_all_branches');
       if (isSuper) return list;
 
       const assigned = user.assigned_branches && user.assigned_branches.length > 0

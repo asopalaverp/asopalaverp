@@ -8,8 +8,6 @@ import { SegmentedControl } from '@/components/ui';
 import {
   Calculator,
   X,
-  Copy,
-  Check,
   Tag,
   Percent,
 } from 'lucide-react';
@@ -22,7 +20,6 @@ export const PosQuickCalculator: React.FC = () => {
 
   const [mode, setMode] = useState<CalcMode>('math');
   const [expression, setExpression] = useState<string>('0');
-  const [copied, setCopied] = useState(false);
 
   // Pro Mode: Discount State (Only 5% and 10% quick presets)
   const [originalPrice, setOriginalPrice] = useState<string>('');
@@ -34,7 +31,6 @@ export const PosQuickCalculator: React.FC = () => {
   // Auto-clear all state on exit / close
   const resetAllState = useCallback(() => {
     setExpression('0');
-    setCopied(false);
     setOriginalPrice('');
     setDiscountPercent('10');
     setMode('math');
@@ -50,7 +46,6 @@ export const PosQuickCalculator: React.FC = () => {
   // Handle Open animation
   useEffect(() => {
     if (isCalculatorOpen) {
-      setCopied(false);
       animateModalOpen(modalRef.current, backdropRef.current);
     }
   }, [isCalculatorOpen]);
@@ -77,7 +72,6 @@ export const PosQuickCalculator: React.FC = () => {
   // Handle calculator key press
   const handleKeyClick = (key: string) => {
     triggerHaptic('light');
-    setCopied(false);
 
     if (key === 'C') {
       setExpression('0');
@@ -165,20 +159,6 @@ export const PosQuickCalculator: React.FC = () => {
     }
   };
 
-  // Copy result to clipboard
-  const handleCopyResult = (customVal?: number) => {
-    const val = customVal !== undefined ? customVal : currentMathResult;
-    navigator.clipboard.writeText(String(val));
-    setCopied(true);
-    triggerHaptic('success');
-    showToast({
-      type: 'success',
-      title: 'Amount Copied',
-      message: `₹${formatINR(val)} copied to clipboard`,
-    });
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   // Pro Discount Calculation
   const discountCalculations = useMemo(() => {
     const original = parseFloat(originalPrice.replace(/,/g, '')) || 0;
@@ -249,7 +229,7 @@ export const PosQuickCalculator: React.FC = () => {
       <div
         ref={backdropRef}
         onClick={handleClose}
-        className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-md transition-opacity duration-200"
+        className="fixed inset-0 bg-black/75 transition-opacity duration-200"
       />
 
       {/* Modal Dialog */}
@@ -324,16 +304,6 @@ export const PosQuickCalculator: React.FC = () => {
                 <span className="text-sm font-sans text-slate-400 font-normal">₹</span>
                 {formatINR(currentMathResult)}
               </div>
-
-              {/* Copy Icon Overlay */}
-              <button
-                type="button"
-                onClick={() => handleCopyResult()}
-                title="Copy result"
-                className="absolute top-2.5 left-2.5 p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-[6px] hover:bg-black/[0.06] dark:hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
             </div>
 
             {/* GST Add & Cut Chips (5%, 18%, 28%) */}
@@ -568,14 +538,6 @@ export const PosQuickCalculator: React.FC = () => {
                     ₹{formatINR(discountCalculations.finalPrice)}
                   </strong>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyResult(discountCalculations.finalPrice)}
-                  className="px-3 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#141414] text-xs font-semibold font-mono flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy</span>
-                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs pt-0.5">
@@ -609,18 +571,9 @@ export const PosQuickCalculator: React.FC = () => {
             <button
               type="button"
               onClick={handleClose}
-              className="px-3.5 h-8 text-xs font-medium text-slate-600 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors cursor-pointer"
+              className="px-4 h-8 text-xs font-medium text-slate-700 dark:text-zinc-200 hover:text-slate-900 dark:hover:text-white rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors cursor-pointer"
             >
               Close
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleCopyResult(mode === 'math' ? currentMathResult : discountCalculations.finalPrice)}
-              className="px-3.5 h-8 bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs rounded-[6px] flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:scale-[0.98] select-none"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied!' : 'Copy Amount'}</span>
             </button>
           </div>
         </div>

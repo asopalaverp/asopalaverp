@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
 import { CurrencyDenomination } from '@/types/database';
-import { formatINR, numberToWordsINR, printThermalClosingSlip, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, numberToWordsINR, cn, triggerHaptic } from '@/lib/utils';
 import { format } from 'date-fns';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -14,7 +14,6 @@ import {
   Lock,
   Unlock,
   RotateCcw,
-  Printer,
   ShieldCheck,
   AlertTriangle,
   KeyRound,
@@ -41,8 +40,7 @@ export const DailyCashClosingPage: React.FC = () => {
   const activeBranch = getActiveBranch();
   const allowCashierReopen = isCashierClosingReopenAllowed();
   const isSupervisor =
-    user?.role_code === 'Super_Admin' ||
-    user?.role_code === 'Developer' ||
+    isPrivilegedAdminRole(user?.role_code) ||
     user?.role_code === 'Store_Manager' ||
     can('can_verify_f9_closing') ||
     allowCashierReopen;
@@ -239,28 +237,6 @@ export const DailyCashClosingPage: React.FC = () => {
     setClosingNotes('');
   };
 
-  const handlePrintSlip = () => {
-    printThermalClosingSlip({
-      branchCode: activeBranch.branch_code,
-      closingDate: closingDate,
-      openingCash: openingCash,
-      cashInflow: cashInflowToday,
-      cashOutflow: cashDisbursedToday,
-      expectedCash: expectedBookCash,
-      actualCash: physicalTotal,
-      variance: varianceAmount,
-      denominationsBreakdown: counts,
-      cashierName: `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim(),
-      verifiedByName: `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim(),
-      notes: closingNotes || undefined,
-    });
-    showToast({
-      type: 'activity',
-      title: 'Printing Closing Slip',
-      message: `Thermal 80mm cash closing slip for ${closingDate} sent to printer.`,
-    });
-  };
-
   const handleSaveClosing = (e: React.FormEvent) => {
     e.preventDefault();
     if (locked) return;
@@ -368,7 +344,7 @@ export const DailyCashClosingPage: React.FC = () => {
   return (
     <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Daily Cash Closing Header */}
-      <div className="px-4 lg:px-6 py-4 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#121214]/80 backdrop-blur-2xl">
+      <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
           <div>
@@ -385,16 +361,6 @@ export const DailyCashClosingPage: React.FC = () => {
 
           {/* Right Layer: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handlePrintSlip}
-              className="h-9 px-3.5 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ios-press"
-              title="Print cash closing receipt slip"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Slip</span>
-            </button>
-
             {!locked && (
               <button
                 type="button"
@@ -760,7 +726,7 @@ export const DailyCashClosingPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Action Buttons: Print Slip + Complete CTA */}
+              {/* Action Buttons: Complete CTA */}
               <div className="pt-2 space-y-2">
                 {locked ? (
                   <div className="space-y-2">
@@ -769,14 +735,6 @@ export const DailyCashClosingPage: React.FC = () => {
                         <Lock className="w-4 h-4 text-[#3ecf8e]" />
                         <span>Today's Cash Closed &amp; Locked</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handlePrintSlip}
-                        className="h-8 px-3 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-white dark:bg-white/10 text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white text-xs font-semibold font-sans transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ios-press"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Print Slip</span>
-                      </button>
                     </div>
 
                     {!isSupervisor && (
@@ -804,22 +762,12 @@ export const DailyCashClosingPage: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handlePrintSlip}
-                      className="h-11 px-4 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-semibold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs shrink-0 ios-press"
-                      title="Print Closing Slip preview"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Print Slip</span>
-                    </button>
-
+                  <div>
                     {/* Single Primary Emerald CTA */}
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="h-11 flex-1 flex items-center justify-center gap-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs font-sans cursor-pointer transition-all select-none shadow-md ios-press"
+                      className="h-11 w-full flex items-center justify-center gap-2 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-semibold text-xs font-sans cursor-pointer transition-all select-none shadow-md ios-press"
                     >
                       <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
                       <span>{submitting ? 'Saving Closing...' : 'Complete & Close Day'}</span>
@@ -831,7 +779,7 @@ export const DailyCashClosingPage: React.FC = () => {
           </div>
 
           {/* Mobile Sticky Reconciliation & Submit Bar (< lg) */}
-          <div className="lg:hidden fixed bottom-[68px] left-0 right-0 z-30 bg-white/95 dark:bg-[#141414]/95 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 p-3 pb-safe shadow-2xl flex items-center justify-between gap-3 font-sans">
+          <div className="lg:hidden fixed bottom-[68px] left-0 right-0 z-30 bg-white dark:bg-[#141414] border-t border-slate-200 dark:border-[#282828] p-3 pb-safe shadow-2xl flex items-center justify-between gap-3 font-sans">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-500 dark:text-[#8e8e93] uppercase font-mono">Physical:</span>
@@ -874,7 +822,7 @@ export const DailyCashClosingPage: React.FC = () => {
 
       {/* Pre-Commit Daily Closing Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] rounded-[12px] shadow-2xl overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-[#242424] flex items-center justify-between">

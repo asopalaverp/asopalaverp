@@ -13,7 +13,6 @@ import { SegmentedControl, EmptyState } from '@/components/ui';
 import {
   Search,
   RefreshCw,
-  Copy,
   Check,
   Download,
   FileSpreadsheet,
@@ -48,12 +47,10 @@ export const SecurityAuditPage: React.FC = () => {
   // Logs State
   const [logs, setLogs] = useState<SecurityAuditLog[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isLivePolling] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedStream, setSelectedStream] = useState<StreamCategory>('ALL');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [selectedLog, setSelectedLog] = useState<SecurityAuditLog | null>(null);
-  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -98,14 +95,17 @@ export const SecurityAuditPage: React.FC = () => {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Live polling heartbeat
+  // Realtime push listener - zero Postgres polling overhead
   useEffect(() => {
-    if (!isLivePolling) return;
-    const timer = setInterval(() => {
-      fetchLogs();
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [isLivePolling, fetchLogs]);
+    const handleNewLog = (e: Event) => {
+      const customEvent = e as CustomEvent<SecurityAuditLog>;
+      if (customEvent.detail) {
+        setLogs((prev) => [customEvent.detail, ...prev.filter((l) => l.id !== customEvent.detail.id)]);
+      }
+    };
+    window.addEventListener('asopalav:audit-log-created', handleNewLog);
+    return () => window.removeEventListener('asopalav:audit-log-created', handleNewLog);
+  }, []);
 
   // Hotkey '/' to focus search
   useEffect(() => {
@@ -118,14 +118,6 @@ export const SecurityAuditPage: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const handleCopyText = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    triggerHaptic();
-    setCopiedLabel(label);
-    toast.success(`${label} copied to clipboard`);
-    setTimeout(() => setCopiedLabel(null), 2000);
-  };
 
   // Filtered Logs Calculation
   const filteredLogs = useMemo(() => {
@@ -220,7 +212,7 @@ export const SecurityAuditPage: React.FC = () => {
   return (
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Activity History Header */}
-      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200/80 dark:border-white/10 backdrop-blur-2xl bg-white/80 dark:bg-[#121214]/80">
+      <div className="px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 max-w-7xl mx-auto">
           {/* Left: Title & Live Badge */}
           <div>
@@ -552,7 +544,6 @@ export const SecurityAuditPage: React.FC = () => {
               {selectedLog.action_type}
             </span>
           }
-          copyId={selectedLog.audit_number}
           size="full"
           footer={
             <div className="flex items-center justify-between w-full">
@@ -628,14 +619,6 @@ export const SecurityAuditPage: React.FC = () => {
                     <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" />
                     <span>Security Protection Code (SHA-256)</span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyText(selectedLog.tamper_proof_signature || '', 'Security Code')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-900 dark:text-[#EDEDED] border border-slate-200/80 dark:border-white/10 text-[10px] font-mono cursor-pointer"
-                  >
-                    {copiedLabel === 'Security Code' ? <Check className="w-3 h-3 text-[#3ecf8e]" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedLabel === 'Security Code' ? 'COPIED' : 'COPY CODE'}</span>
-                  </button>
                 </div>
                 <div className="p-3 rounded-[6px] bg-white dark:bg-[#0d0d0e] border border-slate-200/80 dark:border-white/10 font-mono text-[11px] text-[#3ecf8e] break-all select-all">
                   {selectedLog.tamper_proof_signature || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}
