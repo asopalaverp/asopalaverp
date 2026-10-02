@@ -383,10 +383,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     let totalUpiOut = 0;
     let totalFloatTopups = 0;
     let topupCount = 0;
+    let cashTopupCount = 0;
+    let upiTopupCount = 0;
     let totalSafeDrops = 0;
     let safeDropCount = 0;
     let totalExpenses = 0;
     let expenseCount = 0;
+    let cashExpenseCount = 0;
+    let upiExpenseCount = 0;
     let totalAdjustments = 0;
     let adjustmentCount = 0;
     let creditCount = 0;
@@ -400,13 +404,25 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
       if (credit > 0) {
         creditCount++;
-        if (isCash) totalCashIn += credit;
-        if (isUpi) totalUpiIn += credit;
+        if (isCash) {
+          totalCashIn += credit;
+          cashTopupCount++;
+        }
+        if (isUpi) {
+          totalUpiIn += credit;
+          upiTopupCount++;
+        }
       }
       if (debit > 0) {
         debitCount++;
-        if (isCash) totalCashOut += debit;
-        if (isUpi) totalUpiOut += debit;
+        if (isCash) {
+          totalCashOut += debit;
+          if (entry.transaction_type === 'Expense_Voucher') cashExpenseCount++;
+        }
+        if (isUpi) {
+          totalUpiOut += debit;
+          if (entry.transaction_type === 'Expense_Voucher') upiExpenseCount++;
+        }
       }
 
       if (entry.transaction_type === 'Float_Topup' || (credit > 0 && !entry.transaction_type)) {
@@ -436,10 +452,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       netTotalFlow: totalCashIn + totalUpiIn - (totalCashOut + totalUpiOut),
       totalFloatTopups,
       topupCount,
+      cashTopupCount,
+      upiTopupCount,
       totalSafeDrops,
       safeDropCount,
       totalExpenses,
       expenseCount,
+      cashExpenseCount,
+      upiExpenseCount,
       totalAdjustments,
       adjustmentCount,
       creditCount,
@@ -1474,7 +1494,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               +{formatINR(treasurySummary.totalMoneyIn)}
             </span>
             <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.creditCount} entries added
+              Cash: {formatINR(treasurySummary.totalCashIn)} ({treasurySummary.cashTopupCount}) | UPI: {formatINR(treasurySummary.totalUpiIn)} ({treasurySummary.upiTopupCount})
             </span>
           </div>
 
@@ -1484,40 +1504,43 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               -{formatINR(treasurySummary.totalMoneyOut)}
             </span>
             <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.debitCount} outflows paid
+              Cash: -{formatINR(treasurySummary.totalCashOut)} | UPI: -{formatINR(treasurySummary.totalUpiOut)}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-[10px] bg-emerald-500/5 border border-emerald-500/25">
+            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-sans font-medium">Net Cash in Box:</span>
+            <span className={cn(
+              "font-semibold text-xs tabular-nums block mt-0.5",
+              treasurySummary.netCash >= 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-rose-600 dark:text-rose-400"
+            )}>
+              {treasurySummary.netCash >= 0 ? '+' : ''}{formatINR(treasurySummary.netCash)}
+            </span>
+            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
+              In {formatINR(treasurySummary.totalCashIn)} − Out {formatINR(treasurySummary.totalCashOut)}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-[10px] bg-sky-500/5 border border-sky-500/25">
+            <span className="text-[10px] text-sky-700 dark:text-sky-400 block font-sans font-medium">Net Bank UPI:</span>
+            <span className={cn(
+              "font-semibold text-xs tabular-nums block mt-0.5",
+              treasurySummary.netUpi >= 0 ? "text-sky-600 dark:text-sky-400" : "text-rose-600 dark:text-rose-400"
+            )}>
+              {treasurySummary.netUpi >= 0 ? '+' : ''}{formatINR(treasurySummary.netUpi)}
+            </span>
+            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
+              In {formatINR(treasurySummary.totalUpiIn)} − Out {formatINR(treasurySummary.totalUpiOut)}
             </span>
           </div>
 
           <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Net Cash Movement:</span>
-            <span className={cn(
-              "font-semibold text-xs tabular-nums block mt-0.5",
-              treasurySummary.netTotalFlow >= 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-rose-600 dark:text-rose-400"
-            )}>
-              {treasurySummary.netTotalFlow >= 0 ? '+' : ''}{formatINR(treasurySummary.netTotalFlow)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              Net balance delta
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-sky-500/5 border border-sky-500/20">
             <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Float Top-ups:</span>
-            <span className="text-sky-600 dark:text-sky-400 font-semibold text-xs tabular-nums block mt-0.5">
+            <span className="text-slate-800 dark:text-[#EDEDED] font-semibold text-xs tabular-nums block mt-0.5">
               +{formatINR(treasurySummary.totalFloatTopups)}
             </span>
             <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.topupCount} cash injections
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-amber-500/5 border border-amber-500/20">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Safe Vault Drops:</span>
-            <span className="text-amber-600 dark:text-amber-400 font-semibold text-xs tabular-nums block mt-0.5">
-              -{formatINR(treasurySummary.totalSafeDrops)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.safeDropCount} drains to vault
+              {treasurySummary.cashTopupCount} Cash + {treasurySummary.upiTopupCount} UPI additions
             </span>
           </div>
 
@@ -1527,7 +1550,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               -{formatINR(treasurySummary.totalExpenses)}
             </span>
             <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.expenseCount} vouchers paid
+              {treasurySummary.expenseCount} vouchers ({treasurySummary.cashExpenseCount} Cash, {treasurySummary.upiExpenseCount} UPI)
             </span>
           </div>
         </div>
