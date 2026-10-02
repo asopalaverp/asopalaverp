@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { erpService } from '@/lib/erpService';
@@ -33,6 +33,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
   const [proofPhotos, setProofPhotos] = useState<string[]>([]);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [error, setError] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -113,6 +114,9 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
   };
 
   const handleConfirmFinalSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     const allProofs = [...proofPhotos];
     if (signatureDataUrl) {
       allProofs.push(signatureDataUrl);
@@ -154,6 +158,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
       });
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 

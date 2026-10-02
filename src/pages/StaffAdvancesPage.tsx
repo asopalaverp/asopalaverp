@@ -100,7 +100,7 @@ interface ActionModalState {
   successMessage?: string;
 }
 
-export const getAdvanceAgeing = (advanceDate: string, status: string) => {
+const getAdvanceAgeing = (advanceDate: string, status: string) => {
   if (
     status === 'Settled_Bills' ||
     status === 'Settled_Cash' ||

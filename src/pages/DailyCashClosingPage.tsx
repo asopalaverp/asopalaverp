@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useVouchers } from '@/hooks/useVouchers';
@@ -67,6 +67,7 @@ export const DailyCashClosingPage: React.FC = () => {
   const [chargeStaffName, setChargeStaffName] = useState(user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : '');
   const [chargeStaffCode, setChargeStaffCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [reopening, setReopening] = useState(false);
   const [locked, setLocked] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -246,6 +247,9 @@ export const DailyCashClosingPage: React.FC = () => {
 
   const handleConfirmFinalSave = async () => {
     if (locked) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     setSubmitting(true);
     try {
       const userName = `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim();
@@ -297,6 +301,7 @@ export const DailyCashClosingPage: React.FC = () => {
       });
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 

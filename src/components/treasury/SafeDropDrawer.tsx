@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
@@ -49,6 +49,7 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
   const [amount, setAmount] = useState<number | ''>('');
   const [reason, setReason] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
 
@@ -88,6 +89,8 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
 
   const handleConfirmSubmit = async () => {
     if (numAmount <= 0 || isOverBalance) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     setSubmitting(true);
     setIsPreviewOpen(false);
@@ -120,6 +123,7 @@ export const SafeDropDrawer: React.FC<SafeDropDrawerProps> = ({
       setError(err.message || 'Failed to move cash to safe.');
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 

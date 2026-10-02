@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useAuthStore } from '@/store/authStore';
 import { showToast } from '@/components/ui/ToastContainer';
 
 export type MutationType =
@@ -136,7 +137,6 @@ export const useOfflineQueue = create<OfflineQueueState>((set, get) => ({
     let currentUserId: string | null = null;
     let currentRole: string | null = null;
     try {
-      const { useAuthStore } = require('@/store/authStore');
       const authUser = useAuthStore.getState().user;
       currentUserId = authUser?.id ?? null;
       currentRole = authUser?.role_code ?? null;

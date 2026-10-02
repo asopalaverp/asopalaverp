@@ -48,6 +48,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
   const [purpose, setPurpose] = useState('');
   const [signatureData, setSignatureData] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [error, setError] = useState('');
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -180,6 +181,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
 
   const handleConfirmSubmit = async () => {
     if (!selectedStaff || numAmount <= 0) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     setSubmitting(true);
     setIsPreviewOpen(false);
@@ -238,6 +241,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       });
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
