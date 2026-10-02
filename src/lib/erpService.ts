@@ -117,12 +117,36 @@ class ERPService {
   // --------------------------------------------------------------------------
   async getAccountingPeriods(): Promise<AccountingPeriod[]> {
     try {
-      const { data } = await supabase.from('accounting_periods').select('*').order('period_key', { ascending: false });
-      if (data && data.length > 0) return data;
+      const { data, error } = await supabase
+        .from('accounting_periods')
+        .select('*')
+        .order('period_key', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        localStorage.setItem('asopalav_accounting_periods', JSON.stringify(data));
+        return data;
+      }
     } catch (e) {
       console.warn('Using local accounting periods fallback', e);
     }
-    return [
+
+    const local = localStorage.getItem('asopalav_accounting_periods');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // ignore
+      }
+    }
+
+    const defaultPeriods: AccountingPeriod[] = [
+      {
+        period_key: '2026-10',
+        start_date: '2026-10-01',
+        end_date: '2026-10-31',
+        is_locked: false,
+      },
       {
         period_key: '2026-09',
         start_date: '2026-09-01',
@@ -139,19 +163,61 @@ class ERPService {
         lock_reason: 'Monthly Accounts Finalized & Audited',
       },
     ];
+
+    try {
+      await supabase.from('accounting_periods').upsert(defaultPeriods, { onConflict: 'period_key' });
+    } catch {
+      // offline/fallback
+    }
+
+    localStorage.setItem('asopalav_accounting_periods', JSON.stringify(defaultPeriods));
+    return defaultPeriods;
   }
 
-  async togglePeriodLock(periodKey: string, lock: boolean, userName: string, reason?: string) {
-    const updateData = {
+  async togglePeriodLock(
+    periodKey: string,
+    lock: boolean,
+    userName: string,
+    reason?: string,
+    startDate?: string,
+    endDate?: string
+  ) {
+    const start = startDate || `${periodKey}-01`;
+    const parts = periodKey.split('-');
+    const year = parseInt(parts[0], 10) || new Date().getFullYear();
+    const month = parseInt(parts[1], 10) || (new Date().getMonth() + 1);
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = endDate || `${periodKey}-${String(lastDay).padStart(2, '0')}`;
+
+    const updateData: AccountingPeriod = {
+      period_key: periodKey,
+      start_date: start,
+      end_date: end,
       is_locked: lock,
       locked_at: lock ? new Date().toISOString() : null,
       locked_by_name: lock ? userName : null,
-      lock_reason: lock ? reason || 'Locked by Store Manager' : null,
+      lock_reason: lock ? reason || 'Monthly Accounts Finalized & Audited' : null,
     };
 
-    const { error } = await supabase.from('accounting_periods').update(updateData).eq('period_key', periodKey);
-    if (error) {
-      throw new Error(error.message || 'Failed to update accounting period lock');
+    try {
+      const { error } = await supabase
+        .from('accounting_periods')
+        .upsert([updateData], { onConflict: 'period_key' });
+      if (error) throw error;
+    } catch (e: any) {
+      console.warn('Accounting period upsert fallback to local storage:', e);
+    }
+
+    // Update local cache immediately
+    try {
+      const current = await this.getAccountingPeriods();
+      const updated = current.map((p) => (p.period_key === periodKey ? { ...p, ...updateData } : p));
+      if (!updated.some((p) => p.period_key === periodKey)) {
+        updated.unshift(updateData);
+      }
+      localStorage.setItem('asopalav_accounting_periods', JSON.stringify(updated));
+    } catch {
+      // ignore
     }
 
     await logSecurityEvent({
@@ -163,6 +229,10 @@ class ERPService {
       eventDescription: `${lock ? 'Locked' : 'Unlocked'} accounting period ${periodKey}`,
       justification: reason || (lock ? 'Month end account freeze' : 'Auditor adjustment clearance'),
     });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('asopalav:period-lock-updated', { detail: updateData }));
+    }
   }
 
   async checkIsPeriodLocked(dateString: string): Promise<boolean> {
@@ -1756,6 +1826,33 @@ class ERPService {
       throw new Error('No valid fields to update.');
     }
 
+    // 1. Fetch original voucher from Supabase or memory
+    let existingVoucher: ExpenseVoucher | null = null;
+    try {
+      const { data } = await supabase
+        .from('expense_vouchers')
+        .select('*')
+        .eq('voucher_number', voucherNumber)
+        .maybeSingle();
+      if (data) {
+        existingVoucher = data;
+      }
+    } catch (e) {
+      console.warn('Failed to query existing voucher from DB:', e);
+    }
+
+    if (!existingVoucher) {
+      const storeVouchers = useVoucherStore.getState().vouchers;
+      for (const list of Object.values(storeVouchers)) {
+        const found = list.find((v) => v.voucher_number === voucherNumber);
+        if (found) {
+          existingVoucher = found;
+          break;
+        }
+      }
+    }
+
+    // 2. Update Voucher in Database
     try {
       const { error } = await supabase
         .from('expense_vouchers')
@@ -1775,6 +1872,92 @@ class ERPService {
       });
     }
 
+    // 3. Double-Entry Ledger & Wallet Balance Reconciliation
+    if (existingVoucher) {
+      const oldPaymentMethod = existingVoucher.payment_method || 'Physical_Cash';
+      const newPaymentMethod = (sanitizedUpdates.payment_method || oldPaymentMethod) as 'Physical_Cash' | 'Online_UPI';
+      const oldWalletType: 'Cash' | 'UPI' = oldPaymentMethod === 'Physical_Cash' ? 'Cash' : 'UPI';
+      const newWalletType: 'Cash' | 'UPI' = newPaymentMethod === 'Physical_Cash' ? 'Cash' : 'UPI';
+      const oldAmount = Number(existingVoucher.total_amount) || 0;
+      const newAmount = sanitizedUpdates.total_amount !== undefined ? Number(sanitizedUpdates.total_amount) : oldAmount;
+      const branchId = existingVoucher.branch_id || 'Aellp-ASI';
+      const categoryName = sanitizedUpdates.category_name || existingVoucher.category_name;
+      const recipientName = sanitizedUpdates.recipient_name || existingVoucher.recipient_name;
+      const remarks = sanitizedUpdates.remarks !== undefined ? sanitizedUpdates.remarks : existingVoucher.remarks;
+      const formattedRemarks = remarks ? `Expense: ${categoryName} - ${recipientName} (${remarks})` : `Expense: ${categoryName} - ${recipientName}`;
+
+      const isPaymentMethodChanged = oldWalletType !== newWalletType;
+      const isAmountChanged = oldAmount !== newAmount;
+
+      if (isPaymentMethodChanged || isAmountChanged || sanitizedUpdates.category_name || sanitizedUpdates.recipient_name || sanitizedUpdates.remarks !== undefined) {
+        // A. Update Supabase wallet_ledger record
+        try {
+          const { error: ledgerUpdateError } = await supabase
+            .from('wallet_ledger')
+            .update({
+              wallet_type: newWalletType,
+              debit_amount: newAmount,
+              remarks: formattedRemarks,
+            })
+            .eq('reference_number', voucherNumber);
+          if (ledgerUpdateError) console.warn('Supabase ledger update error:', ledgerUpdateError);
+        } catch (e) {
+          console.warn('Ledger update DB error:', e);
+        }
+
+        // B. Update localStorage ledger caches
+        const canonicalId = normalizeBranchId(branchId);
+        const code = normalizeBranchCode(branchId);
+        const keysToCheck = [
+          `asopalav_ledger_${canonicalId}`,
+          `asopalav_ledger_${code}`,
+          `asopalav_ledger_${branchId}`,
+          'asopalav_ledger_ALL',
+          'asopalav_ledger_Aellp-ASI',
+          'asopalav_ledger_ASI',
+        ];
+
+        keysToCheck.forEach((key) => {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            try {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const updatedList = list.map((item: any) => {
+                  if (item.reference_number === voucherNumber) {
+                    return {
+                      ...item,
+                      wallet_type: newWalletType,
+                      debit_amount: newAmount,
+                      remarks: formattedRemarks,
+                    };
+                  }
+                  return item;
+                });
+                localStorage.setItem(key, JSON.stringify(updatedList.slice(0, 200)));
+              }
+            } catch {
+              // ignore
+            }
+          }
+        });
+
+        // C. Recalculate branch wallet balances with zero-rupee tolerance
+        await this.recalculateBranchWalletFromLedger(branchId);
+        useBranchStore.getState().fetchBranchesAndWallets(true);
+      }
+    }
+
+    // 4. Update Voucher Store Locally & Dispatch Events
+    const updatedVoucher = {
+      ...(existingVoucher || {}),
+      ...sanitizedUpdates,
+      voucher_number: voucherNumber,
+    } as ExpenseVoucher;
+
+    useVoucherStore.getState().updateVoucherLocally(updatedVoucher);
+    useVoucherStore.getState().invalidateVouchers(existingVoucher?.branch_id);
+
     await logSecurityEvent({
       userName,
       userRole,
@@ -1782,12 +1965,17 @@ class ERPService {
       targetEntity: 'expense_vouchers',
       targetIdentifier: voucherNumber,
       eventDescription: `Modified voucher ${voucherNumber}: ${Object.keys(sanitizedUpdates).join(', ')}${blockedFields.length > 0 ? ` [BLOCKED: ${blockedFields.join(', ')}]` : ''}`,
-      justification: reason || 'Super Admin correction',
+      justification: reason || 'Admin voucher correction',
     });
 
-    useVoucherStore.getState().invalidateVouchers();
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('asopalav:vouchers-updated', { detail: { action: 'UPDATE', voucherNumber, updates: sanitizedUpdates } }));
+      window.dispatchEvent(
+        new CustomEvent('asopalav:vouchers-updated', {
+          detail: { action: 'UPDATE', voucherNumber, updates: sanitizedUpdates, voucher: updatedVoucher },
+        })
+      );
+      window.dispatchEvent(new Event('asopalav:wallet-updated'));
+      window.dispatchEvent(new Event('asopalav:ledger-updated'));
     }
   }
 
@@ -3803,6 +3991,20 @@ class ERPService {
       console.warn('Role permissions fetch fallback:', e);
     }
     return [];
+  }
+
+  async getRolePermissions(roleCode: string): Promise<RolePermissions | null> {
+    try {
+      const { data } = await supabase
+        .from('role_permissions')
+        .select('*')
+        .eq('role_code', roleCode)
+        .maybeSingle();
+      return data || null;
+    } catch (e) {
+      console.warn('Role permissions fetch single fallback:', e);
+      return null;
+    }
   }
 
   async saveRole(

@@ -62,6 +62,7 @@ export const Sidebar: React.FC = () => {
     theme,
     toggleTheme,
     setShortcutsModalOpen,
+    isStaffAdvanceBetaEnabled,
   } = useUIStore();
   const { user, can, getAllowedBranches, lockScreen, logout, getSessionTimeRemainingFormatted } = useAuthStore();
   const { branches, selectedBranchId, setSelectedBranchId, getActiveBranch } = useBranchStore();
@@ -147,20 +148,18 @@ export const Sidebar: React.FC = () => {
           icon: Wallet,
           permission: 'can_inject_float',
         },
-        {
-          id: 'advances',
-          label: 'Staff Advances',
-          description: 'Disbursals & settlements',
-          icon: HandCoins,
-          permission: 'can_disburse_advance',
-        },
-        {
-          id: 'closing',
-          label: 'Daily Cash Closing',
-          description: 'Count night cash & reckon',
-          icon: Coins,
-          permission: 'can_verify_f9_closing',
-        },
+        ...(isStaffAdvanceBetaEnabled
+          ? [
+              {
+                id: 'advances' as PageId,
+                label: 'Staff Advances',
+                description: 'Disbursals & settlements',
+                icon: HandCoins,
+                badge: 'BETA',
+                permission: 'can_disburse_advance' as const,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -217,16 +216,6 @@ export const Sidebar: React.FC = () => {
       : 'AD');
 
   const sessionRemainingText = getSessionTimeRemainingFormatted();
-
-  const CASHIER_ALLOWED_PAGES = new Set<PageId>([
-    'dashboard',
-    'new-voucher',
-    'expenses',
-    'advances',
-    'closing',
-    'profile',
-    'notifications',
-  ]);
 
   /* ========================================================================= */
   /* DESKTOP SIDEBAR CONTENT (lg: screens and above)                           */
@@ -469,9 +458,6 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
         {navSections.map((section, sIdx) => {
           const visibleItems = section.items.filter((item) => {
-            if (user?.role_code === 'Cashier') {
-              return CASHIER_ALLOWED_PAGES.has(item.id);
-            }
             if (!item.permission) return true;
             return can(item.permission);
           });
@@ -829,9 +815,6 @@ export const Sidebar: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {navSections.map((section, sIdx) => {
             const visibleItems = section.items.filter((item) => {
-              if (user?.role_code === 'Cashier') {
-                return CASHIER_ALLOWED_PAGES.has(item.id);
-              }
               if (!item.permission) return true;
               return can(item.permission);
             });

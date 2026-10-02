@@ -8,7 +8,6 @@ export type PageId =
   | 'expenses'
   | 'treasury'
   | 'advances'
-  | 'closing'
   | 'audit'
   | 'staff'
   | 'settings'
@@ -22,7 +21,6 @@ export const VALID_PAGES: PageId[] = [
   'expenses',
   'treasury',
   'advances',
-  'closing',
   'audit',
   'staff',
   'settings',
@@ -40,6 +38,10 @@ interface UIState {
   isMobileSidebarOpen: boolean;
   isSidebarCollapsed: boolean;
   activePage: PageId;
+
+  // Feature Flags / Beta Modes
+  isStaffAdvanceBetaEnabled: boolean;
+  setStaffAdvanceBetaEnabled: (enabled: boolean) => void;
 
   // Modals & Tools
   isAdvanceModalOpen: boolean;
@@ -143,6 +145,25 @@ export const useUIStore = create<UIState>((set) => ({
   isMobileSidebarOpen: false,
   isSidebarCollapsed: false,
   activePage: initialPage,
+
+  // Feature Flags / Beta Modes (Persisted to localStorage)
+  isStaffAdvanceBetaEnabled:
+    typeof window !== 'undefined'
+      ? localStorage.getItem('asopalav_staff_advance_beta') === 'true'
+      : false,
+  setStaffAdvanceBetaEnabled: (isStaffAdvanceBetaEnabled: boolean) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('asopalav_staff_advance_beta', String(isStaffAdvanceBetaEnabled));
+    }
+    set({ isStaffAdvanceBetaEnabled });
+    showToast({
+      type: isStaffAdvanceBetaEnabled ? 'success' : 'info',
+      title: isStaffAdvanceBetaEnabled ? 'Staff Advances Enabled' : 'Staff Advances Disabled',
+      message: isStaffAdvanceBetaEnabled
+        ? 'Staff Advances (Beta) module is now active in navigation.'
+        : 'Staff Advances (Beta) module is now hidden from navigation.',
+    });
+  },
 
   isAdvanceModalOpen: false,
   isShortcutsModalOpen: false,

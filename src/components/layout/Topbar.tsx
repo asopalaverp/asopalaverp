@@ -116,18 +116,19 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
       refreshWallet();
     };
     window.addEventListener('asopalav:wallet-updated', handleWalletUpdated);
+    window.addEventListener('asopalav:ledger-updated', handleWalletUpdated);
     return () => {
       window.removeEventListener('asopalav:wallet-updated', handleWalletUpdated);
+      window.removeEventListener('asopalav:ledger-updated', handleWalletUpdated);
     };
-  }, [activeBranch?.branch_id]);
+  }, [activeBranch?.branch_id, selectedBranchId]);
 
   const pageTitles: Record<string, string> = {
     dashboard: 'Dashboard',
     'new-voucher': 'Add Expense',
     expenses: 'All Expenses',
     treasury: 'Cash Box & Bank',
-    closing: 'Daily Cash Closing',
-    advances: 'Staff Advances',
+    advances: 'Staff Advances (Beta)',
     staff: 'Staff Directory',
     settings: 'Shop Settings',
     audit: 'Activity History',

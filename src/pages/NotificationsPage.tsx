@@ -128,8 +128,8 @@ export const NotificationsPage: React.FC = () => {
       setActivePage('treasury');
       showToast({ type: 'info', title: 'Navigating to Cash Drawer', message: 'Manage cash till and safe deposit.' });
     } else if (n.type === 'closing_variance') {
-      setActivePage('closing');
-      showToast({ type: 'info', title: 'Navigating to Daily Closing', message: 'Review denomination variance.' });
+      setActivePage('treasury');
+      showToast({ type: 'info', title: 'Navigating to Cash Box', message: 'Review cash till balance.' });
     } else if (n.type === 'high_value_voucher') {
       setActivePage('expenses');
       showToast({ type: 'info', title: 'Navigating to Expense Ledger', message: 'Review voucher details.' });

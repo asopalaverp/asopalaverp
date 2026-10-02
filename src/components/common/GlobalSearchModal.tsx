@@ -70,7 +70,9 @@ export const GlobalSearchModal: React.FC = () => {
     setShortcutsModalOpen,
     toggleTheme,
     setTheme,
+    isStaffAdvanceBetaEnabled,
   } = useUIStore();
+  const { can } = useAuthStore();
   const { branches, setSelectedBranchId, selectedBranchId } = useBranchStore();
 
   useScrollLock(isSearchOpen);
@@ -208,7 +210,7 @@ export const GlobalSearchModal: React.FC = () => {
 
   // Master Default Studio Commands
   const defaultCommands: SearchResultItem[] = useMemo(() => {
-    return [
+    const list: (SearchResultItem & { perm?: any; betaOnly?: boolean })[] = [
       {
         id: 'cmd-switch-branch',
         category: 'master',
@@ -219,6 +221,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 110,
         actionType: 'navigate' as const,
         actionPayload: { page: 'settings' },
+        perm: 'can_manage_periods',
       },
       {
         id: 'cmd-new-expense',
@@ -229,16 +232,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 100,
         actionType: 'navigate' as const,
         actionPayload: { page: 'new-voucher' },
-      },
-      {
-        id: 'cmd-closing',
-        category: 'vouchers',
-        title: 'Daily Cash Closing',
-        categoryLabel: 'SHOP WORK',
-        subtitle: 'Count cash notes in box & match with accounts',
-        relevanceScore: 95,
-        actionType: 'navigate' as const,
-        actionPayload: { page: 'closing' },
+        perm: 'can_create_voucher',
       },
       {
         id: 'cmd-cash-drawer',
@@ -249,6 +243,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 90,
         actionType: 'navigate' as const,
         actionPayload: { page: 'treasury' },
+        perm: 'can_inject_float',
       },
       {
         id: 'cmd-advances',
@@ -259,6 +254,8 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 85,
         actionType: 'navigate' as const,
         actionPayload: { page: 'advances' },
+        perm: 'can_disburse_advance',
+        betaOnly: true,
       },
       {
         id: 'cmd-ledger',
@@ -279,6 +276,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 75,
         actionType: 'navigate' as const,
         actionPayload: { page: 'staff' },
+        perm: 'can_manage_users_roles',
       },
       {
         id: 'cmd-settings',
@@ -289,6 +287,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 70,
         actionType: 'navigate' as const,
         actionPayload: { page: 'settings' },
+        perm: 'can_manage_periods',
       },
       {
         id: 'cmd-audit',
@@ -299,6 +298,7 @@ export const GlobalSearchModal: React.FC = () => {
         relevanceScore: 65,
         actionType: 'navigate' as const,
         actionPayload: { page: 'audit' },
+        perm: 'can_view_audit_logs',
       },
       {
         id: 'cmd-notifications',
@@ -331,7 +331,13 @@ export const GlobalSearchModal: React.FC = () => {
         actionPayload: { page: 'dashboard' },
       },
     ];
-  }, []);
+
+    return list.filter((item) => {
+      if (item.betaOnly && !isStaffAdvanceBetaEnabled) return false;
+      if (item.perm && !can(item.perm)) return false;
+      return true;
+    });
+  }, [can, isStaffAdvanceBetaEnabled]);
 
   // Display Items: either search results or default quick actions
   const displayItems = query.trim() ? results : defaultCommands;
@@ -409,7 +415,6 @@ export const GlobalSearchModal: React.FC = () => {
   const getItemIcon = (item: SearchResultItem) => {
     if (item.id === 'cmd-switch-branch') return Sliders;
     if (item.id === 'cmd-new-expense') return Receipt;
-    if (item.id === 'cmd-closing') return Coins;
     if (item.id === 'cmd-cash-drawer') return Wallet;
     if (item.id === 'cmd-advances') return HandCoins;
     if (item.id === 'cmd-ledger') return AppTableIcon;

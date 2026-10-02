@@ -209,6 +209,7 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
         (payload) => {
           const rec = (payload.new || payload.old) as any;
           if (!shouldPassEvent(rec?.branch_id)) return;
+          useBranchStore.getState().fetchBranchesAndWallets(true);
           window.dispatchEvent(new Event('asopalav:ledger-updated'));
           window.dispatchEvent(new Event('asopalav:wallet-updated'));
         }
@@ -219,6 +220,7 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
         (payload) => {
           const rec = (payload.new || payload.old) as any;
           if (!shouldPassEvent(rec?.branch_id)) return;
+          useBranchStore.getState().fetchBranchesAndWallets(true);
           window.dispatchEvent(new Event('asopalav:ledger-updated'));
           window.dispatchEvent(new Event('asopalav:wallet-updated'));
         }
@@ -229,6 +231,7 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
         (payload) => {
           const rec = (payload.new || payload.old) as any;
           if (!shouldPassEvent(rec?.branch_id)) return;
+          useBranchStore.getState().fetchBranchesAndWallets(true);
           window.dispatchEvent(new Event('asopalav:ledger-updated'));
           window.dispatchEvent(new Event('asopalav:wallet-updated'));
         }
@@ -239,6 +242,7 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
         (payload) => {
           const rec = (payload.new || payload.old) as any;
           if (!shouldPassEvent(rec?.branch_id)) return;
+          useBranchStore.getState().fetchBranchesAndWallets(true);
           window.dispatchEvent(new Event('asopalav:ledger-updated'));
           window.dispatchEvent(new Event('asopalav:wallet-updated'));
         }

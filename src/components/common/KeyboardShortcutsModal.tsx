@@ -155,14 +155,6 @@ export const KeyboardShortcutsModal: React.FC = () => {
           action: () => handleAction('page', 'audit'),
         },
         {
-          label: 'F9 • Daily Cash Closing & Tally',
-          description: 'Night cash count & day-end handover',
-          keys: ['F9'],
-          pageId: 'closing',
-          allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier'],
-          action: () => handleAction('page', 'closing'),
-        },
-        {
           label: 'F10 • Alerts & Broadcast Messages',
           description: 'Cross-terminal announcements',
           keys: ['F10'],

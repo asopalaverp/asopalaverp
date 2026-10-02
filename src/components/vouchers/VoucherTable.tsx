@@ -110,6 +110,19 @@ const VoucherCategoryAvatar: React.FC<{ category?: string | null; className?: st
   );
 };
 
+const getRelativeDateBadge = (dateStr?: string) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'TODAY';
+  if (diffDays === 1) return 'YESTERDAY';
+  return null;
+};
+
 interface VoucherTableProps {
   vouchers: ExpenseVoucher[];
   categories: ExpenseCategory[];
@@ -1513,10 +1526,15 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
 
                           {/* Center: Payee Name, Category, Timestamp, Mode */}
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <h4 className="font-semibold text-xs text-slate-900 dark:text-white truncate">
                                 {v.recipient_name || 'General Expense'}
                               </h4>
+                              {getRelativeDateBadge(v.payment_date) && (
+                                <span className="px-1.5 py-0.2 rounded-[4px] text-[9px] font-mono font-semibold uppercase bg-slate-100 dark:bg-[#252528] text-slate-600 dark:text-zinc-300 border border-slate-200/80 dark:border-[#333]">
+                                  {getRelativeDateBadge(v.payment_date)}
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400 truncate font-sans">
                               <span>{v.category_name}</span>

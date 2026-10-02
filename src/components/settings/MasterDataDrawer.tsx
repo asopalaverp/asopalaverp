@@ -97,6 +97,29 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
 
       if (record) {
         setFormData({ ...record });
+        if (type === 'role' && record.role_code) {
+          erpService.getRolePermissions(record.role_code).then((p) => {
+            if (p) {
+              setFormData((prev: any) => ({
+                ...prev,
+                can_create_voucher: p.can_create_voucher ?? true,
+                can_void_voucher: p.can_void_voucher ?? false,
+                can_backdate_voucher: p.can_backdate_voucher ?? false,
+                can_disburse_advance: p.can_disburse_advance ?? false,
+                can_settle_advance: p.can_settle_advance ?? false,
+                max_advance_limit: p.max_advance_limit ?? 5000,
+                can_inject_float: p.can_inject_float ?? false,
+                can_verify_f9_closing: p.can_verify_f9_closing ?? false,
+                can_export_tally: p.can_export_tally ?? false,
+                can_download_hr_payroll: p.can_download_hr_payroll ?? false,
+                can_view_all_branches: p.can_view_all_branches ?? false,
+                can_view_audit_logs: p.can_view_audit_logs ?? false,
+                can_manage_users_roles: p.can_manage_users_roles ?? false,
+                can_manage_periods: p.can_manage_periods ?? false,
+              }));
+            }
+          });
+        }
       } else {
         switch (type) {
           case 'branch':
@@ -233,9 +256,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           throw new Error('Staff Code and First Name are required.');
         }
       } else if (type === 'role') {
-        if (isEdit && record?.is_system_role) {
-          throw new Error('Core system role permissions cannot be modified. Create a custom role instead.');
-        }
         if (!formData.role_code || !formData.role_title) {
           throw new Error('Role Code and Role Title are required.');
         }
@@ -1132,93 +1152,205 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                 </SupabaseFieldRow>
 
                 {/* Granular Permissions Section */}
-                <SupabaseFieldRow columnName="permissions" dataType="jsonb" description="14 Granular RBAC capabilities">
-                  <div className="p-3 rounded-[6px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] space-y-3 font-sans">
-                    <div className="space-y-2">
-                      <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200 block font-sans">
-                        Vouchers & Advances
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                <SupabaseFieldRow columnName="permissions" dataType="jsonb" description="Comprehensive RBAC page access & operational capabilities">
+                  <div className="p-3.5 rounded-[6px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#2e2e2e] space-y-4 font-sans">
+                    {/* Page & Route Access */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200 uppercase tracking-wider block font-sans">
+                          Page & Route Access
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-[#707070]">Controls navigation, hotkeys & page routes</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
                           <input
                             type="checkbox"
                             checked={formData.can_create_voucher ?? true}
                             onChange={(e) => handleChange('can_create_voucher', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
-                          <span className="text-slate-700 dark:text-zinc-300">Create Expense Vouchers</span>
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Add Expense (F2)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">New expense form, food split & courier</span>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={formData.can_void_voucher ?? false}
-                            onChange={(e) => handleChange('can_void_voucher', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
-                          />
-                          <span className="text-slate-700 dark:text-zinc-300">Void Vouchers</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={formData.can_disburse_advance ?? false}
-                            onChange={(e) => handleChange('can_disburse_advance', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
-                          />
-                          <span className="text-slate-700 dark:text-zinc-300">Disburse Staff Advance</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={formData.can_settle_advance ?? false}
-                            onChange={(e) => handleChange('can_settle_advance', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
-                          />
-                          <span className="text-slate-700 dark:text-zinc-300">Settle Staff IOUs</span>
-                        </label>
-                      </div>
-                    </div>
 
-                    <div className="pt-2 border-t border-slate-200 dark:border-[#282828] space-y-2">
-                      <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200 block font-sans">
-                        Treasury & Administration
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
                           <input
                             type="checkbox"
                             checked={formData.can_inject_float ?? false}
                             onChange={(e) => handleChange('can_inject_float', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
-                          <span className="text-slate-700 dark:text-zinc-300">Inject Safe Float</span>
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Cash Box & Bank (F4)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Treasury drawer, safe drop & float</span>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
                           <input
                             type="checkbox"
-                            checked={formData.can_verify_f9_closing ?? false}
-                            onChange={(e) => handleChange('can_verify_f9_closing', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
+                            checked={formData.can_disburse_advance ?? false}
+                            onChange={(e) => handleChange('can_disburse_advance', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
-                          <span className="text-slate-700 dark:text-zinc-300">Verify Cash Closing</span>
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Staff Advances (F7)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Disburse staff imprest & IOUs</span>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
                           <input
                             type="checkbox"
-                            checked={formData.can_export_tally ?? false}
-                            onChange={(e) => handleChange('can_export_tally', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
+                            checked={formData.can_manage_users_roles ?? false}
+                            onChange={(e) => handleChange('can_manage_users_roles', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
-                          <span className="text-slate-700 dark:text-zinc-300">Export Tally Prime</span>
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Staff Directory (F6)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Staff roster, login PINs & accounts</span>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_manage_periods ?? false}
+                            onChange={(e) => handleChange('can_manage_periods', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Shop Settings (F12)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Master tables, roles, categories & branches</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
                           <input
                             type="checkbox"
                             checked={formData.can_view_audit_logs ?? false}
                             onChange={(e) => handleChange('can_view_audit_logs', e.target.checked)}
-                            className="rounded text-[#3ecf8e] focus:ring-0"
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
-                          <span className="text-slate-700 dark:text-zinc-300">View Audit Logs</span>
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Security Audit (F8)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Audit trail, login logs & system logbook</span>
+                          </div>
                         </label>
+                      </div>
+                    </div>
+
+                    {/* Operational & Financial Capabilities */}
+                    <div className="pt-3 border-t border-slate-200 dark:border-[#282828] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200 uppercase tracking-wider block font-sans">
+                          Operational & Financial Rights
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-[#707070]">Granular action authorization</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_void_voucher ?? false}
+                            onChange={(e) => handleChange('can_void_voucher', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Void Vouchers</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Cancel or reverse posted expense vouchers</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_backdate_voucher ?? false}
+                            onChange={(e) => handleChange('can_backdate_voucher', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Backdate Transactions</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Record vouchers with historical dates</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_settle_advance ?? false}
+                            onChange={(e) => handleChange('can_settle_advance', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Settle Staff Advances</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Clear pending IOUs with bills or cash return</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_export_tally ?? false}
+                            onChange={(e) => handleChange('can_export_tally', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Export Tally / Excel</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Download XML & CSV accounting exports</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_view_all_branches ?? false}
+                            onChange={(e) => handleChange('can_view_all_branches', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Multi-Branch View</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Switch and view all showroom branches</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] hover:border-emerald-500/50 cursor-pointer select-none transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_download_hr_payroll ?? false}
+                            onChange={(e) => handleChange('can_download_hr_payroll', e.target.checked)}
+                            className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
+                          />
+                          <div>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">HR & Payroll Reports</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Export employee advance deductions</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Disbursal Limit */}
+                    <div className="pt-3 border-t border-slate-200 dark:border-[#282828] space-y-2">
+                      <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200 uppercase tracking-wider block font-sans">
+                        Disbursal Limits
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <label className="text-xs text-slate-600 dark:text-[#888] block mb-1">
+                            Max Staff Advance Limit per Disbursal (₹)
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.max_advance_limit ?? 5000}
+                            onChange={(e) => handleChange('max_advance_limit', Number(e.target.value))}
+                            className={inputStyles}
+                            min={0}
+                            step={500}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

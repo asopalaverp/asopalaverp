@@ -437,7 +437,6 @@ export class GlobalSearchEngine {
     // 5. INDEX: System Actions & Page Shortcuts
     const systemActions: { title: string; subtitle: string; page: string; hotkey?: string; tags: string[] }[] = [
       { title: 'Add New Expense', subtitle: 'Pay cash or online bank payment', page: 'new-voucher', hotkey: 'F2', tags: ['create', 'new', 'voucher', 'expense', 'bill', 'pay', 'invoice'] },
-      { title: 'Daily Cash Closing', subtitle: "Count notes & close today's cash box", page: 'closing', hotkey: 'F9', tags: ['closing', 'eod', 'cash count', 'denominations', 'reconcile', 'variance'] },
       { title: 'Cash Box & Bank', subtitle: 'Cash in box, bank balance & move money to safe', page: 'treasury', hotkey: 'F4', tags: ['float', 'safe drop', 'till', 'cash in hand', 'drawer', 'treasury', 'box'] },
       { title: 'Staff Advances', subtitle: 'Give and clear staff money advances', page: 'advances', hotkey: 'F7', tags: ['advance', 'iou', 'salary', 'staff loan', 'reimbursement'] },
       { title: 'All Expenses', subtitle: 'View and search all past bills & expenses', page: 'expenses', hotkey: 'F3', tags: ['ledger', 'register', 'table', 'export', 'csv', 'audit', 'bills'] },

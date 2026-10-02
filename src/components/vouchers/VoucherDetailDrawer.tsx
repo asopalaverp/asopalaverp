@@ -266,11 +266,11 @@ export const VoucherDetailDrawer: React.FC = () => {
   );
 
   const drawerFooter = isEditing ? (
-    <>
+    <div className="w-full flex items-center justify-end gap-2.5">
       <button
         type="button"
         onClick={handleCancelEdit}
-        className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white text-xs font-sans transition-colors cursor-pointer"
+        className="inline-flex items-center justify-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] border border-slate-300 dark:border-[#2e2e2e] bg-slate-100 dark:bg-[#202020] hover:bg-slate-200 dark:hover:bg-[#282828] text-slate-900 dark:text-white text-xs font-sans transition-colors cursor-pointer"
       >
         <Undo className="w-3.5 h-3.5" />
         <span>Cancel</span>
@@ -280,58 +280,62 @@ export const VoucherDetailDrawer: React.FC = () => {
         type="button"
         disabled={savingEdit}
         onClick={handleSaveEdit}
-        className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-1.5 h-10 min-h-[40px] px-5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-semibold font-sans transition-colors cursor-pointer shadow-xs disabled:opacity-50"
       >
         <Save className="w-3.5 h-3.5" />
-        <span>{savingEdit ? 'Saving...' : 'Save'}</span>
+        <span>{savingEdit ? 'Saving...' : 'Save Changes'}</span>
       </button>
-    </>
+    </div>
   ) : (
-    <>
-      <div className="flex items-center gap-2 flex-wrap">
-        {isPrivileged && v.status !== 'Voided' && (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-3 sm:px-4 rounded-[6px] border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-sans transition-colors cursor-pointer"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>Edit</span>
-          </button>
-        )}
+    <div className="w-full flex flex-col gap-2.5">
+      {/* Row 1: Admin & Developer Exclusive Action Buttons */}
+      {(isPrivileged || canVoid) && v.status !== 'Voided' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {isPrivileged && (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+              <span>Edit</span>
+            </button>
+          )}
 
-        {canVoid && v.status !== 'Voided' && (
-          <button
-            type="button"
-            onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
-            className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-3 sm:px-4 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-sans transition-colors cursor-pointer"
-          >
-            <XCircle className="w-3.5 h-3.5" />
-            <span>Cancel Bill</span>
-          </button>
-        )}
+          {canVoid && (
+            <button
+              type="button"
+              onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+            >
+              <XCircle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+              <span>Cancel Bill</span>
+            </button>
+          )}
 
-        {isSuperAdmin && (
-          <button
-            type="button"
-            onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
-            className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-3 sm:px-4 rounded-[6px] border border-rose-600 bg-rose-600 hover:bg-rose-700 text-white text-xs font-sans transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete</span>
-          </button>
-        )}
-      </div>
+          {isPrivileged && (
+            <button
+              type="button"
+              onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+          )}
+        </div>
+      )}
 
+      {/* Row 2: Full-width Done Button for All Users */}
       <button
         type="button"
         onClick={closeDrawer}
-        className="inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs"
+        className="w-full inline-flex items-center justify-center gap-2 h-10 min-h-[40px] px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-semibold font-sans transition-colors cursor-pointer shadow-xs active:scale-[0.99]"
       >
-        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+        <Check className="w-4 h-4 stroke-[3]" />
         <span>Done</span>
       </button>
-    </>
+    </div>
   );
 
   return (

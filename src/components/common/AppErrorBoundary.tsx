@@ -33,8 +33,14 @@ export class AppErrorBoundary extends Component<Props, State> {
   };
 
   private handleHardReload = () => {
-    window.localStorage.removeItem('asopalav-erp-cache');
-    window.location.reload();
+    try {
+      localStorage.removeItem('asopalav_session_user');
+      localStorage.removeItem('asopalav_session_timestamp');
+      localStorage.removeItem('asopalav_custom_pins');
+      localStorage.removeItem('asopalav-erp-cache');
+      sessionStorage.clear();
+    } catch {}
+    window.location.href = '/';
   };
 
   public render() {

@@ -27,8 +27,8 @@ export function useHotkeys() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // If screen is locked, only allow unlock interactions in PinLockOverlay
-      if (isLocked) return;
+      // If unauthenticated or screen is locked, only allow unlock interactions in PinLockOverlay
+      if (!user || isLocked) return;
 
       const key = e.key;
       const targetTag = (e.target as HTMLElement)?.tagName;
@@ -111,6 +111,11 @@ export function useHotkeys() {
       if (e.altKey && key === '1') {
         e.preventDefault();
         e.stopPropagation();
+        if (!can('can_create_voucher')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Creating expenses requires appropriate permissions.' });
+          return;
+        }
         setActivePage('new-voucher');
         window.dispatchEvent(new CustomEvent('asopalav:set-voucher-mode', { detail: { mode: 'Shop_Vendor' } }));
         return;
@@ -120,6 +125,11 @@ export function useHotkeys() {
       if (e.altKey && key === '2') {
         e.preventDefault();
         e.stopPropagation();
+        if (!can('can_create_voucher')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Creating expenses requires appropriate permissions.' });
+          return;
+        }
         setActivePage('new-voucher');
         window.dispatchEvent(new CustomEvent('asopalav:set-voucher-mode', { detail: { mode: 'Staff_Split' } }));
         return;
@@ -129,6 +139,11 @@ export function useHotkeys() {
       if (e.altKey && key === '3') {
         e.preventDefault();
         e.stopPropagation();
+        if (!can('can_create_voucher')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Creating expenses requires appropriate permissions.' });
+          return;
+        }
         setActivePage('new-voucher');
         window.dispatchEvent(new CustomEvent('asopalav:set-voucher-mode', { detail: { mode: 'Courier' } }));
         return;
@@ -198,6 +213,11 @@ export function useHotkeys() {
       if (key === 'F2') {
         e.preventDefault();
         e.stopPropagation();
+        if (!can('can_create_voucher')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Creating expenses requires appropriate permissions.' });
+          return;
+        }
         setActivePage('new-voucher');
         return;
       }
@@ -240,6 +260,16 @@ export function useHotkeys() {
       if (key === 'F7') {
         e.preventDefault();
         e.stopPropagation();
+        if (!useUIStore.getState().isStaffAdvanceBetaEnabled) {
+          triggerHaptic('error');
+          showToast({ type: 'warning', title: 'Beta Feature Disabled', message: 'Staff Advances is currently in Beta mode. Enable it in Settings.' });
+          return;
+        }
+        if (!can('can_disburse_advance')) {
+          triggerHaptic('error');
+          showToast({ type: 'error', title: 'Access Restricted', message: 'Staff advances access requires appropriate permissions.' });
+          return;
+        }
         setActivePage('advances');
         return;
       }
@@ -254,14 +284,6 @@ export function useHotkeys() {
           return;
         }
         setActivePage('audit');
-        return;
-      }
-
-      // F9: Daily Cash Closing & Day-End Settlement
-      if (key === 'F9') {
-        e.preventDefault();
-        e.stopPropagation();
-        setActivePage('closing');
         return;
       }
 

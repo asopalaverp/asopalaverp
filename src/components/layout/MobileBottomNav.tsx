@@ -19,6 +19,7 @@ export const MobileBottomNav: React.FC = () => {
     setActivePage,
     setMobileSidebarOpen,
     setAdvanceModalOpen,
+    isStaffAdvanceBetaEnabled,
   } = useUIStore();
   const { user, can } = useAuthStore();
 
@@ -255,59 +256,6 @@ export const MobileBottomNav: React.FC = () => {
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e] shrink-0" />
-                  </button>
-                )}
-
-                {/* Option 2: Disburse Staff Advance */}
-                {can('can_disburse_advance') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setIsQuickActionOpen(false);
-                      setActivePage('advances');
-                      setAdvanceModalOpen(true);
-                    }}
-                    className="w-full flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#262626] text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-[#2a2a2a] transition-all active:scale-[0.98] cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-[6px] bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
-                        <HandCoins className="w-4 h-4 stroke-[2]" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-semibold text-xs text-slate-900 dark:text-white">
-                          Give Staff Advance
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e]">
-                          Advance salary or market cash to employee
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                  </button>
-                )}
-
-                {/* Option 3: Daily Cash Closing */}
-                {can('can_verify_f9_closing') && (
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('closing')}
-                    className="w-full flex items-center justify-between p-3 rounded-[8px] bg-slate-50 dark:bg-[#202020] hover:bg-slate-100 dark:hover:bg-[#262626] text-slate-800 dark:text-zinc-200 border border-slate-200/80 dark:border-[#2a2a2a] transition-all active:scale-[0.98] cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-[6px] bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
-                        <Coins className="w-4 h-4 stroke-[2]" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-semibold text-xs text-slate-900 dark:text-white">
-                          Night Cash Closing
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-[#8e8e8e]">
-                          Count physical cash and close today's register
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </button>
                 )}
               </div>

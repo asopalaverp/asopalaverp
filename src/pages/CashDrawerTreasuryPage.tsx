@@ -87,21 +87,29 @@ function parseLedgerNotes(remarks?: string) {
   let modeDetails: string | null = null;
 
   // Extract [Transfer Mode: ...]
-  const modeMatch = remarks.match(/\[Transfer Mode:\s*([^\]]+)\]/i);
+  const modeMatch = title.match(/\[Transfer Mode:\s*([^\]]+)\]/i);
   if (modeMatch) {
     modeDetails = modeMatch[1].trim();
     title = title.replace(modeMatch[0], '').trim();
   }
 
+  // Extract and remove [Date: ...]
+  const dateMatch = title.match(/\[Date:\s*([^\]]+)\]/i);
+  if (dateMatch) {
+    title = title.replace(dateMatch[0], '').trim();
+  }
+
   // Extract [Notes: ₹500×3, ...] or [₹100 x 15 = ₹1500 | ...]
-  const notesMatch = remarks.match(/\[(?:Notes:\s*)?([^\]]+)\]/i);
+  const notesMatch = title.match(/\[(?:Notes:\s*)?([^\]]+)\]/i);
   if (notesMatch) {
     const rawBreakdown = notesMatch[1];
-    const parts = rawBreakdown.split(/[|,]/).map((p) => p.trim()).filter(Boolean);
-    parts.forEach((p) => {
-      chips.push(p);
-    });
-    title = title.replace(notesMatch[0], '').trim();
+    if (rawBreakdown.includes('₹') || rawBreakdown.includes('x') || rawBreakdown.includes('×') || rawBreakdown.includes('=')) {
+      const parts = rawBreakdown.split(/[|,]/).map((p) => p.trim()).filter(Boolean);
+      parts.forEach((p) => {
+        chips.push(p);
+      });
+      title = title.replace(notesMatch[0], '').trim();
+    }
   }
 
   if (!title) {
@@ -128,22 +136,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const { branches, selectedBranchId, getActiveBranch } = useBranchStore();
   const { setActivePage } = useUIStore();
 
-  // If cashier, block entire page
-  if (user?.role_code === 'Cashier') {
-    return (
-      <AccessDeniedView
-        title="Access Restricted"
-        message="Cash Drawer & Treasury management is restricted to Store Managers and Super Admins."
-        pageName="Cash & Bank"
-      />
-    );
-  }
+  const isCashier = user?.role_code === 'Cashier';
+  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
 
   const allowedBranches = getAllowedBranches(branches);
   const activeBranch = getActiveBranch();
   const initialBranch = (selectedBranchId && isBranchAllowed(selectedBranchId))
     ? selectedBranchId
-    : (allowedBranches[0]?.branch_id || activeBranch.branch_id);
+    : (allowedBranches[0]?.branch_id || activeBranch?.branch_id || 'Aellp-ASI');
 
   const [selectedBranch, setSelectedBranch] = useState(initialBranch);
   const [entryDate, setEntryDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
@@ -179,17 +179,14 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const exportRef = useRef<HTMLDivElement | null>(null);
-  const hasAutoPurgedRef = useRef(false);
 
   const containerRef = useGsapContext(() => {
     animateStaggerCards(containerRef.current, '.stagger-card', 0.03);
   }, [selectedBranch]);
 
   useEffect(() => {
-    setSelectedBranch(selectedBranchId || activeBranch.branch_id);
-  }, [selectedBranchId, activeBranch.branch_id]);
-
-  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
+    setSelectedBranch(selectedBranchId || activeBranch?.branch_id || 'Aellp-ASI');
+  }, [selectedBranchId, activeBranch?.branch_id]);
 
   // Global keyboard shortcuts ('/' to search ledger, ESC to close popovers)
   useEffect(() => {
@@ -228,31 +225,23 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeRowDropdownId]);
 
-  const loadTreasuryData = async () => {
+  const loadTreasuryData = useCallback(async () => {
+    if (isCashier) return;
     setLoading(true);
     try {
-      if (!hasAutoPurgedRef.current) {
-        hasAutoPurgedRef.current = true;
-        try {
-          await erpService.purgeErroneousHistoricalRecords(selectedBranch);
-        } catch (e) {
-          console.warn('Auto purge historical records silent check:', e);
-        }
-      }
-
       const [wallet, ledger] = await Promise.all([
         erpService.getBranchWallet(selectedBranch),
         erpService.getWalletLedger(selectedBranch),
       ]);
-      setCurrentCashBalance(wallet.cash_balance);
-      setCurrentUpiBalance(wallet.upi_balance);
+      setCurrentCashBalance(wallet?.cash_balance ?? 0);
+      setCurrentUpiBalance(wallet?.upi_balance ?? 0);
       setAllLedgerEntries(ledger || []);
     } catch (err) {
       console.warn('Error loading treasury data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBranch, isCashier]);
 
   useEffect(() => {
     loadTreasuryData();
@@ -265,12 +254,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       window.removeEventListener('asopalav:wallet-updated', handleUpdates);
       window.removeEventListener('asopalav:ledger-updated', handleUpdates);
     };
-  }, [selectedBranch]);
+  }, [loadTreasuryData]);
 
   // Dynamically compute running balance for each transaction chronologically
   const entriesWithRunningBalance = useMemo(() => {
     const chronological = [...allLedgerEntries].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => new Date(a?.created_at || 0).getTime() - new Date(b?.created_at || 0).getTime()
     );
 
     let runningCash = 0;
@@ -278,6 +267,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     const balanceMap = new Map<string, { runningCash: number; runningUpi: number; runningCombined: number }>();
 
     chronological.forEach((entry) => {
+      if (!entry) return;
       const credit = Number(entry.credit_amount) || 0;
       const debit = Number(entry.debit_amount) || 0;
       const isUpi = entry.wallet_type === 'UPI';
@@ -700,6 +690,17 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const { isCeilingExceededAllowed } = useOverrideStore();
   const safeDropExceeded = currentCashBalance > 50000 && !isCeilingExceededAllowed();
 
+  if (isCashier) {
+    return (
+      <AccessDeniedView
+        title="Access Restricted"
+        message="Cash Drawer & Treasury management is restricted to Store Managers and Super Admins."
+        pageName="Cash & Bank"
+        onGoBack={() => setActivePage('dashboard')}
+      />
+    );
+  }
+
   return (
     <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Cash & Bank Header */}
@@ -736,29 +737,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <span>Move to Safe</span>
             </button>
 
-            {(isDeveloper || user?.role_code === 'Super_Admin' || user?.role_code === 'Store_Manager') && (
-              <button
-                type="button"
-                onClick={handleCleanDuplicates}
-                className="h-8 px-3 py-1.5 rounded-[6px] border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                title="Scan and purge any duplicate ledger records"
-              >
-                <Shield className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
-                <span>Clean Duplicates</span>
-              </button>
-            )}
 
-            {(isDeveloper || user?.role_code === 'Super_Admin') && (
-              <button
-                type="button"
-                onClick={handlePurgeHistoricalRecords}
-                className="h-8 px-3 py-1.5 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                title="Purge September test records and reconcile wallet to Oct 1st ledger"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-                <span>Purge Test Records</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -963,56 +942,57 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       </div>
 
       {/* 3. Main Dual Column Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left Column: Add Cash Form (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          <form onSubmit={handleOpenPreview} className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-3.5 shadow-xs">
-            <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-[#242424] gap-2">
-              <div className="flex items-center gap-2">
-                <Coins className="w-4 h-4 text-[#3ecf8e]" />
-                <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                  Add Cash / UPI
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-[#242424]">
-                  <button
-                    type="button"
-                    onClick={() => setWalletType('Cash')}
-                    className={cn(
-                      'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
-                      walletType === 'Cash'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
-                        : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                    )}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWalletType('UPI')}
-                    className={cn(
-                      'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
-                      walletType === 'UPI'
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
-                        : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                    )}
-                  >
-                    Bank UPI
-                  </button>
-                </div>
-
+      {/* 3. Add Cash / UPI Inflow Card */}
+      <div className="space-y-4">
+        <form onSubmit={handleOpenPreview} className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-[#242424] gap-2">
+            <div className="flex items-center gap-2">
+              <Coins className="w-4 h-4 text-[#3ecf8e]" />
+              <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
+                Add Cash / UPI Inflow
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-[#242424]">
                 <button
                   type="button"
-                  onClick={handleResetForm}
-                  className="h-8 w-8 flex items-center justify-center rounded-[6px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-[#242424] transition-all cursor-pointer shadow-xs shrink-0"
-                  title="Reset"
+                  onClick={() => setWalletType('Cash')}
+                  className={cn(
+                    'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
+                    walletType === 'Cash'
+                      ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
+                      : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
+                  )}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWalletType('UPI')}
+                  className={cn(
+                    'px-3 py-1 rounded-[4px] text-xs font-sans transition-all cursor-pointer font-medium',
+                    walletType === 'UPI'
+                      ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium border border-slate-200 dark:border-[#383838] shadow-xs'
+                      : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
+                  )}
+                >
+                  Bank UPI
                 </button>
               </div>
-            </div>
 
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="h-8 w-8 flex items-center justify-center rounded-[6px] text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-[#242424] transition-all cursor-pointer shadow-xs shrink-0"
+                title="Reset"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Form Fields in 3-Column Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {/* Amount Input */}
             <div className="space-y-1 font-sans">
               <div className="flex items-center justify-between">
@@ -1061,7 +1041,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             </div>
 
             {/* Reference Remarks */}
-            <div className="space-y-1 font-sans">
+            <div className="space-y-1 font-sans sm:col-span-2 lg:col-span-1">
               <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
                 Reason / Note
               </label>
@@ -1073,263 +1053,56 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
               />
             </div>
+          </div>
 
-            {/* Feedback Alert */}
-            {feedback && (
-              <div
-                className={`p-2.5 rounded-[6px] border font-sans text-xs font-medium ${
-                  feedback.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 border-emerald-200 dark:border-[#3ecf8e]/30 text-emerald-700 dark:text-[#3ecf8e]'
-                    : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400'
-                }`}
+          {/* Feedback Alert */}
+          {feedback && (
+            <div
+              className={`p-2.5 rounded-[6px] border font-sans text-xs font-medium ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 border-emerald-200 dark:border-[#3ecf8e]/30 text-emerald-700 dark:text-[#3ecf8e]'
+                  : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {feedback.message}
+            </div>
+          )}
+
+          {/* Action Footer */}
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-[#242424]">
+            <div className="text-xs text-slate-600 dark:text-[#A1A1A1] font-mono flex items-center justify-between sm:justify-start gap-2">
+              <span>Total:</span>
+              <span className="font-semibold text-slate-900 dark:text-white tabular-nums text-sm">
+                {formatINR(Number(amount) || 0)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#202020] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-all cursor-pointer shadow-xs shrink-0"
+                title="Reset"
               >
-                {feedback.message}
-              </div>
-            )}
+                <RotateCcw className="w-4 h-4" />
+              </button>
 
-            {/* Action Footer */}
-            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-[#242424]">
-              <div className="text-xs text-slate-600 dark:text-[#A1A1A1] font-mono flex items-center justify-between sm:justify-start gap-2">
-                <span>Total:</span>
-                <span className="font-semibold text-slate-900 dark:text-white tabular-nums text-sm">
-                  {formatINR(Number(amount) || 0)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleResetForm}
-                  className="h-9 w-9 flex items-center justify-center rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#202020] text-slate-600 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-all cursor-pointer shadow-xs shrink-0"
-                  title="Reset"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 sm:flex-none h-9 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none shadow-xs"
-                >
-                  <Check className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>
-                    {submitting
-                      ? 'Processing...'
-                      : walletType === 'Cash'
-                      ? 'Review & Add Cash'
-                      : 'Review & Add UPI'}
-                  </span>
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-
-        {/* Right Column: Pure Timeline Feed View */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-3 shadow-xs">
-            {/* Header with Title & Count Badge */}
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-white/10">
-              <div className="flex items-center gap-2">
-                <History className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <h2 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                  Treasury Activity Feed
-                </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-[#A1A1A1] border border-slate-200/80 dark:border-white/10">
-                  {filteredAllocations.length}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 dark:text-[#737373]">
-                <Clock className="w-3 h-3 text-[#3ecf8e]" />
-                <span>Real-time Feed</span>
-              </div>
-            </div>
-
-            {/* Quick Flow Summary Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">Cash Inflow:</span>
-                <span className="text-emerald-600 dark:text-[#3ecf8e] font-semibold text-xs tabular-nums block mt-0.5">
-                  +{formatINR(treasurySummary.totalCashIn)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">Cash Outflow:</span>
-                <span className="text-rose-600 dark:text-rose-400 font-semibold text-xs tabular-nums block mt-0.5">
-                  -{formatINR(treasurySummary.totalCashOut)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">UPI Inflow:</span>
-                <span className="text-sky-600 dark:text-sky-400 font-semibold text-xs tabular-nums block mt-0.5">
-                  +{formatINR(treasurySummary.totalUpiIn)}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-                <span className="text-[10px] text-slate-500 dark:text-[#707070] block font-sans">UPI Outflow:</span>
-                <span className="text-rose-600 dark:text-rose-400 font-semibold text-xs tabular-nums block mt-0.5">
-                  -{formatINR(treasurySummary.totalUpiOut)}
-                </span>
-              </div>
-            </div>
-
-            {/* TIMELINE FEED VIEW ONLY */}
-            <div className="rounded-[8px] border border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#171717] p-3.5">
-              <div className="relative pl-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-[#282828] space-y-3.5 max-h-[520px] overflow-y-auto pr-1">
-                {paginatedAllocations.map((entry, idx) => {
-                  const parsed = parseLedgerNotes(entry.remarks);
-                  const isCredit = Number(entry.credit_amount) > 0;
-                  const amountValue = isCredit ? Number(entry.credit_amount) : Number(entry.debit_amount) || 0;
-                  const isUpi = entry.wallet_type === 'UPI';
-
-                  return (
-                    <div key={entry.id || idx} className="relative group">
-                      {/* Timeline Node Marker */}
-                      <div
-                        className={cn(
-                          'absolute -left-6 top-1.5 w-5 h-5 rounded-full border flex items-center justify-center transition-transform group-hover:scale-110',
-                          isUpi
-                            ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-700 text-sky-600 dark:text-sky-400'
-                            : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-700 text-emerald-600 dark:text-[#3ecf8e]'
-                        )}
-                      >
-                        {isUpi ? (
-                          <QrCode className="w-2.5 h-2.5" />
-                        ) : (
-                          <Coins className="w-2.5 h-2.5" />
-                        )}
-                      </div>
-
-                      {/* Timeline Card */}
-                      <div className="p-3 rounded-[8px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] hover:border-slate-300 dark:hover:border-[#383838] transition-all space-y-2 shadow-xs">
-                        {/* Top Row: Date/Time + Amount + Mode */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-[#A1A1A1] font-mono">
-                            <Clock className="w-3 h-3 text-slate-400 dark:text-[#737373]" />
-                            <span>{formatDate(entry.created_at, 'dd MMM, HH:mm')}</span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={cn(
-                                'font-mono font-medium text-xs tabular-nums',
-                                isCredit
-                                  ? 'text-emerald-600 dark:text-[#3ecf8e]'
-                                  : 'text-rose-600 dark:text-rose-400'
-                              )}
-                            >
-                              {isCredit ? '+' : '-'}{formatINR(amountValue)}
-                            </span>
-
-                            <span
-                              className={cn(
-                                'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono font-medium border',
-                                isUpi
-                                  ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/20'
-                                  : 'bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-200 dark:border-[#3ecf8e]/20'
-                              )}
-                            >
-                              {entry.wallet_type || 'Cash'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Middle Row: Primary Remarks Title */}
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-slate-900 dark:text-zinc-100 font-sans leading-snug">
-                            {parsed.title}
-                          </p>
-
-                          {/* Transfer Mode Badge */}
-                          {parsed.modeDetails && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-[10px] font-mono text-sky-700 dark:text-sky-300">
-                              <Building2 className="w-2.5 h-2.5" />
-                              {parsed.modeDetails}
-                            </span>
-                          )}
-
-                          {/* Denomination Breakdown Chips */}
-                          {parsed.chips.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                              {parsed.chips.map((chip, cIdx) => (
-                                <span
-                                  key={cIdx}
-                                  className="px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] text-[10px] font-mono font-medium text-slate-700 dark:text-[#A1A1A1] tabular-nums"
-                                >
-                                  {chip}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Row: Attribution & Actions */}
-                        <div className="pt-1.5 border-t border-slate-100 dark:border-[#242424] flex items-center justify-between text-[11px] font-sans">
-                          <div className="flex items-center gap-1 text-slate-500 dark:text-[#A1A1A1] truncate">
-                            <User className="w-3 h-3 text-slate-400 dark:text-[#737373] shrink-0" />
-                            <span className="truncate">
-                              By: <strong className="font-medium text-slate-900 dark:text-white">{entry.cashier_name || 'Cashier'}</strong>
-                            </span>
-                            {entry.authorized_by_name && (
-                              <span className="text-[10px] text-slate-400 dark:text-[#737373] truncate">
-                                (Auth: {entry.authorized_by_name})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {filteredAllocations.length === 0 && (
-                  <div className="py-8">
-                    <EmptyState
-                      icon={History}
-                      title="No treasury records found"
-                      description="No cash float top-ups, safe drops, or wallet transactions found for the selected filter criteria."
-                      actionLabel="Clear Filters"
-                      onAction={() => {
-                        setLedgerSearch('');
-                        setLedgerWalletFilter('ALL');
-                        setDateFilter('this_month');
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 10-Row Pagination Footer */}
-            <div className="p-3 bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[8px] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
-              <div className="flex items-center gap-2 text-slate-600 dark:text-[#A1A1A1]">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 sm:flex-none h-9 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none shadow-xs"
+              >
+                <Check className="w-4 h-4 text-[#171717] stroke-[2.5]" />
                 <span>
-                  Page <strong className="text-slate-900 dark:text-white font-mono">{currentPage}</strong> of{' '}
-                  <strong className="text-slate-900 dark:text-white font-mono">{totalPages}</strong> ({filteredAllocations.length} total)
+                  {submitting
+                    ? 'Processing...'
+                    : walletType === 'Cash'
+                    ? 'Review & Add Cash'
+                    : 'Review & Add UPI'}
                 </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
+              </button>
             </div>
           </div>
-        </div>
+        </form>
       </div>
 
       {/* 4. Full Advanced Treasury Ledger & Accounting Audit Register Table */}

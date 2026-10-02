@@ -5,7 +5,8 @@ import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { StaffAdvance, ExpenseVoucher } from '@/types/database';
+import { supabase } from '@/lib/supabase';
+import { StaffAdvance, ExpenseVoucher, WalletLedger } from '@/types/database';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -51,12 +52,13 @@ import {
 export const DashboardPage: React.FC = () => {
   const { user, can, isBranchAllowed } = useAuthStore();
   const { selectedBranchId, branches, getActiveBranch } = useBranchStore();
-  const { setActivePage, setAdvanceModalOpen } = useUIStore();
+  const { setActivePage } = useUIStore();
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
 
   // Wallet & Liquidity State
   const [cashBalance, setCashBalance] = useState(0);
   const [upiBalance, setUpiBalance] = useState(0);
+  const [ledgerEntries, setLedgerEntries] = useState<WalletLedger[]>([]);
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [isPeriodLocked, setIsPeriodLocked] = useState(false);
 
@@ -65,8 +67,6 @@ export const DashboardPage: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
 
   const { isCeilingExceededAllowed } = useOverrideStore();
@@ -87,6 +87,18 @@ export const DashboardPage: React.FC = () => {
       setUpiBalance(w.upi_balance);
     } catch (err) {
       console.warn('Error loading branch wallet:', err);
+    }
+  }, [selectedBranchId, isBranchAllowed]);
+
+  // Load ledger entries for accurate Inflow / Top-up KPIs
+  const loadLedger = useCallback(async () => {
+    if (!selectedBranchId) return;
+    if (selectedBranchId !== 'ALL' && !isBranchAllowed(selectedBranchId)) return;
+    try {
+      const entries = await erpService.getWalletLedger(selectedBranchId);
+      setLedgerEntries(entries || []);
+    } catch (err) {
+      console.warn('Error loading ledger:', err);
     }
   }, [selectedBranchId, isBranchAllowed]);
 
@@ -116,20 +128,41 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadWallet();
+    loadLedger();
     loadAdvances();
     const handleUpdates = () => {
       loadWallet();
+      loadLedger();
       loadAdvances();
     };
     window.addEventListener('asopalav:wallet-updated', handleUpdates);
+    window.addEventListener('asopalav:ledger-updated', handleUpdates);
     window.addEventListener('asopalav:advances-updated', handleUpdates);
+
+    // Realtime Supabase Channel Subscription for Live Multi-Device / Tab Refresh
+    const channel = supabase
+      .channel('dashboard-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_ledger' }, () => {
+        loadLedger();
+        loadWallet();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'branch_wallets' }, () => {
+        loadWallet();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expense_vouchers' }, () => {
+        refresh();
+      })
+      .subscribe();
+
     return () => {
       window.removeEventListener('asopalav:wallet-updated', handleUpdates);
+      window.removeEventListener('asopalav:ledger-updated', handleUpdates);
       window.removeEventListener('asopalav:advances-updated', handleUpdates);
+      supabase.removeChannel(channel);
     };
-  }, [selectedBranchId, loadWallet, loadAdvances]);
+  }, [selectedBranchId, loadWallet, loadLedger, loadAdvances, refresh]);
 
-  // Slicer Filter Pipeline
+  // Slicer Filter Pipeline for Vouchers
   const filteredVouchers = useMemo(() => {
     const now = new Date();
     const todayStr = format(now, 'yyyy-MM-dd');
@@ -149,22 +182,44 @@ export const DashboardPage: React.FC = () => {
       }
 
       if (selectedMode !== 'ALL' && v.payment_method !== selectedMode) return false;
-      if (selectedCategory !== 'ALL' && v.category_name !== selectedCategory) return false;
-      if (selectedDept !== 'ALL' && v.department_name !== selectedDept) return false;
 
       return true;
     });
-  }, [vouchers, timeRange, customStartDate, customEndDate, selectedMode, selectedCategory, selectedDept]);
+  }, [vouchers, timeRange, customStartDate, customEndDate, selectedMode]);
+
+  // Slicer Filter Pipeline for Ledger / Inflows
+  const filteredLedger = useMemo(() => {
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const startOfWeekStr = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const startOfMonthStr = format(startOfMonth(now), 'yyyy-MM-dd');
+    const startOfQuarterStr = format(startOfQuarter(now), 'yyyy-MM-dd');
+
+    return ledgerEntries.filter((entry) => {
+      const entryDate = entry.created_at ? entry.created_at.slice(0, 10) : '';
+      if (timeRange === 'today' && entryDate !== todayStr) return false;
+      if (timeRange === 'week' && entryDate < startOfWeekStr) return false;
+      if (timeRange === 'month' && entryDate < startOfMonthStr) return false;
+      if (timeRange === 'quarter' && entryDate < startOfQuarterStr) return false;
+      if (timeRange === 'custom') {
+        if (customStartDate && entryDate < customStartDate) return false;
+        if (customEndDate && entryDate > customEndDate) return false;
+      }
+
+      if (selectedMode === 'Physical_Cash' && entry.wallet_type !== 'Cash') return false;
+      if (selectedMode === 'Online_UPI' && entry.wallet_type !== 'UPI') return false;
+
+      return true;
+    });
+  }, [ledgerEntries, timeRange, customStartDate, customEndDate, selectedMode]);
 
   // Active Slicer Count
   const activeSlicerCount = useMemo(() => {
     let count = 0;
     if (timeRange !== 'today') count++;
     if (selectedMode !== 'ALL') count++;
-    if (selectedCategory !== 'ALL') count++;
-    if (selectedDept !== 'ALL') count++;
     return count;
-  }, [timeRange, selectedMode, selectedCategory, selectedDept]);
+  }, [timeRange, selectedMode]);
 
   // Metrics calculation
   const metrics = useMemo(() => {
@@ -194,6 +249,40 @@ export const DashboardPage: React.FC = () => {
       upiBills: active.filter((v) => v.payment_method === 'Online_UPI').length,
     };
   }, [filteredVouchers]);
+
+  // Total Inflow (Credits / Top-ups) Metrics respecting active date and mode filter
+  const inflowMetrics = useMemo(() => {
+    let totalInflow = 0;
+    let cashInflow = 0;
+    let cashCount = 0;
+    let upiInflow = 0;
+    let upiCount = 0;
+    let totalCount = 0;
+
+    filteredLedger.forEach((entry) => {
+      const credit = Number(entry.credit_amount) || 0;
+      if (credit > 0) {
+        totalInflow += credit;
+        totalCount++;
+        if (entry.wallet_type === 'UPI') {
+          upiInflow += credit;
+          upiCount++;
+        } else {
+          cashInflow += credit;
+          cashCount++;
+        }
+      }
+    });
+
+    return {
+      totalInflow,
+      cashInflow,
+      cashCount,
+      upiInflow,
+      upiCount,
+      totalCount,
+    };
+  }, [filteredLedger]);
 
   // Staff Advances Metrics
   const advanceMetrics = useMemo(() => {
@@ -318,18 +407,7 @@ export const DashboardPage: React.FC = () => {
                 className="h-9 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
               >
                 <Plus className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                <span>New Expense (F4)</span>
-              </button>
-            )}
-
-            {can('can_disburse_advance') && (
-              <button
-                type="button"
-                onClick={() => setAdvanceModalOpen(true)}
-                className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <HandCoins className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                <span>Give Advance</span>
+                <span>New Expense (F2)</span>
               </button>
             )}
 
@@ -371,10 +449,10 @@ export const DashboardPage: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => setActivePage('closing')}
+              onClick={() => setActivePage('settings')}
               className="px-2.5 py-1 rounded-[6px] bg-amber-500/20 hover:bg-amber-500/30 font-medium text-[11px] shrink-0 transition-colors"
             >
-              View Closing (F9)
+              Manage Periods (F12)
             </button>
           </div>
         )}
@@ -434,52 +512,21 @@ export const DashboardPage: React.FC = () => {
             />
           </div>
 
-          {/* Category & Department Filters + Active Count */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Category Select */}
-            <div className="w-38 sm:w-44">
-              <SearchableSelect
-                size="sm"
-                options={[
-                  { value: 'ALL', label: 'All Categories' },
-                  ...categories.map((c) => ({ value: c.category_name, label: c.category_name })),
-                ]}
-                value={selectedCategory}
-                onChange={setSelectedCategory}
-                allowCustom={false}
-                placeholder="Category"
-                triggerClassName="!rounded-[6px] !bg-slate-50/80 dark:!bg-[#1a1a1a] !border-slate-200/80 dark:!border-[#282828] hover:!border-slate-300 dark:hover:!border-[#383838] !h-8 !text-xs !shadow-2xs text-slate-800 dark:text-zinc-200"
-              />
-            </div>
-
-            {/* Department Select */}
-            <div className="w-38 sm:w-44">
-              <SearchableSelect
-                size="sm"
-                options={[
-                  { value: 'ALL', label: 'All Departments' },
-                  ...departments.map((d) => ({ value: d.department_name, label: d.department_name })),
-                ]}
-                value={selectedDept}
-                onChange={setSelectedDept}
-                allowCustom={false}
-                placeholder="Department"
-                triggerClassName="!rounded-[6px] !bg-slate-50/80 dark:!bg-[#1a1a1a] !border-slate-200/80 dark:!border-[#282828] hover:!border-slate-300 dark:hover:!border-[#383838] !h-8 !text-xs !shadow-2xs text-slate-800 dark:text-zinc-200"
-              />
-            </div>
-
-            {/* Reset Filters Chip */}
+          {/* Reset Filters & Active State */}
+          <div className="flex items-center gap-2">
             {activeSlicerCount > 0 && (
               <button
                 type="button"
                 onClick={() => {
                   setTimeRange('today');
                   setSelectedMode('ALL');
-                  setSelectedCategory('ALL');
-                  setSelectedDept('ALL');
                   setIsCustomDateOpen(false);
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  triggerHaptic('light');
                 }}
-                className="h-8 px-2.5 rounded-[6px] text-xs font-sans font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="h-8 px-2.5 py-1 rounded-[6px] border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                title="Reset active filters back to Today / All Modes"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset ({activeSlicerCount})</span>
@@ -521,53 +568,177 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* 2. 4 Metric Cards Telemetry Matrix */}
+        {/* 2. 4 Metric Cards Telemetry Matrix - Mode Adaptive */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* KPI 1: Total Spend */}
-          <MetricCard
-            label="Total Expenses"
-            value={formatINR(metrics.totalSpend)}
-            subValue={`${metrics.totalBills} bills recorded`}
-            badge={timeRangeLabel}
-            badgeColor="neutral"
-            icon={Receipt}
-            onClick={() => setActivePage('expenses')}
-          />
+          {selectedMode === 'Physical_Cash' ? (
+            <>
+              {/* Cash KPI 1: Cash Outflow */}
+              <MetricCard
+                label="Cash Expenses (Outflow)"
+                value={formatINR(metrics.cashSpend)}
+                subValue={`${metrics.cashBills} cash vouchers · Avg: ${formatINR(metrics.avgTicket)}`}
+                badge={timeRangeLabel}
+                badgeColor="neutral"
+                icon={Receipt}
+                onClick={() => setActivePage('expenses')}
+              />
 
-          {/* KPI 2: Cash in Drawer */}
-          <MetricCard
-            label="Cash in Box"
-            value={formatINR(cashBalance)}
-            statusText={isSafeDropAlert ? 'Move Extra Cash to Safe' : 'Cash Box Normal'}
-            statusDotColor={isSafeDropAlert ? '#f59e0b' : '#3ecf8e'}
-            badge={isSafeDropAlert ? 'ALERT' : undefined}
-            badgeColor={isSafeDropAlert ? 'amber' : undefined}
-            icon={Wallet}
-            onClick={() => setActivePage('treasury')}
-          />
+              {/* Cash KPI 2: Current Cash in Till */}
+              <MetricCard
+                label="Cash in Box (Current)"
+                value={formatINR(cashBalance)}
+                statusText={isSafeDropAlert ? 'Move Extra Cash to Safe (>₹25k)' : isLowFloatAlert ? 'Low Float (<₹3k)' : 'Cash Drawer Normal'}
+                statusDotColor={isSafeDropAlert ? '#f59e0b' : isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
+                badge={isSafeDropAlert ? 'ALERT' : isLowFloatAlert ? 'LOW FLOAT' : 'LIVE TILL'}
+                badgeColor={isSafeDropAlert ? 'amber' : isLowFloatAlert ? 'amber' : 'emerald'}
+                icon={Wallet}
+                onClick={() => setActivePage('treasury')}
+              />
 
-          {/* KPI 3: Bank Account / UPI */}
-          <MetricCard
-            label="Bank UPI"
-            value={formatINR(upiBalance)}
-            subValue={`${metrics.upiBills} online payments`}
-            statusDotColor="#3b82f6"
-            icon={Building2}
-            onClick={() => setActivePage('treasury')}
-          />
+              {/* Cash KPI 3: Cash Top-ups */}
+              <MetricCard
+                label="Cash Top-ups (Inflow)"
+                value={`+${formatINR(inflowMetrics.cashInflow)}`}
+                subValue={`${inflowMetrics.cashCount} cash additions in period`}
+                statusDotColor="#3ecf8e"
+                badge="FLOAT"
+                badgeColor="emerald"
+                icon={Coins}
+                onClick={() => setActivePage('treasury')}
+              />
 
-          {/* KPI 4: Staff Advances Due */}
-          <MetricCard
-            label="Staff Advances Due"
-            value={formatINR(advanceMetrics.totalUnsettled)}
-            statusText={`${advanceMetrics.pendingCount} staff advances pending`}
-            statusDotColor={advanceMetrics.pendingCount > 0 ? '#f59e0b' : '#3ecf8e'}
-            badge={advanceMetrics.pendingCount > 0 ? `${advanceMetrics.pendingCount} PENDING` : 'CLEARED'}
-            badgeColor={advanceMetrics.pendingCount > 0 ? 'amber' : 'emerald'}
-            icon={HandCoins}
-            onClick={() => setActivePage('advances')}
-          />
+              {/* Cash KPI 4: Net Cash Flow */}
+              <MetricCard
+                label="Net Cash Flow (Period)"
+                value={`${inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}${formatINR(inflowMetrics.cashInflow - metrics.cashSpend)}`}
+                subValue={`Inflow ${formatINR(inflowMetrics.cashInflow)} − Outflow ${formatINR(metrics.cashSpend)}`}
+                statusDotColor={inflowMetrics.cashInflow >= metrics.cashSpend ? '#3ecf8e' : '#f59e0b'}
+                badge={inflowMetrics.cashInflow >= metrics.cashSpend ? 'SURPLUS' : 'DEFICIT'}
+                badgeColor={inflowMetrics.cashInflow >= metrics.cashSpend ? 'emerald' : 'amber'}
+                icon={TrendingUp}
+                onClick={() => setActivePage('treasury')}
+              />
+            </>
+          ) : selectedMode === 'Online_UPI' ? (
+            <>
+              {/* UPI KPI 1: UPI Outflow */}
+              <MetricCard
+                label="UPI Expenses (Outflow)"
+                value={formatINR(metrics.upiSpend)}
+                subValue={`${metrics.upiBills} online vouchers · Avg: ${formatINR(metrics.avgTicket)}`}
+                badge={timeRangeLabel}
+                badgeColor="neutral"
+                icon={Receipt}
+                onClick={() => setActivePage('expenses')}
+              />
+
+              {/* UPI KPI 2: Live Bank Float */}
+              <MetricCard
+                label="Bank UPI Balance"
+                value={formatINR(upiBalance)}
+                statusText="Live Bank Float"
+                statusDotColor="#3b82f6"
+                badge="ONLINE"
+                badgeColor="blue"
+                icon={Building2}
+                onClick={() => setActivePage('treasury')}
+              />
+
+              {/* UPI KPI 3: UPI Inflows */}
+              <MetricCard
+                label="UPI Inflows (Credits)"
+                value={`+${formatINR(inflowMetrics.upiInflow)}`}
+                subValue={`${inflowMetrics.upiCount} bank credits in period`}
+                statusDotColor="#3b82f6"
+                badge="TOP-UPS"
+                badgeColor="blue"
+                icon={Coins}
+                onClick={() => setActivePage('treasury')}
+              />
+
+              {/* UPI KPI 4: Net Bank Flow */}
+              <MetricCard
+                label="Net Bank UPI Flow"
+                value={`${inflowMetrics.upiInflow - metrics.upiSpend >= 0 ? '+' : ''}${formatINR(inflowMetrics.upiInflow - metrics.upiSpend)}`}
+                subValue={`Inflow ${formatINR(inflowMetrics.upiInflow)} − Outflow ${formatINR(metrics.upiSpend)}`}
+                statusDotColor="#3b82f6"
+                badge={inflowMetrics.upiInflow >= metrics.upiSpend ? 'SURPLUS' : 'DEFICIT'}
+                badgeColor="blue"
+                icon={TrendingUp}
+                onClick={() => setActivePage('treasury')}
+              />
+            </>
+          ) : (
+            <>
+              {/* KPI 1: Total Spend */}
+              <MetricCard
+                label="Total Expenses"
+                value={formatINR(metrics.totalSpend)}
+                subValue={`${metrics.totalBills} bills recorded`}
+                badge={timeRangeLabel}
+                badgeColor="neutral"
+                icon={Receipt}
+                onClick={() => setActivePage('expenses')}
+              />
+
+              {/* KPI 2: Cash in Drawer */}
+              <MetricCard
+                label="Cash in Box"
+                value={formatINR(cashBalance)}
+                statusText={isSafeDropAlert ? 'Move Extra Cash to Safe' : 'Cash Box Normal'}
+                statusDotColor={isSafeDropAlert ? '#f59e0b' : '#3ecf8e'}
+                badge={isSafeDropAlert ? 'ALERT' : undefined}
+                badgeColor={isSafeDropAlert ? 'amber' : undefined}
+                icon={Wallet}
+                onClick={() => setActivePage('treasury')}
+              />
+
+              {/* KPI 3: Bank Account / UPI */}
+              <MetricCard
+                label="Bank UPI"
+                value={formatINR(upiBalance)}
+                subValue={`${metrics.upiBills} online payments`}
+                statusDotColor="#3b82f6"
+                icon={Building2}
+                onClick={() => setActivePage('treasury')}
+              />
+
+              {/* KPI 4: Total Inflow (Credits) */}
+              <MetricCard
+                label="Total Inflow (Credits)"
+                value={`+${formatINR(inflowMetrics.totalInflow)}`}
+                subValue={`Cash: ${formatINR(inflowMetrics.cashInflow)} (${inflowMetrics.cashCount}) | UPI: ${formatINR(inflowMetrics.upiInflow)} (${inflowMetrics.upiCount})`}
+                statusDotColor="#3ecf8e"
+                badge="TOP-UPS"
+                badgeColor="emerald"
+                icon={Coins}
+                onClick={() => setActivePage('treasury')}
+              />
+            </>
+          )}
         </div>
+
+        {/* Cash Quick Reconcile Audit Banner when Cash mode is active */}
+        {selectedMode === 'Physical_Cash' && (
+          <div className="p-3 sm:p-3.5 rounded-[12px] bg-emerald-500/5 dark:bg-[#15231c] border border-emerald-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-[#3ecf8e] font-medium">
+              <ShieldCheck className="w-4 h-4 text-[#3ecf8e] shrink-0" />
+              <span>
+                <strong>Cash Audit Mode:</strong> All metrics filtered strictly to Physical Currency. Zero-rupee tolerance active.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActivePage('treasury')}
+                className="px-2.5 py-1 rounded-[6px] bg-slate-900 dark:bg-white text-white dark:text-black font-semibold text-[11px] hover:opacity-90 flex items-center gap-1 cursor-pointer transition-opacity"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Open Cash Ledger (F4)</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 3. Main Visual 1: Spend Velocity & 24h Activity Histogram */}
         <div className="space-y-3">
@@ -575,15 +746,15 @@ export const DashboardPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-[#3ecf8e]" />
               <h2 className="text-sm font-medium text-slate-900 dark:text-white font-sans">
-                Expenses Over Time & Activity
+                Expenses Over Time & Activity {selectedMode === 'Physical_Cash' ? '(Cash Only)' : selectedMode === 'Online_UPI' ? '(UPI Only)' : ''}
               </h2>
               <span className="text-xs font-mono text-slate-500 dark:text-[#737373]">
-                ({metrics.totalBills} bills · {timeRangeLabel})
+                ({filteredVouchers.length} {filteredVouchers.length === 1 ? 'bill' : 'bills'} · {timeRangeLabel})
               </span>
             </div>
           </div>
 
-          <LogsBarChart metrics={metrics} vouchers={filteredVouchers} />
+          <LogsBarChart metrics={metrics} vouchers={filteredVouchers} selectedMode={selectedMode} />
         </div>
 
         {/* 4. Main Visual 2: Department Allocation & Category Spend Flow */}
@@ -597,7 +768,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-medium tracking-tight text-slate-900 dark:text-white font-sans">
-                    Department Expenses
+                    Department Expenses {selectedMode === 'Physical_Cash' ? '(Cash)' : selectedMode === 'Online_UPI' ? '(UPI)' : ''}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-[#A1A1A1]">
                     Expenses by floor team & department
@@ -605,7 +776,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </div>
               <span className="px-2.5 py-1 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] font-mono text-xs font-semibold text-slate-900 dark:text-white tabular-nums shrink-0">
-                Total: {formatINR(metrics.totalSpend)}
+                Total: {formatINR(selectedMode === 'Physical_Cash' ? metrics.cashSpend : selectedMode === 'Online_UPI' ? metrics.upiSpend : metrics.totalSpend)}
               </span>
             </div>
 
@@ -633,7 +804,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-[#242424]">
-                  {departmentStats.map((item, idx) => (
+                  {departmentStats.slice(0, 5).map((item, idx) => (
                     <div
                       key={idx}
                       className="py-2.5 px-2 flex flex-col gap-1.5 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors group"
@@ -672,11 +843,26 @@ export const DashboardPage: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              {departmentStats.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setActivePage('expenses');
+                  }}
+                  className="w-full mt-2 py-2 px-3 rounded-[6px] bg-slate-50 hover:bg-slate-100 dark:bg-[#1a1a1a] dark:hover:bg-[#222222] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs"
+                >
+                  <span>View all {departmentStats.length} departments in Expenses</span>
+                  <span className="px-1.5 py-0.2 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono font-semibold">F3</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform group-hover:translate-x-0.5" />
+                </button>
+              )}
             </div>
 
             {departmentStats.length > 0 && (
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span>{departmentStats.length} Active Departments</span>
+                <span>Showing Top 5 of {departmentStats.length} Departments</span>
                 <span className="truncate ml-2 text-right">
                   Top: <strong className="text-slate-900 dark:text-white">{departmentStats[0]?.name}</strong> ({departmentStats[0]?.percentage}%)
                 </span>
@@ -693,7 +879,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-medium tracking-tight text-slate-900 dark:text-white font-sans">
-                    Where Was Money Spent?
+                    Where Was Money Spent? {selectedMode === 'Physical_Cash' ? '(Cash Only)' : selectedMode === 'Online_UPI' ? '(UPI Only)' : ''}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-[#A1A1A1]">
                     Expenses by category
@@ -729,7 +915,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-[#242424]">
-                  {categoryStats.slice(0, 7).map((item, idx) => (
+                  {categoryStats.slice(0, 5).map((item, idx) => (
                     <div
                       key={idx}
                       className="py-2.5 px-2 flex flex-col gap-1.5 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors group"
@@ -768,11 +954,26 @@ export const DashboardPage: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              {categoryStats.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('selection');
+                    setActivePage('expenses');
+                  }}
+                  className="w-full mt-2 py-2 px-3 rounded-[6px] bg-slate-50 hover:bg-slate-100 dark:bg-[#1a1a1a] dark:hover:bg-[#222222] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs"
+                >
+                  <span>View all {categoryStats.length} categories in Expenses</span>
+                  <span className="px-1.5 py-0.2 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono font-semibold">F3</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform group-hover:translate-x-0.5" />
+                </button>
+              )}
             </div>
 
             {categoryStats.length > 0 && (
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span>100% Accounted</span>
+                <span>Showing Top 5 of {categoryStats.length} Categories</span>
                 <span className="truncate ml-2 text-right">
                   Top: <strong className="text-slate-900 dark:text-white">{categoryStats[0]?.name}</strong> ({categoryStats[0]?.percentage}%)
                 </span>

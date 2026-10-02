@@ -28,12 +28,13 @@ export const AllExpensesPage: React.FC = () => {
   const { selectedBranchId, getActiveBranch } = useBranchStore();
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
+  const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
 
   const activeBranch = getActiveBranch();
   const showroomTitle = selectedBranchId === 'ALL' ? 'All Showrooms' : (activeBranch?.branch_name || 'Satellite Road Showroom');
   const showroomCode = selectedBranchId === 'ALL' ? 'ALL' : (activeBranch?.branch_code || 'ASI');
 
-  // Date Filtered Vouchers
+  // Filtered Vouchers by Date and Payment Mode
   const filteredByDateVouchers = useMemo(() => {
     const now = new Date();
     const todayStr = format(now, 'yyyy-MM-dd');
@@ -44,12 +45,13 @@ export const AllExpensesPage: React.FC = () => {
 
     return vouchers.filter((v) => {
       const vDate = v.payment_date || (v.created_at ? v.created_at.slice(0, 10) : '');
-      if (dateFilter === 'today') return vDate === todayStr;
-      if (dateFilter === 'week') return vDate >= startOfWeekStr;
-      if (dateFilter === 'month') return vDate >= startOfMonthStr;
+      if (dateFilter === 'today' && vDate !== todayStr) return false;
+      if (dateFilter === 'week' && vDate < startOfWeekStr) return false;
+      if (dateFilter === 'month' && vDate < startOfMonthStr) return false;
+      if (selectedMode !== 'ALL' && v.payment_method !== selectedMode) return false;
       return true;
     });
-  }, [vouchers, dateFilter]);
+  }, [vouchers, dateFilter, selectedMode]);
 
   // Totals calculations (active valid vouchers only)
   const activeValidVouchers = useMemo(() => {
@@ -174,16 +176,27 @@ export const AllExpensesPage: React.FC = () => {
       <div className="px-4 lg:px-6 py-4 space-y-4 flex-1 w-full">
         {/* Filter Toolbar */}
         <div className="rounded-[12px] p-2.5 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-[#18181a]/70 border border-slate-200 dark:border-[#242424] shadow-2xs">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <SegmentedControl
               options={[
-                { id: 'all', label: 'All Time' },
-                { id: 'month', label: 'This Month' },
-                { id: 'week', label: 'This Week' },
                 { id: 'today', label: 'Today' },
+                { id: 'week', label: 'Week' },
+                { id: 'month', label: 'Month' },
+                { id: 'all', label: 'All Time' },
               ]}
               value={dateFilter}
               onChange={(val) => setDateFilter(val as DateFilterType)}
+              size="sm"
+            />
+
+            <SegmentedControl
+              options={[
+                { id: 'ALL', label: 'All Modes' },
+                { id: 'Physical_Cash', label: 'Cash' },
+                { id: 'Online_UPI', label: 'UPI' },
+              ]}
+              value={selectedMode}
+              onChange={(val) => setSelectedMode(val as typeof selectedMode)}
               size="sm"
             />
           </div>

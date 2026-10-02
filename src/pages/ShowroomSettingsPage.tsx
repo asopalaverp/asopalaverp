@@ -51,6 +51,9 @@ import {
   LucideIcon,
   Menu,
   AlertCircle,
+  HandCoins,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 
 export type SettingsTabId =
@@ -62,7 +65,8 @@ export type SettingsTabId =
   | 'staff'
   | 'roles'
   | 'denominations'
-  | 'broadcasts';
+  | 'broadcasts'
+  | 'features';
 
 type TableDensity = 'compact' | 'normal' | 'relaxed';
 
@@ -157,6 +161,14 @@ const SETTINGS_TABS: SettingsTabMeta[] = [
     icon: Megaphone,
     description: 'Show announcement banner to all counter terminals in real-time',
   },
+  {
+    id: 'features',
+    name: 'Beta Features & Modules',
+    group: 'SHOWROOM MASTER DATA',
+    icon: Sparkles,
+    badge: 'BETA',
+    description: 'Activate or deactivate experimental showroom modules (e.g. Staff Advances)',
+  },
 ];
 
 function downloadBlob(filename: string, content: string, mimeType: string) {
@@ -173,7 +185,12 @@ function downloadBlob(filename: string, content: string, mimeType: string) {
 
 export const ShowroomSettingsPage: React.FC = () => {
   const { user } = useAuthStore();
-  const { setBulkImportOpen, setActivePage } = useUIStore();
+  const {
+    setBulkImportOpen,
+    setActivePage,
+    isStaffAdvanceBetaEnabled,
+    setStaffAdvanceBetaEnabled,
+  } = useUIStore();
   const { branches, fetchBranchesAndWallets } = useBranchStore();
   const { categories, departments, couriers, refresh } = useVouchers();
   const { broadcast, setBroadcast } = useNotificationStore();
@@ -296,8 +313,9 @@ export const ShowroomSettingsPage: React.FC = () => {
       roles: roles.length,
       denominations: denominations.length,
       broadcasts: broadcast?.message ? 1 : 0,
+      features: isStaffAdvanceBetaEnabled ? 1 : 0,
     }),
-    [periods, branches, categories, departments, couriers, staffMembers, roles, denominations, broadcast]
+    [periods, branches, categories, departments, couriers, staffMembers, roles, denominations, broadcast, isStaffAdvanceBetaEnabled]
   );
 
   // Handlers for Master Data Drawer
@@ -339,16 +357,36 @@ export const ShowroomSettingsPage: React.FC = () => {
     try {
       const willLock = !targetPeriod.is_locked;
       const userName = user ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Store Manager';
+      const reasonToUse = lockReason || (willLock ? 'Monthly Accounts Finalized & Audited' : 'Auditor Adjustment Request');
+      
       await erpService.togglePeriodLock(
         targetPeriod.period_key,
         willLock,
         userName,
-        lockReason || (willLock ? 'Monthly Accounts Finalized & Audited' : 'Auditor Adjustment Request')
+        reasonToUse,
+        targetPeriod.start_date,
+        targetPeriod.end_date
       );
+
+      // Optimistic UI state update
+      setPeriods((prev) =>
+        prev.map((p) =>
+          p.period_key === targetPeriod.period_key
+            ? {
+                ...p,
+                is_locked: willLock,
+                locked_at: willLock ? new Date().toISOString() : undefined,
+                locked_by_name: willLock ? userName : undefined,
+                lock_reason: willLock ? reasonToUse : undefined,
+              }
+            : p
+        )
+      );
+
       toast.success(`Accounting Period ${targetPeriod.period_key} ${willLock ? 'locked' : 'unlocked'}.`);
       setLockModalOpen(false);
       setTargetPeriod(null);
-      loadData();
+      await loadData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update accounting period lock. Please try again.');
       return;
@@ -974,6 +1012,105 @@ export const ShowroomSettingsPage: React.FC = () => {
                         <span>Clear Banner</span>
                       </button>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* VIEW 3.5: BETA FEATURES & EXPERIMENTAL MODULE FLAGS                */}
+            {/* =================================================================== */}
+            {activeTabId === 'features' && (
+              <div className="space-y-6 max-w-4xl animate-in fade-in">
+                {/* Information Header Banner */}
+                <div className="p-4 rounded-[8px] bg-amber-500/5 dark:bg-[#1a1712] border border-amber-500/20 text-xs space-y-1.5">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>Experimental Feature Controls (Private Beta)</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-zinc-400 leading-relaxed font-sans">
+                    Modules in beta mode are kept strictly inactive for standard cashiers to ensure 100% mathematical zero-tolerance reconciliation. You can test and toggle them on/off here anytime.
+                  </p>
+                </div>
+
+                {/* Feature Toggle Cards */}
+                <div className="space-y-4">
+                  {/* Card 1: Staff Advances Module */}
+                  <div className="p-5 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-xs space-y-4 transition-all">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex items-start gap-3.5">
+                        <div className={cn(
+                          'w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0 border transition-colors',
+                          isStaffAdvanceBetaEnabled
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                            : 'bg-slate-100 dark:bg-[#202020] border-slate-200 dark:border-[#2e2e2e] text-slate-400'
+                        )}>
+                          <HandCoins className="w-5 h-5 stroke-[2]" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
+                              Staff Advances &amp; Salary Disbursals
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                              BETA MODULE
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans leading-relaxed max-w-xl">
+                            Enables employee petty cash requests, advance float disbursements, and salary deduction tracking. When deactivated, the Staff Advances page and navigation shortcuts are hidden from cashier terminals.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Interactive Toggle Button */}
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffAdvanceBetaEnabled(!isStaffAdvanceBetaEnabled);
+                          }}
+                          className={cn(
+                            'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#3ecf8e] focus:ring-offset-2 dark:focus:ring-offset-[#141414]',
+                            isStaffAdvanceBetaEnabled ? 'bg-[#3ecf8e]' : 'bg-slate-300 dark:bg-[#333333]'
+                          )}
+                          role="switch"
+                          aria-checked={isStaffAdvanceBetaEnabled}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out',
+                              isStaffAdvanceBetaEnabled ? 'translate-x-5' : 'translate-x-0'
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Status Ribbon & Direct Jump */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-[#262626] flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-zinc-400 font-mono text-[11px]">
+                        <span
+                          className={cn(
+                            'w-2 h-2 rounded-full',
+                            isStaffAdvanceBetaEnabled ? 'bg-[#3ecf8e] animate-pulse' : 'bg-slate-400'
+                          )}
+                        />
+                        <span>Status: {isStaffAdvanceBetaEnabled ? 'Active (Visible to users)' : 'Inactive (Hidden in navigation)'}</span>
+                      </div>
+
+                      {isStaffAdvanceBetaEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => setActivePage('advances')}
+                          className="px-3 py-1.5 rounded-[6px] bg-slate-900 dark:bg-white text-white dark:text-black font-medium text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <HandCoins className="w-3.5 h-3.5" />
+                          <span>Open Staff Advances Console</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

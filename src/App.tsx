@@ -26,9 +26,6 @@ const AllExpensesPage = lazy(() => import('@/pages/AllExpensesPage').then((m) =>
 const CashDrawerTreasuryPage = lazy(() =>
   import('@/pages/CashDrawerTreasuryPage').then((m) => ({ default: m.CashDrawerTreasuryPage }))
 );
-const DailyCashClosingPage = lazy(() =>
-  import('@/pages/DailyCashClosingPage').then((m) => ({ default: m.DailyCashClosingPage }))
-);
 const StaffAdvancesPage = lazy(() =>
   import('@/pages/StaffAdvancesPage').then((m) => ({ default: m.StaffAdvancesPage }))
 );
@@ -91,7 +88,6 @@ const prefetchCoreRoutes = () => {
       import('@/pages/NewVoucherPage');
       import('@/pages/AllExpensesPage');
       import('@/pages/StaffAdvancesPage');
-      import('@/pages/DailyCashClosingPage');
     };
 
     if ('requestIdleCallback' in window) {
@@ -102,28 +98,14 @@ const prefetchCoreRoutes = () => {
   }
 };
 
-const CASHIER_ALLOWED_PAGES: PageId[] = [
-  'dashboard',
-  'new-voucher',
-  'expenses',
-  'advances',
-  'closing',
-  'profile',
-  'notifications',
-];
-
 const PAGE_PERMISSIONS: Partial<Record<PageId, keyof RolePermissions>> = {
+  'new-voucher': 'can_create_voucher',
   'treasury': 'can_inject_float',
+  'advances': 'can_disburse_advance',
   'staff': 'can_manage_users_roles',
   'settings': 'can_manage_periods',
   'audit': 'can_view_audit_logs',
 };
-
-// Pages accessible to all authenticated users
-const PUBLIC_PAGES: PageId[] = [
-  'dashboard', 'new-voucher', 'expenses', 'advances',
-  'closing', 'profile', 'notifications',
-];
 
 export const App: React.FC = () => {
   const { isAuthenticated, user, getAllowedBranches, can, isLocked } = useAuthStore();
@@ -192,32 +174,13 @@ export const App: React.FC = () => {
       try {
         localStorage.removeItem('asopalav_pos_drafts_v1');
       } catch {}
-      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v6';
-      if (!localStorage.getItem(FRESH_SLATE_KEY)) {
-        const keysToPurge: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (
-            k &&
-            (k.startsWith('asopalav_vouchers') ||
-              k.startsWith('asopalav_advances') ||
-              k.startsWith('asopalav_wallet') ||
-              k.startsWith('asopalav_ledger') ||
-              k.startsWith('asopalav_audit') ||
-              k.startsWith('asopalav-notifications') ||
-              k.startsWith('asopalav_pos_drafts') ||
-              k.startsWith('asopalav_bulk_draft'))
-          ) {
-            keysToPurge.push(k);
-          }
-        }
-        keysToPurge.forEach((k) => localStorage.removeItem(k));
-        localStorage.setItem(FRESH_SLATE_KEY, 'true');
-      }
     }
 
     useBrandStore.getState().applyBrandToDocument();
     useBrandStore.getState().fetchBrandSettings();
+
+    if (!isAuthenticated) return;
+
     useNotificationStore.getState().fetchCloudNotifications();
     fetchBranchesAndWallets(true);
 
@@ -231,7 +194,7 @@ export const App: React.FC = () => {
     return () => {
       cleanupRealtime?.();
     };
-  }, [fetchBranchesAndWallets]);
+  }, [isAuthenticated, fetchBranchesAndWallets]);
 
   // Tear down realtime channel immediately on logout so cross-branch leakage stops
   useEffect(() => {
@@ -391,12 +354,17 @@ export const App: React.FC = () => {
     }
   }, [theme]);
 
-  // If user is unauthenticated, render lazy Login portal
+  // If user is unauthenticated, render lazy Login portal with toast container
   if (!isAuthenticated) {
     return (
-      <Suspense fallback={<div className="h-screen w-screen bg-[#141414] flex items-center justify-center" />}>
-        <LoginPage />
-      </Suspense>
+      <div className="min-h-screen w-full bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED]">
+        <Suspense fallback={<div className="h-screen w-screen bg-[#141414] flex items-center justify-center" />}>
+          <LoginPage />
+        </Suspense>
+        <Suspense fallback={null}>
+          <ToastContainer />
+        </Suspense>
+      </div>
     );
   }
 
@@ -422,9 +390,16 @@ export const App: React.FC = () => {
         return <AllExpensesPage />;
       case 'treasury':
         return <CashDrawerTreasuryPage />;
-      case 'closing':
-        return <DailyCashClosingPage />;
       case 'advances':
+        if (!useUIStore.getState().isStaffAdvanceBetaEnabled) {
+          return (
+            <AccessDeniedView
+              title="Staff Advances (Beta Feature)"
+              message="The Staff Advances module is currently in Beta mode and is turned off by default. You can enable it in Showroom Settings (F12) under Beta Features."
+              onGoBack={() => useUIStore.getState().setActivePage('settings')}
+            />
+          );
+        }
         return <StaffAdvancesPage />;
       case 'audit':
         return <SecurityAuditPage />;

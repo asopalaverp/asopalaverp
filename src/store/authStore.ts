@@ -614,3 +614,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('asopalav:users-roles-updated', () => {
+    const state = useAuthStore.getState();
+    if (state.user?.role_code) {
+      state.loadPermissions(state.user.role_code);
+      state.verifySessionIntegrity();
+      state.fetchAvailableCashiers();
+    }
+  });
+}

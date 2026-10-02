@@ -17,6 +17,7 @@ export interface LogsBarChartProps {
   metrics: TelemetryMetrics;
   vouchers?: ExpenseVoucher[];
   className?: string;
+  selectedMode?: 'ALL' | 'Physical_Cash' | 'Online_UPI';
 }
 
 interface BarSlot {
@@ -40,7 +41,7 @@ interface TelemetryCardData {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = [], className }) => {
+export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = [], className, selectedMode = 'ALL' }) => {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [hoveredSlotIndex, setHoveredSlotIndex] = useState<number | null>(null);
 
@@ -55,7 +56,7 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
   // Asopalav ERP Operational Telemetry Streams (Styled in Supabase Studio Aesthetics)
   const cards = useMemo<TelemetryCardData[]>(() => {
     // Generate 26-slot run-rate solely with real voucher overlays (pure 0 if empty)
-    const makeRunRateSlots = (methodFilter?: 'Physical_Cash' | 'Online_UPI') => {
+    const makeRunRateSlots = (methodFilter?: 'Physical_Cash' | 'Online_UPI', highValueOnly = false) => {
       const slots: BarSlot[] = [];
 
       for (let i = 0; i < numSlots; i++) {
@@ -73,9 +74,11 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
       // Layer real vouchers onto slots
       vouchers.forEach((v) => {
         if (methodFilter && v.payment_method !== methodFilter) return;
+        const amt = Number(v.total_amount) || 0;
+        if (highValueOnly && amt <= 10000) return;
+
         const dt = new Date(v.created_at || v.payment_date);
         const slotIdx = Math.abs(dt.getMinutes() + dt.getHours() * 2) % numSlots;
-        const amt = Number(v.total_amount) || 0;
 
         if (v.status === 'Voided') {
           slots[slotIdx].errors += 1;
@@ -96,23 +99,99 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
       return slots;
     };
 
+    if (selectedMode === 'Physical_Cash') {
+      const cashSlots = makeRunRateSlots('Physical_Cash');
+      const highCashSlots = makeRunRateSlots('Physical_Cash', true);
+      const cashVouchers = vouchers.filter((v) => v.payment_method === 'Physical_Cash');
+      const cashErrors = cashVouchers.filter((v) => v.status === 'Voided').length;
+      const highCashVouchers = cashVouchers.filter((v) => Number(v.total_amount) > 10000 && v.status !== 'Voided');
+      const highCashTotal = highCashVouchers.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+
+      return [
+        {
+          id: 'cash-drawer',
+          serviceName: 'CASH BOX SPENT',
+          subLabel: 'Cash Paid from Drawer',
+          value: formatINR(metrics.cashPaid),
+          warningCount: highCashVouchers.length,
+          errorCount: cashErrors,
+          slots: cashSlots,
+          maxSlotValue: Math.max(...cashSlots.map((s) => s.total), 1),
+          icon: Wallet,
+        },
+        {
+          id: 'cash-high-value',
+          serviceName: 'HIGH CASH VOUCHERS (>₹10K)',
+          subLabel: 'Store Manager Audit Required',
+          value: formatINR(highCashTotal),
+          warningCount: highCashVouchers.length,
+          errorCount: 0,
+          slots: highCashSlots,
+          maxSlotValue: Math.max(...highCashSlots.map((s) => s.total), 1),
+          icon: ShieldCheck,
+        },
+        {
+          id: 'cash-audit',
+          serviceName: 'VOIDED CASH TRANSACTIONS',
+          subLabel: 'Zero Tolerance Audit Flags',
+          value: `${cashErrors} voided`,
+          warningCount: 0,
+          errorCount: cashErrors,
+          slots: cashSlots,
+          maxSlotValue: Math.max(...cashSlots.map((s) => s.total), 1),
+          icon: Receipt,
+        },
+      ];
+    }
+
+    if (selectedMode === 'Online_UPI') {
+      const upiSlots = makeRunRateSlots('Online_UPI');
+      const highUpiSlots = makeRunRateSlots('Online_UPI', true);
+      const upiVouchers = vouchers.filter((v) => v.payment_method === 'Online_UPI');
+      const upiErrors = upiVouchers.filter((v) => v.status === 'Voided').length;
+      const highUpiVouchers = upiVouchers.filter((v) => Number(v.total_amount) > 10000 && v.status !== 'Voided');
+      const highUpiTotal = highUpiVouchers.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+
+      return [
+        {
+          id: 'upi-bank',
+          serviceName: 'UPI & BANK SPENT',
+          subLabel: 'Online QR & Bank Transfers',
+          value: formatINR(metrics.upiPaid),
+          warningCount: highUpiVouchers.length,
+          errorCount: upiErrors,
+          slots: upiSlots,
+          maxSlotValue: Math.max(...upiSlots.map((s) => s.total), 1),
+          icon: HandCoins,
+        },
+        {
+          id: 'upi-high-value',
+          serviceName: 'HIGH BANK VOUCHERS (>₹10K)',
+          subLabel: 'NEFT / RTGS / Bank Disbursals',
+          value: formatINR(highUpiTotal),
+          warningCount: highUpiVouchers.length,
+          errorCount: 0,
+          slots: highUpiSlots,
+          maxSlotValue: Math.max(...highUpiSlots.map((s) => s.total), 1),
+          icon: ShieldCheck,
+        },
+        {
+          id: 'upi-audit',
+          serviceName: 'VOIDED ONLINE TRANSACTIONS',
+          subLabel: 'Disputed or Cancelled QR',
+          value: `${upiErrors} voided`,
+          warningCount: 0,
+          errorCount: upiErrors,
+          slots: upiSlots,
+          maxSlotValue: Math.max(...upiSlots.map((s) => s.total), 1),
+          icon: Receipt,
+        },
+      ];
+    }
+
     const totalSpendSlots = makeRunRateSlots();
     const cashDrawerSlots = makeRunRateSlots('Physical_Cash');
     const upiOnlineSlots = makeRunRateSlots('Online_UPI');
-
-    // Tamper-Proof Audit Trail slots
-    const auditSlots: BarSlot[] = [];
-    for (let i = 0; i < numSlots; i++) {
-      const slotTime = addMinutes(startTime, i * 2);
-      auditSlots.push({
-        timeStr: format(slotTime, 'MMM dd, h:mmaaa'),
-        infos: 0,
-        warnings: 0,
-        errors: 0,
-        total: 0,
-        amount: 0,
-      });
-    }
 
     const totalErrors = vouchers.filter((v) => v.status === 'Voided').length;
     const totalWarnings = vouchers.filter((v) => Number(v.total_amount) > 10000).length;
@@ -134,8 +213,8 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
         serviceName: 'CASH BOX SPENT',
         subLabel: 'Cash Paid from Cash Box',
         value: formatINR(metrics.cashPaid),
-        warningCount: 0,
-        errorCount: 0,
+        warningCount: vouchers.filter((v) => v.payment_method === 'Physical_Cash' && Number(v.total_amount) > 10000).length,
+        errorCount: vouchers.filter((v) => v.payment_method === 'Physical_Cash' && v.status === 'Voided').length,
         slots: cashDrawerSlots,
         maxSlotValue: Math.max(...cashDrawerSlots.map((s) => s.total), 1),
         icon: Wallet,
@@ -145,14 +224,14 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
         serviceName: 'UPI & BANK PAYMENTS',
         subLabel: 'Online QR & Bank Transfers',
         value: formatINR(metrics.upiPaid),
-        warningCount: totalWarnings,
-        errorCount: 0,
+        warningCount: vouchers.filter((v) => v.payment_method === 'Online_UPI' && Number(v.total_amount) > 10000).length,
+        errorCount: vouchers.filter((v) => v.payment_method === 'Online_UPI' && v.status === 'Voided').length,
         slots: upiOnlineSlots,
         maxSlotValue: Math.max(...upiOnlineSlots.map((s) => s.total), 1),
         icon: HandCoins,
       },
     ];
-  }, [startTime, numSlots, vouchers, metrics]);
+  }, [startTime, numSlots, vouchers, metrics, selectedMode]);
 
   return (
     <div className={cn('select-none font-sans', className)}>
