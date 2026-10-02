@@ -192,7 +192,7 @@ export const App: React.FC = () => {
       try {
         localStorage.removeItem('asopalav_pos_drafts_v1');
       } catch {}
-      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v5';
+      const FRESH_SLATE_KEY = 'asopalav_fresh_slate_v6';
       if (!localStorage.getItem(FRESH_SLATE_KEY)) {
         const keysToPurge: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {

@@ -338,8 +338,12 @@ class ERPService {
         query = query.or(`branch_id.eq.${canonicalId},branch_id.eq.${code},branch_code.eq.${code}`);
       }
 
-      const { data } = await query;
-      if (data && data.length > 0) return sanitizeAndDeduplicateLedger(data);
+      const { data, error } = await query;
+      if (!error && data !== null) {
+        const clean = sanitizeAndDeduplicateLedger(data);
+        localStorage.setItem(`asopalav_ledger_${canonicalId}`, JSON.stringify(clean.slice(0, 200)));
+        return clean;
+      }
     } catch (e) {
       console.warn('Wallet ledger fallback to local cache:', e);
     }
@@ -2051,10 +2055,13 @@ class ERPService {
         query = query.or(`branch_id.eq.${canonicalId},branch_id.eq.${code},branch_code.eq.${code}`);
       }
 
-      const { data } = await query;
-      if (data && data.length > 0) return data;
+      const { data, error } = await query;
+      if (!error && data !== null) {
+        localStorage.setItem(`asopalav_advances_${canonicalId}`, JSON.stringify(data.slice(0, 200)));
+        return data;
+      }
     } catch (e) {
-      console.warn('Advances fetched from local store:', e);
+      console.warn('Advances fetched from local store fallback:', e);
     }
 
     const keysToCheck = isAll

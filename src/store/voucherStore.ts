@@ -131,25 +131,25 @@ export const useVoucherStore = create<VoucherStoreState>((set, get) => ({
           vQuery = vQuery.or(`branch_id.eq.${cacheKey},branch_id.eq.${code},branch_code.eq.${code}`);
         }
 
-        const { data } = await vQuery;
+        const { data, error } = await vQuery;
 
-        let voucherList = data && data.length > 0 ? data : [];
-        if (voucherList.length === 0) {
+        let voucherList: ExpenseVoucher[] = [];
+        if (!error && data !== null) {
+          voucherList = data;
+          localStorage.setItem(`asopalav_vouchers_${cacheKey}`, JSON.stringify(data.slice(0, 500)));
+        } else {
           const local =
             localStorage.getItem(`asopalav_vouchers_${cacheKey}`) ||
             (code !== 'ALL' ? localStorage.getItem(`asopalav_vouchers_${code}`) : null);
           if (local) {
             try {
               const parsed = JSON.parse(local);
-              if (Array.isArray(parsed) && parsed.length >= 100) {
+              if (Array.isArray(parsed)) {
                 voucherList = parsed;
               }
             } catch {
               // Ignore JSON error
             }
-          }
-          if (voucherList.length === 0) {
-            voucherList = [];
           }
         }
 
