@@ -6,6 +6,9 @@ import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { formatINR, formatDate, numberToWordsINR, triggerHaptic } from '@/lib/utils';
 import { useVouchers } from '@/hooks/useVouchers';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { StaffSplitTable, SplitItem } from '@/components/vouchers/StaffSplitTable';
+import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
+import { VendorSplitItem } from '@/types/database';
 import {
   XCircle,
   Eye,
@@ -30,10 +33,82 @@ import {
   Save,
   Undo,
   UserCheck,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
+
+function parseLegacyStaffSplits(voucher: any, staffList: any[]): SplitItem[] {
+  if (!voucher) return [];
+  const recipient = voucher.recipient_name || '';
+  const totalAmount = Number(voucher.total_amount) || 0;
+
+  let names: string[] = [];
+  // 1. Check parenthesized format: "7 Staff (Sagar, Ramesh, Merajbhai, PARMAL, HARSH, Prakash, Bharat)"
+  const parenMatch = recipient.match(/\(([^)]+)\)/);
+  if (parenMatch && parenMatch[1]) {
+    names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
+  }
+
+  // 2. If no names from recipient, check remarks if separated by '/' or ','
+  if (names.length === 0 && voucher.remarks && (voucher.remarks.includes('/') || voucher.remarks.includes(','))) {
+    const delimiter = voucher.remarks.includes('/') ? '/' : ',';
+    const rawParts = voucher.remarks.split(delimiter).map((n: string) => n.trim()).filter(Boolean);
+    if (rawParts.length >= 2) {
+      names = rawParts;
+    }
+  }
+
+  if (names.length === 0) return [];
+
+  const perPerson = names.length > 0 ? Math.floor(totalAmount / names.length) : 0;
+  const remainder = names.length > 0 ? totalAmount - perPerson * names.length : 0;
+
+  return names.map((rawName: string, idx: number) => {
+    const cleanName = rawName.replace(/^staff\s*[:-]?\s*/i, '').trim();
+    const matched = staffList.find(
+      (s: any) =>
+        (s.staff_code && s.staff_code.toLowerCase() === cleanName.toLowerCase()) ||
+        `${s.first_name} ${s.last_name}`.toLowerCase().includes(cleanName.toLowerCase()) ||
+        cleanName.toLowerCase().includes(s.first_name.toLowerCase())
+    );
+
+    return {
+      staffCode: matched ? matched.staff_code : '',
+      staffName: matched ? `${matched.first_name} ${matched.last_name}`.trim() : cleanName,
+      departmentName: matched?.department_name || voucher.department_name || 'Store Operations',
+      categoryName: voucher.category_name || 'Staff Welfare & Food',
+      amount: idx === 0 ? perPerson + remainder : perPerson,
+    };
+  });
+}
+
+function parseLegacyVendorSplits(voucher: any): VendorSplitItem[] {
+  if (!voucher) return [];
+  const recipient = voucher.recipient_name || '';
+  const totalAmount = Number(voucher.total_amount) || 0;
+
+  let names: string[] = [];
+  const parenMatch = recipient.match(/\(([^)]+)\)/);
+  if (parenMatch && parenMatch[1]) {
+    names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
+  }
+
+  if (names.length === 0) return [];
+
+  const perVendor = names.length > 0 ? Math.floor(totalAmount / names.length) : 0;
+  const remainder = names.length > 0 ? totalAmount - perVendor * names.length : 0;
+
+  return names.map((vName: string, idx: number) => ({
+    vendor_name: vName.trim(),
+    category_name: voucher.category_name || 'General Expense',
+    department_name: voucher.department_name || 'Main Shop Floor',
+    bill_number: voucher.bill_number || '',
+    description: voucher.remarks || '',
+    amount: idx === 0 ? perVendor + remainder : perVendor,
+  }));
+}
 
 export const VoucherDetailDrawer: React.FC = () => {
   const { activeDrawerVoucher, setActiveDrawerVoucher, closeDrawer, openLightbox } = useUIStore();
@@ -61,6 +136,9 @@ export const VoucherDetailDrawer: React.FC = () => {
   const [editRemarks, setEditRemarks] = useState('');
   const [editReason, setEditReason] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [staffSplits, setStaffSplits] = useState<any[]>([]);
+  const [editStaffSplits, setEditStaffSplits] = useState<SplitItem[]>([]);
+  const [editVendorSplits, setEditVendorSplits] = useState<VendorSplitItem[]>([]);
 
   // Populate edit fields when active voucher changes
   useEffect(() => {
@@ -80,8 +158,58 @@ export const VoucherDetailDrawer: React.FC = () => {
       setIsEditing(false);
       setActiveAction('none');
       setFeedback(null);
+
+      // Fetch staff splits if this is a staff voucher
+      const isStaffType =
+        activeDrawerVoucher.payment_type === 'Staff_Split' ||
+        Boolean(activeDrawerVoucher.recipient_name && /\bStaff\b/i.test(activeDrawerVoucher.recipient_name));
+
+      if (isStaffType) {
+        erpService.getVoucherSplits(activeDrawerVoucher.voucher_number).then((splits) => {
+          let list: any[] = splits || [];
+          if (list.length === 0) {
+            // Auto-extract from legacy recipient or remarks if database has no split records
+            const parsed = parseLegacyStaffSplits(activeDrawerVoucher, staff);
+            if (parsed.length > 0) {
+              list = parsed.map((p, idx) => ({
+                id: `legacy-${activeDrawerVoucher.voucher_number}-${idx}`,
+                voucher_number: activeDrawerVoucher.voucher_number,
+                branch_id: activeDrawerVoucher.branch_id,
+                branch_code: activeDrawerVoucher.branch_code,
+                staff_code: p.staffCode,
+                staff_name: p.staffName,
+                department_name: p.departmentName,
+                category_name: p.categoryName,
+                amount: p.amount,
+                created_at: activeDrawerVoucher.created_at,
+              }));
+            }
+          }
+
+          setStaffSplits(list);
+          setEditStaffSplits(
+            list.map((s: any) => ({
+              staffCode: s.staff_code || s.staffCode || '',
+              staffName: s.staff_name || s.staffName || '',
+              departmentName: s.department_name || s.departmentName || '',
+              categoryName: s.category_name || s.categoryName || '',
+              amount: Number(s.amount) || 0,
+            }))
+          );
+        });
+      } else {
+        setStaffSplits([]);
+        setEditStaffSplits([]);
+      }
+
+      if (activeDrawerVoucher.vendor_splits && Array.isArray(activeDrawerVoucher.vendor_splits) && activeDrawerVoucher.vendor_splits.length > 0) {
+        setEditVendorSplits(activeDrawerVoucher.vendor_splits);
+      } else {
+        const parsedVendors = parseLegacyVendorSplits(activeDrawerVoucher);
+        setEditVendorSplits(parsedVendors);
+      }
     }
-  }, [activeDrawerVoucher]);
+  }, [activeDrawerVoucher, staff]);
 
   if (!activeDrawerVoucher) return null;
 
@@ -92,15 +220,41 @@ export const VoucherDetailDrawer: React.FC = () => {
   const allowCashierVoid = isCashierVoidAllowed();
   const canVoid = can('can_void_voucher') || isSuperAdmin || user?.role_code === 'Store_Manager' || allowCashierVoid;
 
+  const isStaffVoucher = v.payment_type === 'Staff_Split' || editStaffSplits.length > 0 || staffSplits.length > 0;
+  const isMultiVendorVoucher = (v.vendor_splits && v.vendor_splits.length > 0) || editVendorSplits.length > 0;
+
   const handleSaveEdit = async () => {
-    if (!editRecipient || !editRecipient.trim()) {
-      setFeedback({ type: 'error', message: 'Payee / Vendor name is required.' });
-      return;
+    if (isStaffVoucher) {
+      if (editStaffSplits.length === 0) {
+        setFeedback({ type: 'error', message: 'Please add at least one staff member.' });
+        return;
+      }
+      const invalid = editStaffSplits.find((s) => !s.staffName.trim() || Number(s.amount) <= 0);
+      if (invalid) {
+        setFeedback({ type: 'error', message: 'All staff split entries must have a valid staff name and amount > ₹0.' });
+        return;
+      }
+    } else if (isMultiVendorVoucher) {
+      if (editVendorSplits.length === 0) {
+        setFeedback({ type: 'error', message: 'Please add at least one vendor item.' });
+        return;
+      }
+      const invalid = editVendorSplits.find((s) => !s.vendor_name.trim() || Number(s.amount) <= 0);
+      if (invalid) {
+        setFeedback({ type: 'error', message: 'All vendor split entries must have a vendor name and amount > ₹0.' });
+        return;
+      }
+    } else {
+      if (!editRecipient || !editRecipient.trim()) {
+        setFeedback({ type: 'error', message: 'Payee / Vendor name is required.' });
+        return;
+      }
+      if (!editCategory || !editCategory.trim()) {
+        setFeedback({ type: 'error', message: 'Expense Category is required.' });
+        return;
+      }
     }
-    if (!editCategory || !editCategory.trim()) {
-      setFeedback({ type: 'error', message: 'Expense Category is required.' });
-      return;
-    }
+
     if (editAmount <= 0) {
       setFeedback({ type: 'error', message: 'Amount must be greater than zero.' });
       return;
@@ -114,10 +268,22 @@ export const VoucherDetailDrawer: React.FC = () => {
     setFeedback(null);
 
     try {
-      const updates = {
-        recipient_name: editRecipient.trim(),
-        category_name: editCategory.trim(),
-        department_name: editDepartment ? editDepartment.trim() : null,
+      const updates: any = {
+        recipient_name: isStaffVoucher
+          ? `${editStaffSplits.length} Staff (${editStaffSplits.map((s) => s.staffName.split(' ')[0]).join(', ')})`
+          : isMultiVendorVoucher
+          ? `${editVendorSplits.length} Vendors (${editVendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`
+          : editRecipient.trim(),
+        category_name: isStaffVoucher
+          ? Array.from(new Set(editStaffSplits.map((s) => s.categoryName?.trim()).filter(Boolean))).join(', ') || editCategory || 'Staff Expense'
+          : isMultiVendorVoucher
+          ? Array.from(new Set(editVendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))).join(', ') || editCategory || 'General Expense'
+          : editCategory.trim(),
+        department_name: isStaffVoucher
+          ? Array.from(new Set(editStaffSplits.map((s) => s.departmentName?.trim()).filter(Boolean))).join(', ') || editDepartment || 'Main Shop Floor'
+          : isMultiVendorVoucher
+          ? Array.from(new Set(editVendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))).join(', ') || editDepartment || 'Main Shop Floor'
+          : editDepartment ? editDepartment.trim() : null,
         requested_by_staff_code: editStaffCode || null,
         requested_by_staff_name: editStaffName || null,
         bill_number: editBillNumber ? editBillNumber.trim() : null,
@@ -126,6 +292,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         total_amount: editAmount,
         courier_partner_name: editCourier ? editCourier.trim() : null,
         remarks: editRemarks ? editRemarks.trim() : '',
+        vendor_splits: isMultiVendorVoucher ? editVendorSplits : undefined,
       };
 
       await erpService.updateVoucher(
@@ -133,8 +300,15 @@ export const VoucherDetailDrawer: React.FC = () => {
         updates,
         `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim(),
         user?.role_code || 'Super_Admin',
-        editReason.trim()
+        editReason.trim(),
+        isStaffVoucher ? editStaffSplits : undefined
       );
+
+      // Refresh staff splits view
+      if (isStaffVoucher) {
+        const freshSplits = await erpService.getVoucherSplits(v.voucher_number);
+        setStaffSplits(freshSplits || []);
+      }
 
       const updatedVoucher = {
         ...v,
@@ -178,6 +352,16 @@ export const VoucherDetailDrawer: React.FC = () => {
     setEditCourier(v.courier_partner_name || '');
     setEditRemarks(v.remarks || '');
     setEditReason('');
+    setEditStaffSplits(
+      staffSplits.map((s: any) => ({
+        staffCode: s.staff_code || '',
+        staffName: s.staff_name || '',
+        departmentName: s.department_name || '',
+        categoryName: s.category_name || '',
+        amount: Number(s.amount) || 0,
+      }))
+    );
+    setEditVendorSplits(v.vendor_splits && Array.isArray(v.vendor_splits) ? v.vendor_splits : []);
     setFeedback(null);
   };
 
@@ -265,6 +449,33 @@ export const VoucherDetailDrawer: React.FC = () => {
     </span>
   );
 
+  const handleStartEdit = () => {
+    if (isStaffVoucher && editStaffSplits.length === 0) {
+      const parsed = parseLegacyStaffSplits(v, staff);
+      if (parsed.length > 0) {
+        setEditStaffSplits(parsed);
+        setEditAmount(parsed.reduce((sum, s) => sum + (Number(s.amount) || 0), 0));
+      } else {
+        setEditStaffSplits([
+          {
+            staffCode: v.requested_by_staff_code || '',
+            staffName: v.requested_by_staff_name || v.recipient_name || '',
+            departmentName: v.department_name || 'Store Operations',
+            categoryName: v.category_name || 'Staff Welfare & Food',
+            amount: Number(v.total_amount) || 0,
+          },
+        ]);
+      }
+    } else if (isMultiVendorVoucher && editVendorSplits.length === 0) {
+      const parsed = parseLegacyVendorSplits(v);
+      if (parsed.length > 0) {
+        setEditVendorSplits(parsed);
+        setEditAmount(parsed.reduce((sum, s) => sum + (Number(s.amount) || 0), 0));
+      }
+    }
+    setIsEditing(true);
+  };
+
   const drawerFooter = isEditing ? (
     <div className="w-full flex items-center justify-end gap-2.5">
       <button
@@ -289,12 +500,12 @@ export const VoucherDetailDrawer: React.FC = () => {
   ) : (
     <div className="w-full flex flex-col gap-2.5">
       {/* Row 1: Admin & Developer Exclusive Action Buttons */}
-      {(isPrivileged || canVoid) && v.status !== 'Voided' && (
+      {(isPrivileged || canVoid) && (
         <div className="flex items-center gap-2 flex-wrap">
           {isPrivileged && (
             <button
               type="button"
-              onClick={() => setIsEditing(true)}
+              onClick={handleStartEdit}
               className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
             >
               <Edit3 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
@@ -302,7 +513,7 @@ export const VoucherDetailDrawer: React.FC = () => {
             </button>
           )}
 
-          {canVoid && (
+          {canVoid && v.status !== 'Voided' && (
             <button
               type="button"
               onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
@@ -364,125 +575,206 @@ export const VoucherDetailDrawer: React.FC = () => {
               </span>
             </div>
 
-            {/* Edit Grid: Payee & Amount */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Vendor / Paid To *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editRecipient}
-                  onChange={(e) => setEditRecipient(e.target.value)}
-                  placeholder="e.g. Ramesh Chai / Vendor Name"
-                  className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Total Amount (₹) *
-                </label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-3 text-xs font-mono text-slate-400 dark:text-zinc-500">₹</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={editAmount || ''}
-                    onChange={(e) => setEditAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                    placeholder="0.00"
-                    className="w-full h-10 min-h-[40px] pl-7 pr-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
-                  />
+            {isStaffVoucher ? (
+              /* Multi-Staff Split Editor */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-[#282828]">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
+                    <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                      Staff Multi-Split Allocations ({editStaffSplits.length} members)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">Total Calculated:</span>
+                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-[#3ecf8e]">
+                      {formatINR(editAmount)}
+                    </span>
+                  </div>
                 </div>
-                {editAmount > 0 && (
-                  <p className="text-[10px] text-emerald-600 dark:text-[#3ecf8e] font-medium font-sans">
-                    {numberToWordsINR(editAmount)}
-                  </p>
-                )}
-              </div>
-            </div>
 
-            {/* Edit Grid: Category & Department */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Expense Category *
-                </label>
-                <SearchableSelect
-                  value={editCategory}
-                  onChange={setEditCategory}
-                  options={categories.map((c) => ({
-                    value: c.category_name,
-                    label: c.category_name,
-                  }))}
-                  placeholder="Select category..."
-                  allowCustom={true}
-                  clearable={true}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Department
-                </label>
-                <SearchableSelect
-                  value={editDepartment}
-                  onChange={setEditDepartment}
-                  options={departments.map((d) => ({
-                    value: d.department_name,
-                    label: d.department_name,
-                  }))}
-                  placeholder="Select department..."
-                  allowCustom={true}
-                  clearable={true}
-                />
-              </div>
-            </div>
-
-            {/* Edit Grid: Staff Member & Bill No */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Staff Member (Optional)
-                </label>
-                <SearchableSelect
-                  value={editStaffCode}
-                  onChange={(val) => {
-                    const foundStaff = staff.find((s) => s.staff_code === val);
-                    if (foundStaff) {
-                      setEditStaffCode(foundStaff.staff_code);
-                      setEditStaffName(`${foundStaff.first_name} ${foundStaff.last_name}`.trim());
-                    } else {
-                      setEditStaffCode(val);
-                      setEditStaffName(val);
-                    }
+                <StaffSplitTable
+                  splits={editStaffSplits}
+                  staffList={staff}
+                  categories={categories}
+                  departments={departments}
+                  targetAmount={editAmount}
+                  onChange={(s) => {
+                    setEditStaffSplits(s);
+                    const total = s.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+                    setEditAmount(total);
                   }}
-                  options={staff.map((s) => ({
-                    value: s.staff_code,
-                    label: `${s.first_name} ${s.last_name}`,
-                    subLabel: `${s.staff_code} • ${s.department_name || s.designation || 'Staff'}`,
-                  }))}
-                  placeholder="Select staff (or leave blank)..."
-                  allowCustom={true}
-                  clearable={true}
                 />
-              </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                  Bill / Invoice No.
-                </label>
-                <input
-                  type="text"
-                  value={editBillNumber}
-                  onChange={(e) => setEditBillNumber(e.target.value)}
-                  placeholder="e.g. INV-9021"
-                  className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Bill / Invoice No. (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={editBillNumber}
+                      onChange={(e) => setEditBillNumber(e.target.value)}
+                      placeholder="e.g. INV-9021"
+                      className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : isMultiVendorVoucher ? (
+              /* Multi-Vendor Split Editor */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-[#282828]">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                      Multi-Vendor Split Allocations ({editVendorSplits.length} vendors)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">Total Calculated:</span>
+                    <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400">
+                      {formatINR(editAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                <VendorSplitTable
+                  splits={editVendorSplits}
+                  categories={categories}
+                  departments={departments}
+                  targetAmount={editAmount}
+                  onChange={(s) => {
+                    setEditVendorSplits(s);
+                    const total = s.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+                    setEditAmount(total);
+                  }}
                 />
               </div>
-            </div>
+            ) : (
+              /* Standard Single-Vendor Form */
+              <>
+                {/* Edit Grid: Payee & Amount */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Vendor / Paid To *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editRecipient}
+                      onChange={(e) => setEditRecipient(e.target.value)}
+                      placeholder="e.g. Ramesh Chai / Vendor Name"
+                      className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Total Amount (₹) *
+                    </label>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-xs font-mono text-slate-400 dark:text-zinc-500">₹</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={editAmount || ''}
+                        onChange={(e) => setEditAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        placeholder="0.00"
+                        className="w-full h-10 min-h-[40px] pl-7 pr-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                      />
+                    </div>
+                    {editAmount > 0 && (
+                      <p className="text-[10px] text-emerald-600 dark:text-[#3ecf8e] font-medium font-sans">
+                        {numberToWordsINR(editAmount)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Edit Grid: Category & Department */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Expense Category *
+                    </label>
+                    <SearchableSelect
+                      value={editCategory}
+                      onChange={setEditCategory}
+                      options={categories.map((c) => ({
+                        value: c.category_name,
+                        label: c.category_name,
+                      }))}
+                      placeholder="Select category..."
+                      allowCustom={true}
+                      clearable={true}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Department
+                    </label>
+                    <SearchableSelect
+                      value={editDepartment}
+                      onChange={setEditDepartment}
+                      options={departments.map((d) => ({
+                        value: d.department_name,
+                        label: d.department_name,
+                      }))}
+                      placeholder="Select department..."
+                      allowCustom={true}
+                      clearable={true}
+                    />
+                  </div>
+                </div>
+
+                {/* Edit Grid: Staff Member & Bill No */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Staff Member (Optional)
+                    </label>
+                    <SearchableSelect
+                      value={editStaffCode}
+                      onChange={(val) => {
+                        const foundStaff = staff.find((s) => s.staff_code === val);
+                        if (foundStaff) {
+                          setEditStaffCode(foundStaff.staff_code);
+                          setEditStaffName(`${foundStaff.first_name} ${foundStaff.last_name}`.trim());
+                        } else {
+                          setEditStaffCode(val);
+                          setEditStaffName(val);
+                        }
+                      }}
+                      options={staff.map((s) => ({
+                        value: s.staff_code,
+                        label: `${s.first_name} ${s.last_name}`,
+                        subLabel: `${s.staff_code} • ${s.department_name || s.designation || 'Staff'}`,
+                      }))}
+                      placeholder="Select staff (or leave blank)..."
+                      allowCustom={true}
+                      clearable={true}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                      Bill / Invoice No.
+                    </label>
+                    <input
+                      type="text"
+                      value={editBillNumber}
+                      onChange={(e) => setEditBillNumber(e.target.value)}
+                      placeholder="e.g. INV-9021"
+                      className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Edit Grid: Payment Method & Payment Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -734,6 +1026,46 @@ export const VoucherDetailDrawer: React.FC = () => {
                           <td className="py-1.5 px-2 text-slate-500 dark:text-zinc-400">{vs.department_name || '-'}</td>
                           <td className="py-1.5 px-2 font-mono text-[11px] text-slate-500">{vs.bill_number || vs.description || '-'}</td>
                           <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">₹{formatINR(vs.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Staff / Multi-Employee Allocations Breakdown if present */}
+            {staffSplits && staffSplits.length > 0 && (
+              <div className="p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                    Staff Allocations ({staffSplits.length})
+                  </span>
+                  <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e]">
+                    Total: ₹{formatINR(v.total_amount)}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-[#262626] text-[10px] font-mono text-slate-400 uppercase">
+                        <th className="py-1.5 px-2">#</th>
+                        <th className="py-1.5 px-2">Staff Member</th>
+                        <th className="py-1.5 px-2">Department</th>
+                        <th className="py-1.5 px-2">Category</th>
+                        <th className="py-1.5 px-2 text-right">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#222]">
+                      {staffSplits.map((s: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-[#1f1f1f]">
+                          <td className="py-1.5 px-2 font-mono text-slate-400">{idx + 1}</td>
+                          <td className="py-1.5 px-2 font-medium text-slate-900 dark:text-white">
+                            {s.staff_name} {s.staff_code && <span className="font-mono text-slate-400 text-[11px]">({s.staff_code})</span>}
+                          </td>
+                          <td className="py-1.5 px-2 text-slate-500 dark:text-zinc-400">{s.department_name || '-'}</td>
+                          <td className="py-1.5 px-2 text-emerald-600 dark:text-[#3ecf8e] font-medium">{s.category_name || '-'}</td>
+                          <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">₹{formatINR(s.amount)}</td>
                         </tr>
                       ))}
                     </tbody>

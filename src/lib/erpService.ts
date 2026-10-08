@@ -604,6 +604,116 @@ class ERPService {
   }
 
   /**
+   * Scans all historical vouchers that have multi-staff split allocations
+   * and synchronizes the parent voucher's category_name and department_name
+   * with the true category and department chosen in the split records.
+   */
+  async reconcileHistoricalSplitVouchers(userName: string = 'System Admin', userRole: string = 'Super_Admin'): Promise<{ updatedCount: number; updatedVouchers: string[] }> {
+    const updatedVouchers: string[] = [];
+    try {
+      // 1. Fetch all voucher splits
+      const { data: allSplits, error: splitsError } = await supabase
+        .from('voucher_splits')
+        .select('*');
+
+      if (splitsError || !allSplits || allSplits.length === 0) {
+        return { updatedCount: 0, updatedVouchers: [] };
+      }
+
+      // Group splits by voucher_number
+      const splitsByVoucher: Record<string, any[]> = {};
+      allSplits.forEach((s) => {
+        if (!s.voucher_number) return;
+        if (!splitsByVoucher[s.voucher_number]) {
+          splitsByVoucher[s.voucher_number] = [];
+        }
+        splitsByVoucher[s.voucher_number].push(s);
+      });
+
+      // 2. Fetch corresponding vouchers
+      const voucherNumbers = Object.keys(splitsByVoucher);
+      const { data: vouchers, error: vouchersError } = await supabase
+        .from('expense_vouchers')
+        .select('*')
+        .in('voucher_number', voucherNumbers);
+
+      if (vouchersError || !vouchers) {
+        return { updatedCount: 0, updatedVouchers: [] };
+      }
+
+      for (const v of vouchers) {
+        const vSplits = splitsByVoucher[v.voucher_number] || [];
+        if (vSplits.length === 0) continue;
+
+        const uniqueCategories = Array.from(
+          new Set(vSplits.map((s: any) => s.category_name?.trim()).filter(Boolean))
+        );
+        const uniqueDepartments = Array.from(
+          new Set(vSplits.map((s: any) => s.department_name?.trim()).filter(Boolean))
+        );
+
+        const targetCategory =
+          uniqueCategories.length === 1
+            ? uniqueCategories[0]
+            : uniqueCategories.length > 1
+            ? uniqueCategories.join(', ')
+            : v.category_name;
+
+        const targetDepartment =
+          uniqueDepartments.length === 1
+            ? uniqueDepartments[0]
+            : uniqueDepartments.length > 1
+            ? uniqueDepartments.join(', ')
+            : v.department_name;
+
+        if (
+          (targetCategory && v.category_name !== targetCategory) ||
+          (targetDepartment && v.department_name !== targetDepartment)
+        ) {
+          // Update in Supabase
+          const { error: updateError } = await supabase
+            .from('expense_vouchers')
+            .update({
+              category_name: targetCategory || v.category_name,
+              department_name: targetDepartment || v.department_name,
+            })
+            .eq('voucher_number', v.voucher_number);
+
+          if (!updateError) {
+            updatedVouchers.push(v.voucher_number);
+            // Update local store
+            useVoucherStore.getState().updateVoucherLocally({
+              ...v,
+              category_name: targetCategory || v.category_name,
+              department_name: targetDepartment || v.department_name,
+            });
+          }
+        }
+      }
+
+      if (updatedVouchers.length > 0) {
+        await logSecurityEvent({
+          userName,
+          userRole: userRole as any,
+          actionType: 'Update_Voucher' as any,
+          targetEntity: 'expense_vouchers',
+          targetIdentifier: `${updatedVouchers.length}-vouchers`,
+          eventDescription: `Reconciled ${updatedVouchers.length} historical staff vouchers with true split categories/departments: ${updatedVouchers.join(', ')}`,
+          justification: 'Automated historical data integrity fix',
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('asopalav:vouchers-updated'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reconciling historical split vouchers:', e);
+    }
+
+    return { updatedCount: updatedVouchers.length, updatedVouchers };
+  }
+
+  /**
    * Permanently purges specific erroneous historical test records across all tables (float_allocations, wallet_ledger, localStorage)
    * and synchronizes branch_wallets to exact mathematical truth from 1 Oct onwards.
    */
@@ -785,7 +895,364 @@ class ERPService {
     }
   }
 
-  generateTallyExportCSV(vouchers: ExpenseVoucher[]): string {
+  /**
+   * Generates a Comprehensive Master Spreadsheet CSV covering A to Z voucher data (28+ fields)
+   */
+  /**
+   * Helper to retrieve cached staff directory synchronously for CSV generation
+   */
+  getStaffMembersSync(): StaffMember[] {
+    try {
+      const storeStaff = useVoucherStore.getState()?.masterData?.staff;
+      if (Array.isArray(storeStaff) && storeStaff.length > 0) return storeStaff;
+    } catch {}
+    try {
+      const raw = typeof window !== 'undefined'
+        ? (localStorage.getItem('asopalav_master_staff') || localStorage.getItem('asopalav_staff_members'))
+        : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }
+
+  /**
+   * Universal Split Extractor: Parses staff splits, vendor splits, and legacy recipient strings into itemized lines
+   */
+  extractAllSplitsFromVoucher(
+    voucher: ExpenseVoucher,
+    customSplitsMap?: Record<string, any[]>
+  ): Array<{
+    staffName: string;
+    staffCode: string;
+    departmentName: string;
+    categoryName: string;
+    amount: number;
+    billNumber: string;
+    description: string;
+    isStaff: boolean;
+  }> {
+    if (!voucher) return [];
+    const totalAmount = Number(voucher.total_amount) || 0;
+    const staffList = this.getStaffMembersSync();
+
+    // 1. Direct splitsMap override
+    const mapped = customSplitsMap?.[voucher.voucher_number];
+    if (Array.isArray(mapped) && mapped.length > 0) {
+      return mapped.map((s: any) => {
+        const rawName = s.staff_name || s.staffName || s.vendor_name || s.vendorName || voucher.recipient_name || '';
+        const matched = staffList.find(
+          (st) =>
+            (s.staff_code && st.staff_code?.toLowerCase() === s.staff_code.toLowerCase()) ||
+            (s.staffCode && st.staff_code?.toLowerCase() === s.staffCode.toLowerCase()) ||
+            (rawName && `${st.first_name} ${st.last_name}`.toLowerCase().includes(rawName.toLowerCase())) ||
+            (rawName && st.first_name && rawName.toLowerCase().includes(st.first_name.toLowerCase()))
+        );
+        return {
+          staffName: s.staff_name || s.staffName || (matched ? `${matched.first_name} ${matched.last_name}`.trim() : rawName),
+          staffCode: s.staff_code || s.staffCode || matched?.staff_code || '',
+          departmentName: s.department_name || s.departmentName || matched?.department_name || voucher.department_name || 'Store Operations',
+          categoryName: s.category_name || s.categoryName || voucher.category_name || 'General Expense',
+          amount: Number(s.amount) || 0,
+          billNumber: s.bill_number || s.billNumber || voucher.bill_number || '',
+          description: s.description || s.remarks || voucher.remarks || '',
+          isStaff: Boolean(s.staff_code || s.staffCode || s.staff_name || s.staffName),
+        };
+      });
+    }
+
+    // 2. voucher.staff_splits (stored as JSON array)
+    const staffSplits = (voucher as any).staff_splits;
+    if (Array.isArray(staffSplits) && staffSplits.length > 0) {
+      return staffSplits.map((s: any) => {
+        const rawName = s.staffName || s.staff_name || '';
+        const matched = staffList.find(
+          (st) =>
+            (s.staffCode && st.staff_code?.toLowerCase() === s.staffCode.toLowerCase()) ||
+            (s.staff_code && st.staff_code?.toLowerCase() === s.staff_code.toLowerCase()) ||
+            (rawName && `${st.first_name} ${st.last_name}`.toLowerCase().includes(rawName.toLowerCase())) ||
+            (rawName && st.first_name && rawName.toLowerCase().includes(st.first_name.toLowerCase()))
+        );
+        return {
+          staffName: rawName || (matched ? `${matched.first_name} ${matched.last_name}`.trim() : 'Staff Member'),
+          staffCode: s.staffCode || s.staff_code || matched?.staff_code || '',
+          departmentName: s.departmentName || s.department_name || matched?.department_name || voucher.department_name || 'Store Operations',
+          categoryName: s.categoryName || s.category_name || voucher.category_name || 'Staff Welfare & Food',
+          amount: Number(s.amount) || 0,
+          billNumber: s.billNumber || s.bill_number || voucher.bill_number || '',
+          description: s.description || voucher.remarks || '',
+          isStaff: true,
+        };
+      });
+    }
+
+    // 3. voucher.vendor_splits
+    if (Array.isArray(voucher.vendor_splits) && voucher.vendor_splits.length > 0) {
+      return voucher.vendor_splits.map((s: any) => ({
+        staffName: s.vendor_name || s.vendorName || s.staff_name || voucher.recipient_name || '',
+        staffCode: s.staff_code || s.staffCode || '',
+        departmentName: s.department_name || s.departmentName || voucher.department_name || 'Store Operations',
+        categoryName: s.category_name || s.categoryName || voucher.category_name || 'General Expense',
+        amount: Number(s.amount) || 0,
+        billNumber: s.bill_number || s.billNumber || voucher.bill_number || '',
+        description: s.description || s.remarks || voucher.remarks || '',
+        isStaff: Boolean(s.staff_code || s.staffCode),
+      }));
+    }
+
+    // 4. Legacy format parsing from recipient_name: e.g. "11 Staff (Hitesh, Parimal, Jignesh, Jignesh, Chintan, ...)"
+    const recipient = voucher.recipient_name || '';
+    let names: string[] = [];
+    const parenMatch = recipient.match(/\(([^)]+)\)/);
+    if (parenMatch && parenMatch[1]) {
+      names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
+    } else if ((voucher.payment_type as any) === 'Staff_Split' || (voucher.payment_type as any) === 'Split') {
+      if (voucher.remarks && (voucher.remarks.includes('/') || voucher.remarks.includes(','))) {
+        const delimiter = voucher.remarks.includes('/') ? '/' : ',';
+        const rawParts = voucher.remarks.split(delimiter).map((n: string) => n.trim()).filter(Boolean);
+        if (rawParts.length >= 2) names = rawParts;
+      }
+    }
+
+    if (names.length > 0) {
+      const perPerson = Math.floor(totalAmount / names.length);
+      const remainder = totalAmount - perPerson * names.length;
+
+      return names.map((rawName: string, idx: number) => {
+        const cleanName = rawName.replace(/^staff\s*[:-]?\s*/i, '').trim();
+        const matched = staffList.find(
+          (s: any) =>
+            (s.staff_code && s.staff_code.toLowerCase() === cleanName.toLowerCase()) ||
+            `${s.first_name} ${s.last_name}`.toLowerCase().includes(cleanName.toLowerCase()) ||
+            cleanName.toLowerCase().includes(s.first_name?.toLowerCase() || '___')
+        );
+
+        return {
+          staffName: matched ? `${matched.first_name} ${matched.last_name}`.trim() : cleanName,
+          staffCode: matched ? matched.staff_code : '',
+          departmentName: matched?.department_name || voucher.department_name || 'Store Operations',
+          categoryName: voucher.category_name || 'Staff Welfare & Refreshment',
+          amount: idx === 0 ? perPerson + remainder : perPerson,
+          billNumber: voucher.bill_number || '',
+          description: voucher.remarks || '',
+          isStaff: true,
+        };
+      });
+    }
+
+    return [];
+  }
+
+  /**
+   * Generates a Comprehensive Master Spreadsheet CSV covering A to Z voucher data with 100% split visibility
+   */
+  generateComprehensiveVoucherCSV(vouchers: ExpenseVoucher[], splitsMap?: Record<string, any[]>): string {
+    const sanitize = (str: any) => {
+      const sanitized = String(str ?? '').replace(/"/g, '""');
+      if (/^[=+\-@|\t\r]/.test(sanitized)) {
+        return `'${sanitized}`;
+      }
+      return sanitized;
+    };
+
+    const formatDisplayDate = (dateStr?: string) => {
+      if (!dateStr) return '';
+      try {
+        const parts = dateStr.slice(0, 10).split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      } catch {
+        return dateStr;
+      }
+    };
+
+    const headers = [
+      'Voucher Number',
+      'Payment Date (YYYY-MM-DD)',
+      'Payment Date (DD-MM-YYYY)',
+      'Branch Code',
+      'Branch ID',
+      'Payment Mode',
+      'Payment Type',
+      'Total Amount (INR)',
+      'Paid To (Beneficiary / Vendor)',
+      'Expense Category',
+      'Department Name',
+      'Department Code',
+      'Bill / Invoice Number',
+      'Courier Partner',
+      'Courier Tracking Number',
+      'Requested By Staff Name',
+      'Requested By Staff Code',
+      'Recorded By (Cashier)',
+      'Voucher Status',
+      'Approved By Name',
+      'Approved At',
+      'Is High Value (>10k)',
+      'Section 40A(3) Compliant',
+      'Attached Bill Photo Count',
+      'Attached Bill Photo URLs',
+      'Itemized Split Breakdown (Staff / Dept / Amount)',
+      'Particulars / Remarks',
+      'Created At Timestamp',
+    ];
+
+    const rows = vouchers.map((v) => {
+      const splits = this.extractAllSplitsFromVoucher(v, splitsMap);
+      const splitSummary = splits.length > 0
+        ? splits.map((s, i) => `${i + 1}. ${s.staffName}${s.staffCode ? ` (${s.staffCode})` : ''} [Dept: ${s.departmentName}]: INR ${s.amount}`).join(' | ')
+        : 'Single Payee';
+
+      const photoUrls = Array.isArray(v.bill_photo_urls) ? v.bill_photo_urls.filter(Boolean) : [];
+      const is40A3Ok = v.payment_method !== 'Physical_Cash' || (Number(v.total_amount) || 0) <= (v.payment_type === 'Courier' ? 35000 : 10000);
+
+      return [
+        `"${sanitize(v.voucher_number)}"`,
+        `"${sanitize(v.payment_date ? v.payment_date.slice(0, 10) : '')}"`,
+        `"${sanitize(formatDisplayDate(v.payment_date))}"`,
+        `"${sanitize(v.branch_code || 'ASI')}"`,
+        `"${sanitize(v.branch_id || 'Aellp-ASI')}"`,
+        `"${sanitize(v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI')}"`,
+        `"${sanitize(v.payment_type || 'Direct')}"`,
+        Number(v.total_amount) || 0,
+        `"${sanitize(v.recipient_name)}"`,
+        `"${sanitize(v.category_name)}"`,
+        `"${sanitize(v.department_name || 'Main Shop Floor')}"`,
+        `"${sanitize(v.department_code || '')}"`,
+        `"${sanitize(v.bill_number || '')}"`,
+        `"${sanitize(v.courier_partner_name || (v as any).courier_company || '')}"`,
+        `"${sanitize((v as any).tracking_number || '')}"`,
+        `"${sanitize(v.requested_by_staff_name || '')}"`,
+        `"${sanitize(v.requested_by_staff_code || '')}"`,
+        `"${sanitize(v.created_by_name || 'Cashier')}"`,
+        `"${sanitize(v.status || 'Approved')}"`,
+        `"${sanitize(v.approved_by_name || '')}"`,
+        `"${sanitize(v.approved_at || '')}"`,
+        (Number(v.total_amount) || 0) > 10000 ? 'Yes' : 'No',
+        is40A3Ok ? 'Yes (Under Limit)' : 'Notice (>Limit)',
+        photoUrls.length,
+        `"${sanitize(photoUrls.join(' ; '))}"`,
+        `"${sanitize(splitSummary)}"`,
+        `"${sanitize((v.remarks || '').replace(/\n/g, ' '))}"`,
+        `"${sanitize(v.created_at || '')}"`,
+      ].join(',');
+    });
+
+    return 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n');
+  }
+
+  /**
+   * Generates a 100% Itemized Line-Level Split Schedule CSV for CA Audit & HR Payroll
+   * - Each staff member and department gets their own distinct row with exact amounts
+   */
+  generateItemizedSplitCSV(vouchers: ExpenseVoucher[], splitsMap?: Record<string, any[]>): string {
+    const sanitize = (str: any) => {
+      const sanitized = String(str ?? '').replace(/"/g, '""');
+      if (/^[=+\-@|\t\r]/.test(sanitized)) {
+        return `'${sanitized}`;
+      }
+      return sanitized;
+    };
+
+    const formatDisplayDate = (dateStr?: string) => {
+      if (!dateStr) return '';
+      try {
+        const parts = dateStr.slice(0, 10).split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dateStr;
+      } catch {
+        return dateStr;
+      }
+    };
+
+    const headers = [
+      'Voucher Number',
+      'Line #',
+      'Date (DD-MM-YYYY)',
+      'Branch Code',
+      'Payment Mode',
+      'Beneficiary / Staff Member',
+      'Staff Code',
+      'Department',
+      'Expense Category',
+      'Individual Amount (INR)',
+      'Voucher Total (INR)',
+      'Bill / Ref No',
+      'Payment Type',
+      'Recorded By',
+      'Status',
+      'Line Description / Narration',
+    ];
+
+    const allRows: string[] = [];
+
+    vouchers.forEach((v) => {
+      const splits = this.extractAllSplitsFromVoucher(v, splitsMap);
+
+      if (splits.length > 0) {
+        splits.forEach((s, idx: number) => {
+          allRows.push([
+            `"${sanitize(v.voucher_number)}"`,
+            idx + 1,
+            `"${sanitize(formatDisplayDate(v.payment_date))}"`,
+            `"${sanitize(v.branch_code || 'ASI')}"`,
+            `"${sanitize(v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI')}"`,
+            `"${sanitize(s.staffName)}"`,
+            `"${sanitize(s.staffCode)}"`,
+            `"${sanitize(s.departmentName)}"`,
+            `"${sanitize(s.categoryName)}"`,
+            Number(s.amount) || 0,
+            Number(v.total_amount) || 0,
+            `"${sanitize(s.billNumber || v.bill_number || '')}"`,
+            `"${sanitize(v.payment_type || 'Split')}"`,
+            `"${sanitize(v.created_by_name || 'Cashier')}"`,
+            `"${sanitize(v.status || 'Approved')}"`,
+            `"${sanitize(s.description || v.remarks || `Staff split ${idx + 1} of ${splits.length}`)}"`,
+          ].join(','));
+        });
+      } else {
+        // Single line item
+        allRows.push([
+          `"${sanitize(v.voucher_number)}"`,
+          1,
+          `"${sanitize(formatDisplayDate(v.payment_date))}"`,
+          `"${sanitize(v.branch_code || 'ASI')}"`,
+          `"${sanitize(v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI')}"`,
+          `"${sanitize(v.recipient_name)}"`,
+          `"${sanitize(v.requested_by_staff_code || '')}"`,
+          `"${sanitize(v.department_name || 'Main Shop Floor')}"`,
+          `"${sanitize(v.category_name)}"`,
+          Number(v.total_amount) || 0,
+          Number(v.total_amount) || 0,
+          `"${sanitize(v.bill_number || '')}"`,
+          `"${sanitize(v.payment_type || 'Direct')}"`,
+          `"${sanitize(v.created_by_name || 'Cashier')}"`,
+          `"${sanitize(v.status || 'Approved')}"`,
+          `"${sanitize(v.remarks || '')}"`,
+        ].join(','));
+      }
+    });
+
+    return 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...allRows].join('\n');
+  }
+
+  /**
+   * Generates a Master CSV (Backwards compatible alias for generateItemizedSplitCSV)
+   */
+  generateMasterCSV(vouchers: ExpenseVoucher[], _categories?: any[], _departments?: any[]): string {
+    return this.generateItemizedSplitCSV(vouchers);
+  }
+
+  /**
+   * Generates a Tally Prime CSV with Compound / Multi-Debit Ledger Entries & Exact Department Tracking
+   */
+  generateTallyExportCSV(vouchers: ExpenseVoucher[], splitsMap?: Record<string, any[]>): string {
     const headers = [
       'Voucher Date (DD-MM-YYYY)',
       'Voucher Type',
@@ -795,7 +1262,9 @@ class ERPService {
       'Credit Ledger (Payment Source)',
       'Credit Amount (INR)',
       'Cost Centre (Showroom Branch)',
+      'Department',
       'Paid To (Beneficiary)',
+      'Staff Code',
       'Bill Reference No',
       'Payment Mode',
       'Narration / Audit Remarks',
@@ -803,6 +1272,7 @@ class ERPService {
 
     const mapCategoryToDebitLedger = (category: string) => {
       const cat = (category || '').trim().toLowerCase();
+      if (cat.includes('incentive') || cat.includes('commission') || cat.includes('target')) return 'Sales Incentive & Commission A/c';
       if (cat.includes('stationery') || cat.includes('printing') || cat.includes('paper')) return 'Printing & Stationery A/c';
       if (cat.includes('food') || cat.includes('welfare') || cat.includes('tea') || cat.includes('refreshment') || cat.includes('snacks')) return 'Staff Welfare & Refreshment A/c';
       if (cat.includes('repair') || cat.includes('maintenance') || cat.includes('hardware')) return 'Repairs & Maintenance A/c';
@@ -822,12 +1292,11 @@ class ERPService {
       return `HDFC Bank Current A/c - ${branchCode || 'ASI'}`;
     };
 
-    const formatTallyDate = (dateStr: string) => {
-      if (!dateStr) return format(new Date(), 'dd-MM-yyyy');
+    const formatTallyDate = (dateStr?: string) => {
+      if (!dateStr) return '';
       try {
-        const parts = dateStr.split('-');
+        const parts = dateStr.slice(0, 10).split('-');
         if (parts.length === 3 && parts[0].length === 4) {
-          // YYYY-MM-DD -> DD-MM-YYYY
           return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
         return dateStr;
@@ -836,49 +1305,93 @@ class ERPService {
       }
     };
 
-    // H-3 Fix: Exclude Advance_Settlement vouchers from Tally export — they are accounting records only.
-    // The cash outflow was already recorded at advance disbursement time. Including them would double-count.
+    // Exclude Advance_Settlement vouchers from Tally export
     const validVouchers = vouchers.filter((v) =>
       (v.status === 'Approved' || v.status === undefined) &&
       v.payment_type !== 'Advance_Settlement'
     );
 
-    const sanitizeCsvCell = (str: string) => {
-      const sanitized = (str || '').replace(/"/g, '""');
+    const sanitizeCsvCell = (str: any) => {
+      const sanitized = String(str ?? '').replace(/"/g, '""');
       if (/^[=+\-@|\t\r]/.test(sanitized)) {
         return `'${sanitized}`;
       }
       return sanitized;
     };
 
-    const rows = validVouchers.map((v) => {
-      const debitLedger = mapCategoryToDebitLedger(v.category_name);
+    const rows: string[] = [];
+
+    validVouchers.forEach((v) => {
+      const formattedDate = formatTallyDate(v.payment_date);
       const creditLedger = mapPaymentToCreditLedger(v.payment_method, v.branch_code);
       const costCentre = `Showroom ${v.branch_code || 'ASI'}`;
-      const payee = sanitizeCsvCell(v.recipient_name || '');
-      const billRef = sanitizeCsvCell(v.bill_number || '');
-      const rawRemarks = v.remarks ? ` - ${v.remarks}` : '';
-      const billInfo = v.bill_number ? ` (Bill Ref: ${v.bill_number})` : '';
-      const formattedNarration = sanitizeCsvCell(`Being payment of INR ${v.total_amount} made to ${v.recipient_name} for ${v.category_name}${billInfo}${rawRemarks}`);
-      const formattedDate = formatTallyDate(v.payment_date);
+      const paymentModeStr = v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI';
+      const splits = this.extractAllSplitsFromVoucher(v, splitsMap);
 
-      return [
-        `"${formattedDate}"`,
-        `"Payment"`,
-        `"${v.voucher_number}"`,
-        `"${debitLedger}"`,
-        v.total_amount,
-        `"${creditLedger}"`,
-        v.total_amount,
-        `"${costCentre}"`,
-        `"${payee}"`,
-        `"${billRef}"`,
-        `"${v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI'}"`,
-        `"${formattedNarration}"`,
-      ].join(',');
+      if (splits.length > 0) {
+        // Multi-Debit Compound Entry
+        splits.forEach((s, idx: number) => {
+          const splitCategory = s.categoryName || v.category_name;
+          const splitDebitLedger = mapCategoryToDebitLedger(splitCategory);
+          const splitPayee = s.staffName || v.recipient_name;
+          const splitCode = s.staffCode || '';
+          const splitDept = s.departmentName || v.department_name || 'Store Operations';
+          const splitBillRef = s.billNumber || v.bill_number || '';
+          const splitAmt = Number(s.amount) || 0;
+          const splitNarration = sanitizeCsvCell(
+            `Being payment of INR ${splitAmt} to ${splitPayee}${splitCode ? ` (${splitCode})` : ''} - Dept: ${splitDept} for ${splitCategory} (Voucher #${v.voucher_number})`
+          );
+
+          rows.push([
+            `"${formattedDate}"`,
+            `"Payment"`,
+            `"${v.voucher_number}"`,
+            `"${splitDebitLedger}"`,
+            splitAmt,
+            idx === 0 ? `"${creditLedger}"` : `""`,
+            idx === 0 ? Number(v.total_amount) || 0 : `""`,
+            `"${costCentre}"`,
+            `"${sanitizeCsvCell(splitDept)}"`,
+            `"${sanitizeCsvCell(splitPayee)}"`,
+            `"${sanitizeCsvCell(splitCode)}"`,
+            `"${sanitizeCsvCell(splitBillRef)}"`,
+            `"${paymentModeStr}"`,
+            `"${splitNarration}"`,
+          ].join(','));
+        });
+      } else {
+        // Standard single debit line
+        const debitLedger = mapCategoryToDebitLedger(v.category_name);
+        const payee = sanitizeCsvCell(v.recipient_name || '');
+        const staffCode = sanitizeCsvCell(v.requested_by_staff_code || '');
+        const deptName = sanitizeCsvCell(v.department_name || 'Main Shop Floor');
+        const billRef = sanitizeCsvCell(v.bill_number || '');
+        const rawRemarks = v.remarks ? ` - ${v.remarks}` : '';
+        const billInfo = v.bill_number ? ` (Bill Ref: ${v.bill_number})` : '';
+        const formattedNarration = sanitizeCsvCell(
+          `Being payment of INR ${v.total_amount} made to ${v.recipient_name} for ${v.category_name}${billInfo}${rawRemarks}`
+        );
+
+        rows.push([
+          `"${formattedDate}"`,
+          `"Payment"`,
+          `"${v.voucher_number}"`,
+          `"${debitLedger}"`,
+          Number(v.total_amount) || 0,
+          `"${creditLedger}"`,
+          Number(v.total_amount) || 0,
+          `"${costCentre}"`,
+          `"${deptName}"`,
+          `"${payee}"`,
+          `"${staffCode}"`,
+          `"${billRef}"`,
+          `"${paymentModeStr}"`,
+          `"${formattedNarration}"`,
+        ].join(','));
+      }
     });
 
-    return 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
+    return 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n');
   }
 
   async checkDuplicateBill(
@@ -1389,6 +1902,22 @@ class ERPService {
     return fullVoucher;
   }
 
+  async getVoucherSplits(voucherNumber: string): Promise<VoucherSplit[]> {
+    try {
+      const { data, error } = await supabase
+        .from('voucher_splits')
+        .select('*')
+        .eq('voucher_number', voucherNumber)
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        return data as VoucherSplit[];
+      }
+    } catch (e) {
+      console.warn('Voucher splits fetch error:', e);
+    }
+    return [];
+  }
+
   async approveVoucher(
     voucher: ExpenseVoucher,
     approverName: string,
@@ -1782,7 +2311,8 @@ class ERPService {
     updates: Partial<ExpenseVoucher>,
     userName: string,
     userRole: string,
-    reason: string
+    reason: string,
+    splits?: { staffCode: string; staffName: string; departmentName?: string; categoryName?: string; amount: number }[]
   ) {
     const isPrivileged = isPrivilegedAdminRole(userRole);
     const ALLOWED_UPDATE_FIELDS: (keyof ExpenseVoucher)[] = [
@@ -1822,10 +2352,6 @@ class ERPService {
       console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}.`);
     }
 
-    if (Object.keys(sanitizedUpdates).length === 0) {
-      throw new Error('No valid fields to update.');
-    }
-
     // 1. Fetch original voucher from Supabase or memory
     let existingVoucher: ExpenseVoucher | null = null;
     try {
@@ -1850,6 +2376,61 @@ class ERPService {
           break;
         }
       }
+    }
+
+    // 1B. Handle Multi-Staff Splits Update
+    if (splits && splits.length > 0) {
+      const uniqueCategories = Array.from(new Set(splits.map((s) => s.categoryName?.trim()).filter(Boolean)));
+      const uniqueDepartments = Array.from(new Set(splits.map((s) => s.departmentName?.trim()).filter(Boolean)));
+      const splitTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+
+      sanitizedUpdates.total_amount = splitTotal;
+      sanitizedUpdates.category_name = uniqueCategories.length === 1 ? uniqueCategories[0] : uniqueCategories.length > 1 ? uniqueCategories.join(', ') : 'Staff Expense';
+      sanitizedUpdates.department_name = uniqueDepartments.length === 1 ? uniqueDepartments[0] : uniqueDepartments.length > 1 ? uniqueDepartments.join(', ') : 'Main Shop Floor';
+      sanitizedUpdates.recipient_name = `${splits.length} Staff (${splits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
+
+      try {
+        await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
+        for (const s of splits) {
+          if (s.categoryName) {
+            await supabase.from('expense_categories').upsert([
+              { category_name: s.categoryName, color_theme: 'Vanilla', is_active: true }
+            ]);
+          }
+        }
+        const splitRecords = splits.map((s) => ({
+          id: crypto.randomUUID(),
+          voucher_number: voucherNumber,
+          branch_id: existingVoucher?.branch_id || 'Aellp-ASI',
+          branch_code: existingVoucher?.branch_code || 'ASI',
+          staff_code: s.staffCode,
+          staff_name: s.staffName,
+          department_name: s.departmentName || null,
+          category_name: s.categoryName || null,
+          amount: s.amount,
+          created_at: new Date().toISOString(),
+        }));
+        await supabase.from('voucher_splits').insert(splitRecords);
+      } catch (e) {
+        console.warn('Update voucher_splits DB fallback:', e);
+      }
+    }
+
+    // 1C. Handle Multi-Vendor Splits Update
+    if (sanitizedUpdates.vendor_splits && Array.isArray(sanitizedUpdates.vendor_splits) && sanitizedUpdates.vendor_splits.length > 0) {
+      const vSplits = sanitizedUpdates.vendor_splits;
+      const uniqueCategories = Array.from(new Set(vSplits.map((v: any) => v.category_name?.trim()).filter(Boolean)));
+      const uniqueDepartments = Array.from(new Set(vSplits.map((v: any) => v.department_name?.trim()).filter(Boolean)));
+      const vendorTotal = vSplits.reduce((sum: number, v: any) => sum + (Number(v.amount) || 0), 0);
+
+      sanitizedUpdates.total_amount = vendorTotal;
+      sanitizedUpdates.category_name = uniqueCategories.length === 1 ? uniqueCategories[0] : uniqueCategories.length > 1 ? uniqueCategories.join(', ') : 'General Expense';
+      sanitizedUpdates.department_name = uniqueDepartments.length === 1 ? uniqueDepartments[0] : uniqueDepartments.length > 1 ? uniqueDepartments.join(', ') : 'Main Shop Floor';
+      sanitizedUpdates.recipient_name = `${vSplits.length} Vendors (${vSplits.map((v: any) => v.vendor_name.split(' ')[0]).join(', ')})`;
+    }
+
+    if (Object.keys(sanitizedUpdates).length === 0) {
+      throw new Error('No valid fields to update.');
     }
 
     // 2. Update Voucher in Database
@@ -3306,6 +3887,184 @@ class ERPService {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('asopalav:master-data-updated', { detail: { table: 'expense_categories' } }));
     }
+  }
+
+  /**
+   * Universal Master Entity Rename with Optional Historical Cascade & Strong Audit Logging
+   */
+  async renameMasterEntity(params: {
+    entityType: 'category' | 'department' | 'courier' | 'staff' | 'branch';
+    oldIdOrName: string;
+    newIdOrName: string;
+    updateHistoricalData: boolean;
+    additionalUpdates?: Record<string, any>;
+    userName: string;
+    userRole: string;
+  }): Promise<{ updatedRecordsCount: number }> {
+    const { entityType, oldIdOrName, newIdOrName, updateHistoricalData, additionalUpdates = {}, userName, userRole } = params;
+    let updatedRecordsCount = 0;
+
+    if (entityType === 'category') {
+      const cleanOld = oldIdOrName.trim();
+      const cleanNew = newIdOrName.trim();
+
+      // 1. Update master record in expense_categories
+      if (cleanOld !== cleanNew) {
+        const { error: insErr } = await supabase.from('expense_categories').upsert([
+          {
+            category_name: cleanNew,
+            color_theme: additionalUpdates.color_theme || 'General Expenses',
+            is_active: additionalUpdates.is_active ?? true,
+          }
+        ]);
+        if (insErr) throw new Error(insErr.message);
+
+        // Delete old category entry
+        await supabase.from('expense_categories').delete().eq('category_name', cleanOld);
+      } else {
+        await supabase.from('expense_categories').update(additionalUpdates).eq('category_name', cleanOld);
+      }
+
+      // 2. Cascade to historical records if user confirmed
+      if (updateHistoricalData && cleanOld !== cleanNew) {
+        const { data: vData, error: vErr } = await supabase
+          .from('expense_vouchers')
+          .update({ category_name: cleanNew })
+          .eq('category_name', cleanOld)
+          .select('voucher_number');
+        if (!vErr && vData) updatedRecordsCount += vData.length;
+
+        const { data: sData, error: sErr } = await supabase
+          .from('voucher_splits')
+          .update({ category_name: cleanNew })
+          .eq('category_name', cleanOld)
+          .select('id');
+        if (!sErr && sData) updatedRecordsCount += sData.length;
+      }
+    } else if (entityType === 'department') {
+      const cleanOld = oldIdOrName.trim();
+      const cleanNew = newIdOrName.trim();
+      const deptCode = additionalUpdates.department_code || cleanOld;
+
+      const { error: dErr } = await supabase
+        .from('departments')
+        .update({ department_name: cleanNew, ...additionalUpdates })
+        .eq('department_code', deptCode);
+      if (dErr) {
+        await supabase.from('departments').update({ department_name: cleanNew, ...additionalUpdates }).eq('department_name', cleanOld);
+      }
+
+      if (updateHistoricalData && cleanOld !== cleanNew) {
+        const { data: vData } = await supabase
+          .from('expense_vouchers')
+          .update({ department_name: cleanNew })
+          .eq('department_name', cleanOld)
+          .select('voucher_number');
+        if (vData) updatedRecordsCount += vData.length;
+
+        const { data: sData } = await supabase
+          .from('voucher_splits')
+          .update({ department_name: cleanNew })
+          .eq('department_name', cleanOld)
+          .select('id');
+        if (sData) updatedRecordsCount += sData.length;
+
+        const { data: staffData } = await supabase
+          .from('staff_members')
+          .update({ department_name: cleanNew })
+          .eq('department_name', cleanOld)
+          .select('staff_code');
+        if (staffData) updatedRecordsCount += staffData.length;
+
+        const { data: advData } = await supabase
+          .from('staff_advances')
+          .update({ department_name: cleanNew })
+          .eq('department_name', cleanOld)
+          .select('id');
+        if (advData) updatedRecordsCount += advData.length;
+      }
+    } else if (entityType === 'courier') {
+      const cleanOld = oldIdOrName.trim();
+      const cleanNew = newIdOrName.trim();
+      const partnerCode = additionalUpdates.partner_code || cleanOld;
+
+      await supabase
+        .from('courier_partners')
+        .update({ partner_name: cleanNew, ...additionalUpdates })
+        .eq('partner_code', partnerCode);
+
+      if (updateHistoricalData && cleanOld !== cleanNew) {
+        const { data: vData } = await supabase
+          .from('expense_vouchers')
+          .update({ courier_partner_name: cleanNew, recipient_name: cleanNew })
+          .eq('courier_partner_name', cleanOld)
+          .select('voucher_number');
+        if (vData) updatedRecordsCount += vData.length;
+      }
+    } else if (entityType === 'staff') {
+      const cleanOld = oldIdOrName.trim();
+      const cleanNew = newIdOrName.trim();
+      const staffCode = additionalUpdates.staff_code || cleanOld;
+
+      await supabase
+        .from('staff_members')
+        .update({ first_name: cleanNew, ...additionalUpdates })
+        .eq('staff_code', staffCode);
+
+      if (updateHistoricalData && cleanOld !== cleanNew) {
+        const { data: vData } = await supabase
+          .from('expense_vouchers')
+          .update({ requested_by_staff_name: cleanNew })
+          .eq('requested_by_staff_code', staffCode)
+          .select('voucher_number');
+        if (vData) updatedRecordsCount += vData.length;
+
+        const { data: sData } = await supabase
+          .from('voucher_splits')
+          .update({ staff_name: cleanNew })
+          .eq('staff_code', staffCode)
+          .select('id');
+        if (sData) updatedRecordsCount += sData.length;
+
+        const { data: advData } = await supabase
+          .from('staff_advances')
+          .update({ staff_name: cleanNew })
+          .eq('staff_code', staffCode)
+          .select('id');
+        if (advData) updatedRecordsCount += advData.length;
+      }
+    } else if (entityType === 'branch') {
+      const cleanNew = newIdOrName.trim();
+      const branchId = additionalUpdates.branch_id || oldIdOrName;
+
+      await supabase
+        .from('branches')
+        .update({ branch_name: cleanNew, ...additionalUpdates })
+        .eq('branch_id', branchId);
+    }
+
+    // 3. Create strong audit log entry
+    await logSecurityEvent({
+      userName,
+      userRole,
+      actionType: 'Master_Data_Rename',
+      targetEntity: entityType,
+      targetIdentifier: newIdOrName,
+      eventDescription: `Renamed ${entityType} from "${oldIdOrName}" to "${newIdOrName}". Historical records update mode: ${
+        updateHistoricalData ? `YES (Cascaded across ${updatedRecordsCount} past records)` : 'NO (Applied only to future records)'
+      }`,
+      justification: `Master Catalogue rename confirmed by ${userRole} ${userName}`,
+    });
+
+    // Invalidate caches and dispatch updates
+    useVoucherStore.getState().invalidateMasterData();
+    useBranchStore.getState().fetchBranchesAndWallets(true);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('asopalav:master-data-updated', { detail: { table: entityType } }));
+      window.dispatchEvent(new Event('asopalav:vouchers-updated'));
+    }
+
+    return { updatedRecordsCount };
   }
 
   async createDepartment(dept: any, userName: string, userRole: string) {

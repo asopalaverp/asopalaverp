@@ -497,6 +497,57 @@ export const SuperAdminOverridesCard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* 4. Automated Historical Split Data Reconciliation Tool */}
+        <div className="p-4 sm:p-5 bg-slate-50/70 dark:bg-[#161616] border-t border-slate-200 dark:border-[#242424] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-semibold text-slate-900 dark:text-white font-sans flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+              <span>Reconcile Historical Split Voucher Categories</span>
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans max-w-xl">
+              Scans all past vouchers and repairs any mismatched categories / departments by synchronizing with the exact employee split records in the database.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={async () => {
+              showToast({
+                type: 'loading',
+                title: 'Reconciling Data...',
+                message: 'Scanning past vouchers and verifying split line items...',
+              });
+              try {
+                const { erpService } = await import('@/lib/erpService');
+                const res = await erpService.reconcileHistoricalSplitVouchers(userName, userRole);
+                if (res.updatedCount > 0) {
+                  showToast({
+                    type: 'success',
+                    title: 'Data Reconciled Successfully',
+                    message: `Repaired ${res.updatedCount} vouchers (${res.updatedVouchers.join(', ')}). All reports are now in sync.`,
+                  });
+                } else {
+                  showToast({
+                    type: 'info',
+                    title: 'All Vouchers In Sync',
+                    message: 'All split vouchers already match exact categories and departments. No errors found.',
+                  });
+                }
+              } catch (e: any) {
+                showToast({
+                  type: 'error',
+                  title: 'Reconciliation Failed',
+                  message: e?.message || 'Could not complete data reconciliation.',
+                });
+              }
+            }}
+            className="h-9 px-4 rounded-[6px] bg-white dark:bg-[#1f1f1f] hover:bg-emerald-50 dark:hover:bg-[#3ecf8e]/10 text-slate-800 dark:text-zinc-100 hover:text-emerald-700 dark:hover:text-[#3ecf8e] border border-slate-300 dark:border-[#2e2e2e] hover:border-emerald-500/40 text-xs font-medium font-sans flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+            <span>Reconcile Data Now</span>
+          </button>
+        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -551,7 +602,7 @@ export const SuperAdminOverridesCard: React.FC = () => {
                 <span className="text-slate-500 dark:text-[#888888] block">Security Notice:</span>
                 <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed bg-amber-500/10 p-2 rounded-[6px] border border-amber-500/20">
                   {confirmModal.type === 'master'
-                    ? 'All cash ceiling limits, negative cash blocks, backdate blocks, and 40A(3) checks will be bypassed across all counter terminals.'
+                    ? 'All cash ceiling limits, negative cash blocks, backdate blocks, and 40A(3) checks will be bypassed across all showroom counters.'
                     : 'All normal safety checks will be reactivated immediately. Any active bypasses will end.'}
                 </p>
               </div>

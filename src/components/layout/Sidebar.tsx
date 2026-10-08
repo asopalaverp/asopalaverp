@@ -182,14 +182,14 @@ export const Sidebar: React.FC = () => {
         {
           id: 'audit',
           label: 'Activity History',
-          description: 'Immutable security audit trail',
+          description: 'Verified security audit trail',
           icon: ShieldAlert,
           permission: 'can_view_audit_logs',
         },
         {
           id: 'notifications',
           label: 'Alerts & Messages',
-          description: 'Cross-terminal announcements',
+          description: 'Store-wide announcements',
           icon: Bell,
         },
         {
@@ -727,7 +727,7 @@ export const Sidebar: React.FC = () => {
                 onClick={() => {
                   lockScreen();
                 }}
-                title="Lock Terminal Screen"
+                title="Lock Screen"
                 aria-label="Lock Screen"
                 className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
               >

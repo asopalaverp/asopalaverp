@@ -363,7 +363,7 @@ export const ProfileSecurityPage: React.FC = () => {
       name: 'Password & PIN',
       group: 'PERSONAL SETTINGS',
       icon: KeyRound,
-      description: 'Login password and terminal quick-switch 4-digit lock PIN',
+      description: 'Login password and quick-switch 4-digit screen lock PIN',
     },
     {
       id: 'theme',
@@ -672,7 +672,7 @@ export const ProfileSecurityPage: React.FC = () => {
                     <span>Login Password &amp; Lock PIN</span>
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-[#888888] font-sans mt-0.5">
-                    Update your account login password and the 4-digit numeric PIN used for quick POS lock screen unlock.
+                    Update your account login password and the 4-digit numeric PIN used for quick lock screen unlock.
                   </p>
                 </div>
 

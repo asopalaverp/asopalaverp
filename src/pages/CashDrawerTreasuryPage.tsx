@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVoucherStore } from '@/store/voucherStore';
 import { supabase } from '@/lib/supabase';
 import { erpService } from '@/lib/erpService';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { formatINR, numberToWordsINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatCompactINR, numberToWordsINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { useOverrideStore } from '@/store/overrideStore';
+import { confirmDialog } from '@/store/dialogStore';
 import { SafeDropDrawer } from '@/components/treasury/SafeDropDrawer';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -136,8 +137,9 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const { branches, selectedBranchId, getActiveBranch } = useBranchStore();
   const { setActivePage } = useUIStore();
 
-  const isCashier = user?.role_code === 'Cashier';
-  const isDeveloper = user?.role_code === 'Developer' || user?.role_code === 'Super_Admin';
+  const isPrivileged = isPrivilegedAdminRole(user?.role_code);
+  const isCashier = user?.role_code === 'Cashier' && !isPrivileged;
+  const isDeveloper = isPrivileged || user?.role_code === 'Developer';
 
   const allowedBranches = getAllowedBranches(branches);
   const activeBranch = getActiveBranch();
@@ -494,37 +496,34 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [purgingId, setPurgingId] = useState<string | null>(null);
 
   const handlePurgeEntry = async (entry: any) => {
-    if (!window.confirm(`Are you sure you want to delete this ledger record (${entry.reference_number || 'TRZ'})? This will permanently remove it from the audit ledger.`)) {
-      return;
-    }
-    try {
-      const entryKey = entry.id || entry.reference_number;
-      setPurgingId(entryKey);
-      const userName = `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim();
-      const userRole = user?.role_code || 'Super_Admin';
-      await erpService.deleteLedgerEntry({
-        entryId: entryKey,
-        branchId: selectedBranch,
-        userName,
-        userRole,
-        reason: 'Super Admin duplicate / error purge',
-        adjustWalletBalance: true,
-      });
-      showToast({
-        type: 'success',
-        title: 'Entry Purged',
-        message: `Ledger entry ${entry.reference_number || ''} was removed and wallet balance recalculated.`,
-      });
-      loadTreasuryData();
-    } catch (e: any) {
-      showToast({
-        type: 'error',
-        title: 'Purge Failed',
-        message: e?.message || 'Could not delete ledger entry.',
-      });
-    } finally {
-      setPurgingId(null);
-    }
+    const confirmed = await confirmDialog({
+      title: 'Purge Audit Record',
+      message: `Are you sure you want to delete this ledger record (${entry.reference_number || 'TRZ'})? This will permanently remove it from the audit ledger and recalculate wallet balance.`,
+      confirmText: 'Purge Record',
+      variant: 'danger',
+      onConfirm: async () => {
+        const entryKey = entry.id || entry.reference_number;
+        setPurgingId(entryKey);
+        const userName = `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim();
+        const userRole = user?.role_code || 'Super_Admin';
+        await erpService.deleteLedgerEntry({
+          entryId: entryKey,
+          branchId: selectedBranch,
+          userName,
+          userRole,
+          reason: 'Super Admin duplicate / error purge',
+          adjustWalletBalance: true,
+        });
+        showToast({
+          type: 'success',
+          title: 'Entry Purged',
+          message: `Ledger entry ${entry.reference_number || ''} was removed and wallet balance recalculated.`,
+        });
+        loadTreasuryData();
+      },
+    });
+
+    if (!confirmed) return;
   };
 
   const handleCleanDuplicates = async () => {
@@ -556,28 +555,29 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   };
 
   const handlePurgeHistoricalRecords = async () => {
-    if (
-      !window.confirm(
-        'This will purge any leftover September test top-ups (FLT-856048 & FLT-984105) across database tables, local caches, and reconcile till wallet balance to exact October 1st ledger truth. Proceed?'
-      )
-    ) {
-      return;
-    }
-    try {
-      const res = await erpService.purgeErroneousHistoricalRecords(selectedBranch);
-      showToast({
-        type: 'success',
-        title: 'Historical Records Purged',
-        message: res.message,
-      });
-      loadTreasuryData();
-    } catch (e: any) {
-      showToast({
-        type: 'error',
-        title: 'Purge Failed',
-        message: e?.message || 'Failed to purge historical test records.',
-      });
-    }
+    await confirmDialog({
+      title: 'Purge Historical Test Records',
+      message: 'This will purge any leftover September test top-ups (FLT-856048 & FLT-984105) across database tables and local caches, reconciling till wallet balance to exact ledger truth. Proceed?',
+      confirmText: 'Purge Test Records',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await erpService.purgeErroneousHistoricalRecords(selectedBranch);
+          showToast({
+            type: 'success',
+            title: 'Historical Records Purged',
+            message: res.message,
+          });
+          loadTreasuryData();
+        } catch (e: any) {
+          showToast({
+            type: 'error',
+            title: 'Purge Failed',
+            message: e?.message || 'Failed to purge historical test records.',
+          });
+        }
+      },
+    });
   };
 
   const totalPages = Math.max(1, Math.ceil(filteredAllocations.length / pageSize));
@@ -594,23 +594,59 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     if (format === 'json') {
       downloadBlob(`asopalav_treasury_ledger_${dateStr}.json`, JSON.stringify(filteredAllocations, null, 2), 'application/json');
     } else if (format === 'csv') {
-      const headers = ['Record ID', 'Date & Time', 'Credit Amount', 'Wallet Type', 'Remarks', 'Cashier', 'Authorized By'];
-      const rows = filteredAllocations.map((l) => [
-        l.id,
-        l.created_at,
-        l.credit_amount,
-        l.wallet_type,
-        `"${(l.remarks || '').replace(/"/g, '""')}"`,
-        l.cashier_name || '',
-        l.authorized_by_name || '',
-      ]);
-      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-      downloadBlob(`asopalav_treasury_ledger_${dateStr}.csv`, csv, 'text/csv');
+      const headers = [
+        'Record ID',
+        'Reference #',
+        'Date (YYYY-MM-DD)',
+        'Time',
+        'Branch Code',
+        'Transaction Type',
+        'Wallet Channel',
+        'Inflow Credit (INR)',
+        'Outflow Debit (INR)',
+        'Net Flow (INR)',
+        'Running Balance (INR)',
+        'Cashier / Recorded By',
+        'Authorized By',
+        'Particulars & Remarks',
+        'Created At'
+      ];
+      const rows = filteredAllocations.map((l) => {
+        const credit = Number(l.credit_amount) || 0;
+        const debit = Number(l.debit_amount) || 0;
+        const netFlow = credit - debit;
+        const entryKey = l.id || `${l.created_at}-${l.credit_amount}-${l.debit_amount}`;
+        const runningBal = entriesWithRunningBalance.get(entryKey)?.runningCombined ?? '';
+        const createdDate = l.created_at ? new Date(l.created_at) : null;
+        const datePart = createdDate ? createdDate.toISOString().slice(0, 10) : '';
+        const timePart = createdDate ? createdDate.toTimeString().slice(0, 8) : '';
+        const refNo = l.reference_number || (l.id ? String(l.id).slice(0, 8).toUpperCase() : '');
+
+        return [
+          l.id || '',
+          refNo,
+          datePart,
+          timePart,
+          l.branch_id || selectedBranch,
+          l.transaction_type || (credit > 0 ? 'Float_Topup' : 'Expense_Voucher'),
+          l.wallet_type || 'Cash',
+          credit.toFixed(2),
+          debit.toFixed(2),
+          netFlow.toFixed(2),
+          typeof runningBal === 'number' ? runningBal.toFixed(2) : runningBal,
+          `"${(l.cashier_name || '').replace(/"/g, '""')}"`,
+          `"${(l.authorized_by_name || '').replace(/"/g, '""')}"`,
+          `"${(l.remarks || '').replace(/"/g, '""')}"`,
+          l.created_at || ''
+        ];
+      });
+      const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      downloadBlob(`asopalav_treasury_ledger_${dateStr}.csv`, csv, 'text/csv;charset=utf-8;');
     } else if (format === 'sql') {
       const sql = filteredAllocations
         .map(
           (l) =>
-            `INSERT INTO wallet_ledgers (id, branch_id, transaction_type, wallet_type, credit_amount, remarks, cashier_name, authorized_by_name, created_at) VALUES (${esc(l.id)}, ${esc(l.branch_id)}, '${l.transaction_type || 'Float_Topup'}', ${esc(l.wallet_type)}, ${Number(l.credit_amount) || 0}, ${esc(l.remarks)}, ${esc(l.cashier_name)}, ${esc(l.authorized_by_name)}, ${esc(l.created_at)});`
+            `INSERT INTO wallet_ledgers (id, branch_id, transaction_type, wallet_type, credit_amount, debit_amount, remarks, cashier_name, authorized_by_name, created_at) VALUES (${esc(l.id)}, ${esc(l.branch_id)}, '${l.transaction_type || (Number(l.credit_amount) > 0 ? 'Float_Topup' : 'Expense_Voucher')}', ${esc(l.wallet_type)}, ${Number(l.credit_amount) || 0}, ${Number(l.debit_amount) || 0}, ${esc(l.remarks)}, ${esc(l.cashier_name)}, ${esc(l.authorized_by_name)}, ${esc(l.created_at)});`
         )
         .join('\n');
       downloadBlob(`asopalav_treasury_ledger_${dateStr}.sql`, sql, 'text/plain');
@@ -916,7 +952,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <MetricCard
           label="Cash in Box"
-          value={formatINR(currentCashBalance)}
+          value={
+            <>
+              <span className="sm:hidden">{formatCompactINR(currentCashBalance)}</span>
+              <span className="hidden sm:inline">{formatINR(currentCashBalance)}</span>
+            </>
+          }
           subValue="Cash notes in till"
           statusDotColor="#3ecf8e"
           icon={Wallet}
@@ -924,7 +965,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
         <MetricCard
           label="Bank UPI Balance"
-          value={formatINR(currentUpiBalance)}
+          value={
+            <>
+              <span className="sm:hidden">{formatCompactINR(currentUpiBalance)}</span>
+              <span className="hidden sm:inline">{formatINR(currentUpiBalance)}</span>
+            </>
+          }
           subValue="Shop UPI balance"
           statusDotColor="#38bdf8"
           icon={Building2}
@@ -932,7 +978,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
         <MetricCard
           label="Total Available"
-          value={formatINR(currentCashBalance + currentUpiBalance)}
+          value={
+            <>
+              <span className="sm:hidden">{formatCompactINR(currentCashBalance + currentUpiBalance)}</span>
+              <span className="hidden sm:inline">{formatINR(currentCashBalance + currentUpiBalance)}</span>
+            </>
+          }
           subValue="Cash + UPI combined"
           statusDotColor="#3ecf8e"
           badge="READY"

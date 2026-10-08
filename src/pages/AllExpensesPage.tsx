@@ -6,7 +6,7 @@ import { useBranchStore } from '@/store/branchStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { erpService } from '@/lib/erpService';
-import { formatINR, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatCompactINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SegmentedControl } from '@/components/ui';
 import {
@@ -213,7 +213,12 @@ export const AllExpensesPage: React.FC = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard
             label="Total Spent"
-            value={formatINR(totalAmount)}
+            value={
+              <>
+                <span className="sm:hidden">{formatCompactINR(totalAmount)}</span>
+                <span className="hidden sm:inline">{formatINR(totalAmount)}</span>
+              </>
+            }
             subValue={`${filteredByDateVouchers.length} bills recorded`}
             statusDotColor="#3ecf8e"
             icon={Receipt}
@@ -221,7 +226,12 @@ export const AllExpensesPage: React.FC = () => {
 
           <MetricCard
             label="Cash Paid"
-            value={formatINR(cashAmount)}
+            value={
+              <>
+                <span className="sm:hidden">{formatCompactINR(cashAmount)}</span>
+                <span className="hidden sm:inline">{formatINR(cashAmount)}</span>
+              </>
+            }
             subValue={`${cashPercent}% of total`}
             statusDotColor="#f59e0b"
             icon={Banknote}
@@ -229,7 +239,12 @@ export const AllExpensesPage: React.FC = () => {
 
           <MetricCard
             label="UPI Paid"
-            value={formatINR(upiAmount)}
+            value={
+              <>
+                <span className="sm:hidden">{formatCompactINR(upiAmount)}</span>
+                <span className="hidden sm:inline">{formatINR(upiAmount)}</span>
+              </>
+            }
             subValue={`${upiPercent}% of total`}
             statusDotColor="#3b82f6"
             icon={Smartphone}

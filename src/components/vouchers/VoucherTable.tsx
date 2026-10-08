@@ -57,6 +57,7 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState';
 import { openExclusivePopover } from '@/lib/popoverManager';
 import { erpService } from '@/lib/erpService';
+import { showToast } from '@/components/ui/ToastContainer';
 
 const VoucherCategoryAvatar: React.FC<{ category?: string | null; className?: string }> = ({ category, className }) => {
   const cat = (category || '').toLowerCase();
@@ -641,21 +642,84 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       : filteredVouchers;
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const list = getExportData();
-    const csvContent =
-      'Date,Voucher Number,Branch,Paid To,Category,Department,Payment Mode,Amount,Remarks,Status\n' +
-      list
-        .map(
-          (v) =>
-            `"${v.payment_date}","${v.voucher_number}","${v.branch_code}","${v.recipient_name}","${v.category_name}","${v.department_name}","${v.payment_method}","${v.total_amount}","${(v.remarks || '').replace(/"/g, '""')}","${v.status || 'Approved'}"`
-        )
-        .join('\n');
+    const splitsMap: Record<string, any[]> = {};
+    for (const v of list) {
+      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
+        const splits = await erpService.getVoucherSplits(v.voucher_number);
+        if (splits && splits.length > 0) {
+          splitsMap[v.voucher_number] = splits;
+        }
+      }
+    }
+
+    const csvDataUri = erpService.generateComprehensiveVoucherCSV(list, splitsMap);
+    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
     downloadBlob(
-      `Asopalav_Expenses_${new Date().toISOString().slice(0, 10)}.csv`,
-      csvContent,
+      `Asopalav_Expenses_Master_${new Date().toISOString().slice(0, 10)}.csv`,
+      '\uFEFF' + cleanCsv,
       'text/csv;charset=utf-8;'
     );
+    showToast({
+      type: 'success',
+      title: 'Master CSV Exported',
+      message: `Exported ${list.length} vouchers with full 28+ fields.`,
+    });
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportItemizedSplitsCSV = async () => {
+    const list = getExportData();
+    const splitsMap: Record<string, any[]> = {};
+    for (const v of list) {
+      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
+        const splits = await erpService.getVoucherSplits(v.voucher_number);
+        if (splits && splits.length > 0) {
+          splitsMap[v.voucher_number] = splits;
+        }
+      }
+    }
+
+    const csvDataUri = erpService.generateItemizedSplitCSV(list, splitsMap);
+    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
+    downloadBlob(
+      `Asopalav_Itemized_Split_Schedule_${new Date().toISOString().slice(0, 10)}.csv`,
+      '\uFEFF' + cleanCsv,
+      'text/csv;charset=utf-8;'
+    );
+    showToast({
+      type: 'success',
+      title: 'Itemized Schedule Exported',
+      message: `Exported itemized line-by-line split breakdown for ${list.length} vouchers.`,
+    });
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportTallyCSV = async () => {
+    const list = getExportData();
+    const splitsMap: Record<string, any[]> = {};
+    for (const v of list) {
+      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
+        const splits = await erpService.getVoucherSplits(v.voucher_number);
+        if (splits && splits.length > 0) {
+          splitsMap[v.voucher_number] = splits;
+        }
+      }
+    }
+
+    const csvDataUri = erpService.generateTallyExportCSV(list, splitsMap);
+    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
+    downloadBlob(
+      `Asopalav_Tally_Prime_Export_${new Date().toISOString().slice(0, 10)}.csv`,
+      '\uFEFF' + cleanCsv,
+      'text/csv;charset=utf-8;'
+    );
+    showToast({
+      type: 'success',
+      title: 'Tally Prime Export Complete',
+      message: `Exported ${list.length} vouchers with compound ledger mapping for Tally Prime.`,
+    });
     setIsExportMenuOpen(false);
   };
 
@@ -663,22 +727,15 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     const list = getExportData();
     const jsonContent = JSON.stringify(list, null, 2);
     downloadBlob(
-      `Asopalav_Expenses_${new Date().toISOString().slice(0, 10)}.json`,
+      `Asopalav_Expenses_Dataset_${new Date().toISOString().slice(0, 10)}.json`,
       jsonContent,
       'application/json;charset=utf-8;'
     );
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportTallyCSV = () => {
-    const list = getExportData();
-    const csvDataUri = erpService.generateTallyExportCSV(list);
-    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,/, '');
-    downloadBlob(
-      `Asopalav_Tally_Prime_Export_${new Date().toISOString().slice(0, 10)}.csv`,
-      cleanCsv,
-      'text/csv;charset=utf-8;'
-    );
+    showToast({
+      type: 'success',
+      title: 'JSON Dataset Exported',
+      message: `Exported ${list.length} raw voucher records.`,
+    });
     setIsExportMenuOpen(false);
   };
 
@@ -857,28 +914,32 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             </div>
           </div>
 
-          {/* Cash vs UPI Ratio Bar */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#8e8e93]">
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
-                <Banknote className="w-3 h-3" />
-                Cash: {telemetry.cashPercent}% ({formatINR(telemetry.cashSum)})
+          {/* Minimalist Cash vs UPI Split Ratio Bar */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-zinc-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shrink-0" />
+                <span>Cash:</span>
+                <span className="text-slate-900 dark:text-zinc-200 font-semibold">{telemetry.cashPercent}%</span>
+                <span className="text-slate-400 dark:text-[#707070] font-normal">({formatINR(telemetry.cashSum)})</span>
               </span>
-              <span className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-semibold">
-                <Smartphone className="w-3 h-3" />
-                UPI: {telemetry.upiPercent}% ({formatINR(telemetry.upiSum)})
+              <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-zinc-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-[#555555] shrink-0" />
+                <span>UPI / Online:</span>
+                <span className="text-slate-900 dark:text-zinc-200 font-semibold">{telemetry.upiPercent}%</span>
+                <span className="text-slate-400 dark:text-[#707070] font-normal">({formatINR(telemetry.upiSum)})</span>
               </span>
             </div>
-            <div className="w-full h-2 rounded-full overflow-hidden bg-black/[0.04] dark:bg-white/[0.06] flex border border-black/[0.04] dark:border-white/[0.06]">
+            <div className="w-full h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-[#202020] flex border border-slate-200/60 dark:border-[#282828]">
               <div
-                className="bg-amber-500 transition-all duration-300"
+                className="bg-[#3ecf8e] transition-all duration-300 rounded-l-full"
                 style={{ width: `${telemetry.cashPercent}%` }}
-                title={`Cash: ${telemetry.cashPercent}%`}
+                title={`Cash: ${telemetry.cashPercent}% (${formatINR(telemetry.cashSum)})`}
               />
               <div
-                className="bg-sky-500 transition-all duration-300"
+                className="bg-slate-300 dark:bg-[#444444] transition-all duration-300 rounded-r-full"
                 style={{ width: `${telemetry.upiPercent}%` }}
-                title={`UPI: ${telemetry.upiPercent}%`}
+                title={`UPI: ${telemetry.upiPercent}% (${formatINR(telemetry.upiSum)})`}
               />
             </div>
           </div>
@@ -1011,63 +1072,92 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             )}
           </div>
 
-          {/* Pro Developer & Data Export Menu (Desktop Only) */}
-          <div className="hidden lg:block relative" ref={exportRef}>
+          {/* Pro Developer & Data Export Menu (Click Triggered - All Viewports) */}
+          <div className="relative" ref={exportRef}>
             <button
               type="button"
               onClick={handleToggleExport}
-              className="flex items-center gap-1.5 px-3 h-10 min-h-[40px] rounded-[6px] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-xs font-medium text-slate-900 dark:text-white border border-slate-200 dark:border-[#282828] transition-colors cursor-pointer font-sans shadow-2xs"
+              className="flex items-center gap-1.5 px-3 h-10 min-h-[40px] rounded-[6px] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-xs font-semibold text-slate-900 dark:text-white border border-slate-200 dark:border-[#282828] transition-colors cursor-pointer font-sans shadow-2xs"
             >
-              <Download className="w-3.5 h-3.5 text-primary" />
+              <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
               <span>Export</span>
               <ChevronDown className="w-3 h-3 text-slate-400 dark:text-zinc-400" />
             </button>
 
             {isExportMenuOpen && (
-              <div className="absolute right-0 mt-1.5 w-60 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1 z-50 space-y-0.5 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-2.5 py-1 text-[10px] font-mono text-slate-400 dark:text-zinc-400 uppercase border-b border-slate-200 dark:border-[#282828]">
-                  Export {selectedIds.size > 0 ? `Selected (${selectedIds.size})` : `All (${filteredVouchers.length})`}
+              <div className="absolute right-0 mt-1.5 w-72 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1.5 z-50 space-y-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2.5 py-1 text-[10px] font-mono text-slate-400 dark:text-zinc-400 uppercase border-b border-slate-200 dark:border-[#282828] flex items-center justify-between">
+                  <span>Export Selection</span>
+                  <span className="text-[#3ecf8e] font-bold">
+                    {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${filteredVouchers.length} bills`}
+                  </span>
                 </div>
 
+                {/* Option 1: Full Master CSV */}
                 <button
                   type="button"
                   onClick={handleExportCSV}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer"
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
-                    <span>Export CSV Spreadsheet</span>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e] shrink-0" />
+                    <div>
+                      <div className="font-medium text-xs">Master Voucher CSV</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">All 28+ fields with split summary</div>
+                    </div>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
                 </button>
 
-                {isDeveloper && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleExportJSON}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Code className="w-4 h-4 text-sky-500" />
-                        <span>Export JSON Dataset</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.json</span>
-                    </button>
-                  </>
-                )}
+                {/* Option 2: Itemized Split Breakdown CSV */}
+                <button
+                  type="button"
+                  onClick={handleExportItemizedSplitsCSV}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <div>
+                      <div className="font-medium text-xs">Itemized Splits CSV</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Line-by-line staff / vendor rows</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
+                </button>
 
+                {/* Option 3: Tally Prime CSV */}
                 <button
                   type="button"
                   onClick={handleExportTallyCSV}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer"
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-amber-500" />
-                    <span>Export Tally Prime (CSV)</span>
+                    <Receipt className="w-4 h-4 text-amber-500 shrink-0" />
+                    <div>
+                      <div className="font-medium text-xs">Tally Prime Ledger CSV</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Multi-debit compound payment entries</div>
+                    </div>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
                 </button>
+
+                {/* Option 4: JSON Dataset Dump */}
+                {isDeveloper && (
+                  <button
+                    type="button"
+                    onClick={handleExportJSON}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Code className="w-4 h-4 text-sky-500 shrink-0" />
+                      <div>
+                        <div className="font-medium text-xs">JSON Raw Dataset</div>
+                        <div className="text-[10px] text-slate-500 dark:text-zinc-400">Complete JSON object structure</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.json</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

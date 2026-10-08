@@ -13,7 +13,6 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import { SegmentedControl } from '@/components/ui';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { QuickFloatDrawer } from '@/components/vouchers/QuickFloatDrawer';
 import { cn, formatINR, numberToWordsINR, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
@@ -58,9 +57,6 @@ export const NewVoucherPage: React.FC = () => {
   const initialBranch = (selectedBranchId && selectedBranchId !== 'ALL' && isBranchAllowed(selectedBranchId))
     ? selectedBranchId
     : (allowedBranches[0]?.branch_id || activeBranch.branch_id || 'Aellp-ASI');
-
-  // Permissions: Cashiers cannot inject cash float
-  const canAddCash = can('can_inject_float') && user?.role_code !== 'Cashier';
 
   // Mode Selection: Shop_Vendor (Default), Staff_Split, Courier
   const [mode, setMode] = useState<VoucherMode>('Shop_Vendor');
@@ -193,9 +189,6 @@ export const NewVoucherPage: React.FC = () => {
   const formRef = useRef<HTMLFormElement | null>(null);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Quick Float Slide-Over Drawer State
-  const [isQuickFloatOpen, setIsQuickFloatOpen] = useState<boolean>(false);
-
   // Listen to Global Counter Custom Events
   useEffect(() => {
     const handleSetMode = (e: Event) => {
@@ -207,20 +200,15 @@ export const NewVoucherPage: React.FC = () => {
     const handleTriggerDisburse = () => {
       formRef.current?.requestSubmit();
     };
-    const handleOpenFloat = () => {
-      if (canAddCash) setIsQuickFloatOpen(true);
-    };
 
     window.addEventListener('asopalav:set-voucher-mode', handleSetMode);
     window.addEventListener('asopalav:trigger-disburse-f2', handleTriggerDisburse);
-    window.addEventListener('asopalav:open-quick-float', handleOpenFloat);
 
     return () => {
       window.removeEventListener('asopalav:set-voucher-mode', handleSetMode);
       window.removeEventListener('asopalav:trigger-disburse-f2', handleTriggerDisburse);
-      window.removeEventListener('asopalav:open-quick-float', handleOpenFloat);
     };
-  }, [canAddCash]);
+  }, []);
 
   useEffect(() => {
     if (error && errorBannerRef.current) {
@@ -228,7 +216,7 @@ export const NewVoucherPage: React.FC = () => {
     }
   }, [error]);
 
-  // Keyboard Shortcuts Listener (F2: Disburse, F6: Float, Alt+1/2/3: Mode, ESC: Reset)
+  // Keyboard Shortcuts Listener (F2: Disburse, Alt+1/2/3: Mode, ESC: Reset)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (successVoucher) return;
@@ -237,10 +225,6 @@ export const NewVoucherPage: React.FC = () => {
         e.preventDefault();
         if (isSubmittingRef.current) return;
         formRef.current?.requestSubmit();
-      } else if (e.key === 'F6' && canAddCash) {
-        e.preventDefault();
-        triggerHaptic('selection');
-        setIsQuickFloatOpen((prev) => !prev);
       } else if (e.altKey && (e.key === '1' || e.code === 'Digit1')) {
         e.preventDefault();
         triggerHaptic('selection');
@@ -258,7 +242,7 @@ export const NewVoucherPage: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [successVoucher, canAddCash]);
+  }, [successVoucher]);
 
   // Quick Amount Add
   const handleAddAmount = (inc: number) => {
@@ -509,7 +493,7 @@ export const NewVoucherPage: React.FC = () => {
         payment_method: paymentMethod,
         total_amount: finalCalculatedAmount,
         remarks,
-        bill_number: billNumber.trim() || undefined,
+        bill_number: billNumber.trim() || (mode === 'Courier' && trackingNumber.trim() ? trackingNumber.trim() : undefined),
         bill_photo_urls: photoUrls,
         created_by_name: `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim(),
         status: 'Approved',
@@ -519,8 +503,25 @@ export const NewVoucherPage: React.FC = () => {
 
       if (mode === 'Shop_Vendor') {
         if (isMultiVendor) {
-          payload.category_name = vendorSplits[0]?.category_name || categoryName || 'Multiple Expenses';
-          payload.department_name = vendorSplits[0]?.department_name || departmentName || 'Main Shop Floor';
+          const uniqueCategories = Array.from(
+            new Set(vendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))
+          );
+          const uniqueDepartments = Array.from(
+            new Set(vendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))
+          );
+
+          payload.category_name =
+            uniqueCategories.length === 1
+              ? uniqueCategories[0]
+              : uniqueCategories.length > 1
+              ? uniqueCategories.join(', ')
+              : (categoryName || 'General Expense');
+          payload.department_name =
+            uniqueDepartments.length === 1
+              ? uniqueDepartments[0]
+              : uniqueDepartments.length > 1
+              ? uniqueDepartments.join(', ')
+              : (departmentName || 'Main Shop Floor');
           payload.recipient_name = `${vendorSplits.length} Vendors (${vendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`;
           payload.vendor_splits = vendorSplits;
         } else {
@@ -535,8 +536,25 @@ export const NewVoucherPage: React.FC = () => {
         payload.courier_company = courierCompany;
         payload.tracking_number = trackingNumber;
       } else if (mode === 'Staff_Split') {
-        payload.category_name = categoryName || 'Staff Welfare & Food';
-        payload.department_name = departmentName || 'Store Operations';
+        const uniqueCategories = Array.from(
+          new Set(splits.map((s) => s.categoryName?.trim()).filter(Boolean))
+        );
+        const uniqueDepartments = Array.from(
+          new Set(splits.map((s) => s.departmentName?.trim()).filter(Boolean))
+        );
+
+        payload.category_name =
+          uniqueCategories.length === 1
+            ? uniqueCategories[0]
+            : uniqueCategories.length > 1
+            ? uniqueCategories.join(', ')
+            : (categoryName || 'Staff Expense');
+        payload.department_name =
+          uniqueDepartments.length === 1
+            ? uniqueDepartments[0]
+            : uniqueDepartments.length > 1
+            ? uniqueDepartments.join(', ')
+            : (departmentName || 'Main Shop Floor');
         payload.recipient_name = `${splits.length} Staff (${splits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
         payload.splits = splits;
       }
@@ -551,8 +569,8 @@ export const NewVoucherPage: React.FC = () => {
             ? splits.map((s) => ({
                 staffCode: s.staffCode,
                 staffName: s.staffName,
-                departmentName: s.departmentName || departmentName || 'Store Operations',
-                categoryName: s.categoryName || categoryName || 'Staff Welfare & Food',
+                departmentName: s.departmentName?.trim() || departmentName || 'Main Shop Floor',
+                categoryName: s.categoryName?.trim() || categoryName || 'Staff Expense',
                 amount: s.amount,
               }))
             : undefined,
@@ -725,7 +743,7 @@ export const NewVoucherPage: React.FC = () => {
               </h1>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#8e8e93] font-sans mt-0.5">
-              Record daily shop expenses, staff food, and courier bills.
+              Record daily shop expenses, staff allocations, and courier bills.
             </p>
           </div>
 
@@ -741,20 +759,6 @@ export const NewVoucherPage: React.FC = () => {
                 <span className="font-semibold text-sky-600 dark:text-sky-400 tabular-nums">{formatINR(upiBalance)}</span>
               </div>
             </div>
-
-            {canAddCash && (
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setIsQuickFloatOpen(true);
-                }}
-                className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span>Add Cash (F6)</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -777,16 +781,6 @@ export const NewVoucherPage: React.FC = () => {
               type="error"
               title="Please check:"
               message={error}
-              actionText={
-                (error.toLowerCase().includes('cash') || error.toLowerCase().includes('insufficient') || error.toLowerCase().includes('shortage') || error.toLowerCase().includes('balance')) && canAddCash
-                  ? 'Add Cash to Box'
-                  : undefined
-              }
-              onAction={
-                (error.toLowerCase().includes('cash') || error.toLowerCase().includes('insufficient') || error.toLowerCase().includes('shortage') || error.toLowerCase().includes('balance')) && canAddCash
-                  ? () => setIsQuickFloatOpen(true)
-                  : undefined
-              }
               onClose={() => setError(null)}
             />
           </div>
@@ -826,7 +820,7 @@ export const NewVoucherPage: React.FC = () => {
                 <SegmentedControl
                   options={[
                     { id: 'Shop_Vendor', label: 'Shop Bill', icon: <Store className="w-4 h-4 shrink-0" /> },
-                    { id: 'Staff_Split', label: 'Staff Food', icon: <Users className="w-4 h-4 shrink-0" /> },
+                    { id: 'Staff_Split', label: 'Staff', icon: <Users className="w-4 h-4 shrink-0" /> },
                     { id: 'Courier', label: 'Courier', icon: <Truck className="w-4 h-4 shrink-0" /> },
                   ]}
                   value={mode}
@@ -1395,7 +1389,11 @@ export const NewVoucherPage: React.FC = () => {
                   <div className="flex items-center justify-between p-3">
                     <span className="text-slate-500 dark:text-zinc-400">Category &amp; Dept:</span>
                     <span className="text-slate-700 dark:text-zinc-300 text-right truncate max-w-[240px]">
-                      {categoryName || 'General'} • {departmentName || 'Main Floor'}
+                      {mode === 'Staff_Split'
+                        ? `${Array.from(new Set(splits.map((s) => s.categoryName?.trim()).filter(Boolean))).join(', ') || 'Staff Expense'} • ${Array.from(new Set(splits.map((s) => s.departmentName?.trim()).filter(Boolean))).join(', ') || 'Main Shop Floor'}`
+                        : mode === 'Shop_Vendor' && isMultiVendor
+                        ? `${Array.from(new Set(vendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))).join(', ') || 'General Expense'} • ${Array.from(new Set(vendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))).join(', ') || 'Main Shop Floor'}`
+                        : `${categoryName || 'General Expense'} • ${departmentName || 'Main Shop Floor'}`}
                     </span>
                   </div>
 
@@ -1412,6 +1410,15 @@ export const NewVoucherPage: React.FC = () => {
                       {format(new Date(paymentDate), 'dd MMMM yyyy')}
                     </span>
                   </div>
+
+                  {mode === 'Courier' && trackingNumber && (
+                    <div className="flex items-center justify-between p-3">
+                      <span className="text-slate-500 dark:text-zinc-400">Docket / Tracking:</span>
+                      <span className="font-mono text-slate-900 dark:text-white font-medium">
+                        {trackingNumber}
+                      </span>
+                    </div>
+                  )}
 
                   {requestedByStaffName && (
                     <div className="flex items-center justify-between p-3">
@@ -1464,20 +1471,6 @@ export const NewVoucherPage: React.FC = () => {
           </div>
         )}
 
-        {/* QUICK CASH FLOAT (F6) - Restricted to Managers/Admins */}
-        {canAddCash && (
-          <QuickFloatDrawer
-            isOpen={isQuickFloatOpen}
-            onClose={() => setIsQuickFloatOpen(false)}
-            branchId={selectedBranch}
-            currentCashBalance={cashBalance}
-            currentUpiBalance={upiBalance}
-            onSuccess={() => {
-              loadBalances();
-              refresh();
-            }}
-          />
-        )}
       </div>
     </div>
   );

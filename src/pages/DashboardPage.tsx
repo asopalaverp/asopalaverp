@@ -13,7 +13,7 @@ import { MetricCard } from '@/components/ui/MetricCard';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui';
-import { formatINR, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatCompactINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
 import {
@@ -308,14 +308,15 @@ export const DashboardPage: React.FC = () => {
         });
       });
 
-    const palette = ['#3ecf8e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981'];
+    // Dark-to-light monochromatic brand palette (Emerald & Slate)
+    const deptPalette = ['#3ecf8e', '#2bb379', '#1e9b66', '#108453', '#0f766e', '#334155', '#475569', '#64748b'];
     return Array.from(map.entries())
       .map(([name, stat], idx) => ({
         name,
         count: stat.count,
         amount: stat.amount,
         percentage: metrics.totalSpend > 0 ? Math.round((stat.amount / metrics.totalSpend) * 100) : 0,
-        color: palette[idx % palette.length],
+        color: deptPalette[idx % deptPalette.length],
       }))
       .sort((a, b) => b.amount - a.amount);
   }, [filteredVouchers, metrics.totalSpend]);
@@ -334,14 +335,15 @@ export const DashboardPage: React.FC = () => {
         });
       });
 
-    const palette = ['#3ecf8e', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#06b6d4'];
+    // Dark-to-light monochromatic brand palette (Emerald & Slate)
+    const catPalette = ['#3ecf8e', '#2bb379', '#10b981', '#0f766e', '#115e59', '#334155', '#475569', '#64748b'];
     return Array.from(map.entries())
       .map(([name, stat], idx) => ({
         name,
         count: stat.count,
         amount: stat.amount,
         percentage: metrics.totalSpend > 0 ? Math.round((stat.amount / metrics.totalSpend) * 100) : 0,
-        color: palette[idx % palette.length],
+        color: catPalette[idx % catPalette.length],
       }))
       .sort((a, b) => b.amount - a.amount);
   }, [filteredVouchers, metrics.totalSpend]);
@@ -575,8 +577,18 @@ export const DashboardPage: React.FC = () => {
               {/* Cash KPI 1: Cash Outflow */}
               <MetricCard
                 label="Cash Expenses (Outflow)"
-                value={formatINR(metrics.cashSpend)}
-                subValue={`${metrics.cashBills} cash vouchers · Avg: ${formatINR(metrics.avgTicket)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(metrics.cashSpend)}</span>
+                    <span className="hidden sm:inline">{formatINR(metrics.cashSpend)}</span>
+                  </>
+                }
+                subValue={
+                  <>
+                    <span className="sm:hidden">{metrics.cashBills} cash bills · Avg: {formatCompactINR(metrics.avgTicket)}</span>
+                    <span className="hidden sm:inline">{metrics.cashBills} cash bills · Avg: {formatINR(metrics.avgTicket)}</span>
+                  </>
+                }
                 badge={timeRangeLabel}
                 badgeColor="neutral"
                 icon={Receipt}
@@ -586,7 +598,12 @@ export const DashboardPage: React.FC = () => {
               {/* Cash KPI 2: Current Cash in Till */}
               <MetricCard
                 label="Cash in Box (Current)"
-                value={formatINR(cashBalance)}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(cashBalance)}</span>
+                    <span className="hidden sm:inline">{formatINR(cashBalance)}</span>
+                  </>
+                }
                 statusText={isSafeDropAlert ? 'Move Extra Cash to Safe (>₹25k)' : isLowFloatAlert ? 'Low Float (<₹3k)' : 'Cash Drawer Normal'}
                 statusDotColor={isSafeDropAlert ? '#f59e0b' : isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
                 badge={isSafeDropAlert ? 'ALERT' : isLowFloatAlert ? 'LOW FLOAT' : 'LIVE TILL'}
@@ -598,7 +615,12 @@ export const DashboardPage: React.FC = () => {
               {/* Cash KPI 3: Cash Top-ups */}
               <MetricCard
                 label="Cash Top-ups (Inflow)"
-                value={`+${formatINR(inflowMetrics.cashInflow)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">+{formatCompactINR(inflowMetrics.cashInflow)}</span>
+                    <span className="hidden sm:inline">+{formatINR(inflowMetrics.cashInflow)}</span>
+                  </>
+                }
                 subValue={`${inflowMetrics.cashCount} cash additions in period`}
                 statusDotColor="#3ecf8e"
                 badge="FLOAT"
@@ -610,8 +632,18 @@ export const DashboardPage: React.FC = () => {
               {/* Cash KPI 4: Net Cash Flow */}
               <MetricCard
                 label="Net Cash Flow (Period)"
-                value={`${inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}${formatINR(inflowMetrics.cashInflow - metrics.cashSpend)}`}
-                subValue={`Inflow ${formatINR(inflowMetrics.cashInflow)} − Outflow ${formatINR(metrics.cashSpend)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">{inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}{formatCompactINR(inflowMetrics.cashInflow - metrics.cashSpend)}</span>
+                    <span className="hidden sm:inline">{inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}{formatINR(inflowMetrics.cashInflow - metrics.cashSpend)}</span>
+                  </>
+                }
+                subValue={
+                  <>
+                    <span className="sm:hidden">In {formatCompactINR(inflowMetrics.cashInflow)} − Out {formatCompactINR(metrics.cashSpend)}</span>
+                    <span className="hidden sm:inline">Inflow {formatINR(inflowMetrics.cashInflow)} − Outflow {formatINR(metrics.cashSpend)}</span>
+                  </>
+                }
                 statusDotColor={inflowMetrics.cashInflow >= metrics.cashSpend ? '#3ecf8e' : '#f59e0b'}
                 badge={inflowMetrics.cashInflow >= metrics.cashSpend ? 'SURPLUS' : 'DEFICIT'}
                 badgeColor={inflowMetrics.cashInflow >= metrics.cashSpend ? 'emerald' : 'amber'}
@@ -624,8 +656,18 @@ export const DashboardPage: React.FC = () => {
               {/* UPI KPI 1: UPI Outflow */}
               <MetricCard
                 label="UPI Expenses (Outflow)"
-                value={formatINR(metrics.upiSpend)}
-                subValue={`${metrics.upiBills} online vouchers · Avg: ${formatINR(metrics.avgTicket)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(metrics.upiSpend)}</span>
+                    <span className="hidden sm:inline">{formatINR(metrics.upiSpend)}</span>
+                  </>
+                }
+                subValue={
+                  <>
+                    <span className="sm:hidden">{metrics.upiBills} online bills · Avg: {formatCompactINR(metrics.avgTicket)}</span>
+                    <span className="hidden sm:inline">{metrics.upiBills} online bills · Avg: {formatINR(metrics.avgTicket)}</span>
+                  </>
+                }
                 badge={timeRangeLabel}
                 badgeColor="neutral"
                 icon={Receipt}
@@ -635,7 +677,12 @@ export const DashboardPage: React.FC = () => {
               {/* UPI KPI 2: Live Bank Float */}
               <MetricCard
                 label="Bank UPI Balance"
-                value={formatINR(upiBalance)}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(upiBalance)}</span>
+                    <span className="hidden sm:inline">{formatINR(upiBalance)}</span>
+                  </>
+                }
                 statusText="Live Bank Float"
                 statusDotColor="#3b82f6"
                 badge="ONLINE"
@@ -647,7 +694,12 @@ export const DashboardPage: React.FC = () => {
               {/* UPI KPI 3: UPI Inflows */}
               <MetricCard
                 label="UPI Inflows (Credits)"
-                value={`+${formatINR(inflowMetrics.upiInflow)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">+{formatCompactINR(inflowMetrics.upiInflow)}</span>
+                    <span className="hidden sm:inline">+{formatINR(inflowMetrics.upiInflow)}</span>
+                  </>
+                }
                 subValue={`${inflowMetrics.upiCount} bank credits in period`}
                 statusDotColor="#3b82f6"
                 badge="TOP-UPS"
@@ -659,8 +711,18 @@ export const DashboardPage: React.FC = () => {
               {/* UPI KPI 4: Net Bank Flow */}
               <MetricCard
                 label="Net Bank UPI Flow"
-                value={`${inflowMetrics.upiInflow - metrics.upiSpend >= 0 ? '+' : ''}${formatINR(inflowMetrics.upiInflow - metrics.upiSpend)}`}
-                subValue={`Inflow ${formatINR(inflowMetrics.upiInflow)} − Outflow ${formatINR(metrics.upiSpend)}`}
+                value={
+                  <>
+                    <span className="sm:hidden">{inflowMetrics.upiInflow - metrics.upiSpend >= 0 ? '+' : ''}{formatCompactINR(inflowMetrics.upiInflow - metrics.upiSpend)}</span>
+                    <span className="hidden sm:inline">{inflowMetrics.upiInflow - metrics.upiSpend >= 0 ? '+' : ''}{formatINR(inflowMetrics.upiInflow - metrics.upiSpend)}</span>
+                  </>
+                }
+                subValue={
+                  <>
+                    <span className="sm:hidden">In {formatCompactINR(inflowMetrics.upiInflow)} − Out {formatCompactINR(metrics.upiSpend)}</span>
+                    <span className="hidden sm:inline">Inflow {formatINR(inflowMetrics.upiInflow)} − Outflow {formatINR(metrics.upiSpend)}</span>
+                  </>
+                }
                 statusDotColor="#3b82f6"
                 badge={inflowMetrics.upiInflow >= metrics.upiSpend ? 'SURPLUS' : 'DEFICIT'}
                 badgeColor="blue"
@@ -673,7 +735,12 @@ export const DashboardPage: React.FC = () => {
               {/* KPI 1: Total Spend */}
               <MetricCard
                 label="Total Expenses"
-                value={formatINR(metrics.totalSpend)}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(metrics.totalSpend)}</span>
+                    <span className="hidden sm:inline">{formatINR(metrics.totalSpend)}</span>
+                  </>
+                }
                 subValue={`${metrics.totalBills} bills recorded`}
                 badge={timeRangeLabel}
                 badgeColor="neutral"
@@ -684,7 +751,12 @@ export const DashboardPage: React.FC = () => {
               {/* KPI 2: Cash in Drawer */}
               <MetricCard
                 label="Cash in Box"
-                value={formatINR(cashBalance)}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(cashBalance)}</span>
+                    <span className="hidden sm:inline">{formatINR(cashBalance)}</span>
+                  </>
+                }
                 statusText={isSafeDropAlert ? 'Move Extra Cash to Safe' : 'Cash Box Normal'}
                 statusDotColor={isSafeDropAlert ? '#f59e0b' : '#3ecf8e'}
                 badge={isSafeDropAlert ? 'ALERT' : undefined}
@@ -696,7 +768,12 @@ export const DashboardPage: React.FC = () => {
               {/* KPI 3: Bank Account / UPI */}
               <MetricCard
                 label="Bank UPI"
-                value={formatINR(upiBalance)}
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(upiBalance)}</span>
+                    <span className="hidden sm:inline">{formatINR(upiBalance)}</span>
+                  </>
+                }
                 subValue={`${metrics.upiBills} online payments`}
                 statusDotColor="#3b82f6"
                 icon={Building2}
@@ -706,8 +783,22 @@ export const DashboardPage: React.FC = () => {
               {/* KPI 4: Total Inflow (Credits) */}
               <MetricCard
                 label="Total Inflow (Credits)"
-                value={`+${formatINR(inflowMetrics.totalInflow)}`}
-                subValue={`Cash: ${formatINR(inflowMetrics.cashInflow)} (${inflowMetrics.cashCount}) | UPI: ${formatINR(inflowMetrics.upiInflow)} (${inflowMetrics.upiCount})`}
+                value={
+                  <>
+                    <span className="sm:hidden">+{formatCompactINR(inflowMetrics.totalInflow)}</span>
+                    <span className="hidden sm:inline">+{formatINR(inflowMetrics.totalInflow)}</span>
+                  </>
+                }
+                subValue={
+                  <>
+                    <span className="sm:hidden">
+                      Cash: {formatCompactINR(inflowMetrics.cashInflow)} ({inflowMetrics.cashCount}) | UPI: {formatCompactINR(inflowMetrics.upiInflow)} ({inflowMetrics.upiCount})
+                    </span>
+                    <span className="hidden sm:inline">
+                      Cash: {formatINR(inflowMetrics.cashInflow)} ({inflowMetrics.cashCount}) | UPI: {formatINR(inflowMetrics.upiInflow)} ({inflowMetrics.upiCount})
+                    </span>
+                  </>
+                }
                 statusDotColor="#3ecf8e"
                 badge="TOP-UPS"
                 badgeColor="emerald"

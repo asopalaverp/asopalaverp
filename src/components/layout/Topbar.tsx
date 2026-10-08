@@ -253,13 +253,13 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             </>
           )}
 
-          {/* 3. POS Quick Calculator Trigger */}
+          {/* 3. Quick Calculator Trigger */}
           <button
             type="button"
             onClick={() => setCalculatorOpen(true)}
-            aria-label="POS Quick Calculator"
+            aria-label="Quick Calculator"
             className="hidden sm:flex items-center justify-center w-9 h-9 rounded-[6px] border border-slate-200/80 dark:border-[#242424] hover:border-slate-300 dark:hover:border-[#2e2e2e] bg-slate-50/50 dark:bg-[#181818] hover:bg-slate-100 dark:hover:bg-[#202020] text-slate-500 dark:text-[#a1a1a1] hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shadow-2xs shrink-0"
-            title="POS Math, GST & Change Return Calculator"
+            title="Quick Math & Discount Calculator"
           >
             <Calculator className="w-4 h-4 stroke-[1.8]" />
           </button>
@@ -492,7 +492,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                           {theme === 'dark' ? 'Studio Dark' : theme === 'soft-dark' ? 'Soft Dark' : 'Light'}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">Click to cycle Light / Dark</div>
+                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">
+                        Click to cycle White / Dark / Soft Dark
+                      </div>
                     </div>
                   </button>
 
@@ -510,7 +512,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                     <Lock className="w-4 h-4 text-amber-500 shrink-0 stroke-[1.8]" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-xs truncate">Lock Screen</div>
-                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">Quick lock counter terminal</div>
+                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">Quick lock counter screen</div>
                     </div>
                   </button>
 

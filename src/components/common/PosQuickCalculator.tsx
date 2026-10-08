@@ -222,7 +222,7 @@ export const PosQuickCalculator: React.FC = () => {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="POS Calculator"
+      aria-label="Quick Calculator"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
     >
       {/* Backdrop */}
@@ -250,7 +250,7 @@ export const PosQuickCalculator: React.FC = () => {
             </div>
             <div>
               <h3 className="text-xs font-semibold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-                <span>POS Calculator</span>
+                <span>Quick Calculator</span>
                 {mode === 'pro' && (
                   <span className="px-1.5 py-0.2 rounded-[4px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] text-[9px] font-mono font-bold border border-[#3ecf8e]/30">
                     DISCOUNT PRO

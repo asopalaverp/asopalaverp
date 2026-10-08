@@ -69,6 +69,37 @@ export function formatINR(amount: number, compact: boolean = false): string {
 }
 
 /**
+ * Formats numbers in clean Instagram / modern dashboard compact K and M notation (e.g. ₹45.7K, ₹1.44M, ₹100K)
+ */
+export function formatCompactINR(amount: number): string {
+  if (isNaN(amount) || amount === null || amount === undefined) return '₹0';
+  const sign = amount < 0 ? '-' : '';
+  const abs = Math.abs(amount);
+
+  if (abs >= 1_000_000_000) {
+    const val = abs / 1_000_000_000;
+    return `${sign}₹${val >= 100 ? Math.round(val) : val.toFixed(1).replace(/\.0$/, '')}B`;
+  }
+  if (abs >= 1_000_000) {
+    const val = abs / 1_000_000;
+    return `${sign}₹${val >= 100 ? Math.round(val) : val.toFixed(2).replace(/\.00$/, '')}M`;
+  }
+  if (abs >= 10_000) {
+    const val = abs / 1_000;
+    return `${sign}₹${val >= 100 ? Math.round(val) : val.toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  if (abs >= 1_000) {
+    const val = abs / 1_000;
+    return `${sign}₹${val.toFixed(1).replace(/\.0$/, '')}K`;
+  }
+
+  return `${sign}₹${Number(abs).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
  * Formats a date string into readable Indian retail format (e.g. 14-Sep-2026, 14-Sep-26)
  */
 export function formatDate(dateString: string | Date, formatStr: string = 'dd-MMM-yyyy'): string {

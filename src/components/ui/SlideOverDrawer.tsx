@@ -95,7 +95,7 @@ export const SlideOverDrawer: React.FC<SlideOverDrawerProps> = ({
       {/* 1. Backdrop covering the ENTIRE viewport including sidebar and topbar */}
       <div
         ref={backdropRef}
-        className="fixed inset-0 bg-black/75 transition-opacity z-0"
+        className="fixed inset-0 bg-black/95 transition-opacity z-0"
         onClick={handleClose}
       />
 

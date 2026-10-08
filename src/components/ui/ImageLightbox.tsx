@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useUIStore } from '@/store/uiStore';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { X, ZoomIn, ZoomOut, RotateCw, Download } from 'lucide-react';
@@ -7,6 +8,11 @@ export const ImageLightbox: React.FC = () => {
   const { activeLightboxUrl, closeLightbox } = useUIStore();
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useScrollLock(Boolean(activeLightboxUrl));
 
@@ -30,12 +36,12 @@ export const ImageLightbox: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeLightboxUrl, closeLightbox]);
 
-  if (!activeLightboxUrl) return null;
+  if (!activeLightboxUrl || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       onClick={closeLightbox}
-      className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[999999] bg-black flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-200"
     >
       {/* Top Controls Bar */}
       <div
@@ -93,19 +99,20 @@ export const ImageLightbox: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Image Stage */}
+      {/* Main Image Stage - Clicking outside the image closes the lightbox */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="flex-1 w-full flex items-center justify-center p-4 overflow-hidden"
+        onClick={closeLightbox}
+        className="flex-1 w-full flex items-center justify-center p-4 overflow-hidden cursor-zoom-out"
       >
         <img
           src={activeLightboxUrl}
           alt="Document Lightbox Preview"
+          onClick={(e) => e.stopPropagation()}
           style={{
             transform: `scale(${scale}) rotate(${rotation}deg)`,
             transition: 'transform 0.15s ease-out',
           }}
-          className="max-w-full max-h-[78vh] object-contain rounded-[6px] border border-slate-200 dark:border-[#282828] shadow-2xl bg-white dark:bg-[#141414]"
+          className="max-w-full max-h-[78vh] object-contain rounded-[6px] border border-slate-200 dark:border-[#282828] shadow-2xl bg-white dark:bg-[#141414] cursor-default"
         />
       </div>
 
@@ -113,6 +120,7 @@ export const ImageLightbox: React.FC = () => {
       <div className="text-[11px] font-mono text-zinc-300 dark:text-zinc-400 px-3 py-1 rounded-full bg-[#181818] border border-[#282828] shadow-lg">
         Tap anywhere outside or press ESC to close
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -54,7 +54,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
       showToast({
         type: 'warning',
         title: 'Access Restricted',
-        message: 'You are only authorized to access your assigned showroom terminal.',
+        message: 'You are only authorized to access your assigned showroom branch.',
       });
       return;
     }

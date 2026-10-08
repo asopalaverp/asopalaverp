@@ -314,7 +314,7 @@ export const LoginPage: React.FC = () => {
               Welcome back
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-[#8e8e93] font-sans">
-              Sign in to your {brandName} terminal
+              Sign in to your {brandName} account
             </p>
           </div>
 
@@ -430,7 +430,7 @@ export const LoginPage: React.FC = () => {
                   <HelpCircle className="w-4 h-4" />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                  Reset Terminal Access
+                  Reset Account Access
                 </h3>
               </div>
               <button

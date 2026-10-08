@@ -315,7 +315,7 @@ export const GlobalSearchModal: React.FC = () => {
         category: 'actions',
         title: 'Keyboard Shortcuts',
         categoryLabel: 'SYSTEM & TOOLS',
-        subtitle: 'View all keyboard shortcuts and POS hotkeys',
+        subtitle: 'View all keyboard shortcuts and function hotkeys',
         relevanceScore: 55,
         actionType: 'navigate' as const,
         actionPayload: { page: 'dashboard' },
@@ -435,7 +435,7 @@ export const GlobalSearchModal: React.FC = () => {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 select-none font-sans"
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 select-none font-sans"
       onKeyDown={handleKeyDown}
     >
       <div

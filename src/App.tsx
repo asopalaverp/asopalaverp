@@ -72,6 +72,9 @@ const ImageLightbox = lazy(() =>
 const PosQuickCalculator = lazy(() =>
   import('@/components/common/PosQuickCalculator').then((m) => ({ default: m.PosQuickCalculator }))
 );
+const ConfirmDialog = lazy(() =>
+  import('@/components/ui/ConfirmDialog').then((m) => ({ default: m.ConfirmDialog }))
+);
 
 const AccessDeniedView = lazy(() =>
   import('@/components/common/AccessDeniedView').then((m) => ({ default: m.AccessDeniedView }))
@@ -455,7 +458,7 @@ export const App: React.FC = () => {
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#1a1a1a] flex items-center justify-center">
                     <svg className="w-6 h-6 text-[#3ecf8e]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                   </div>
-                  <p className="text-sm text-[#878787]">Terminal Locked</p>
+                  <p className="text-sm text-[#878787]">Screen Locked</p>
                 </div>
               </div>
             )}
@@ -478,6 +481,7 @@ export const App: React.FC = () => {
         <BulkMasterDataImportModal />
         <ImageLightbox />
         <ToastContainer />
+        <ConfirmDialog />
       </Suspense>
     </div>
   );

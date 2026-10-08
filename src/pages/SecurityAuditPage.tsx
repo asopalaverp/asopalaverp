@@ -226,7 +226,7 @@ export const SecurityAuditPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#8E8E93] mt-0.5">
-              Immutable ledger of payments, security overrides, and cashier cash closures.
+              Verified record of payments, security overrides, and cashier cash closures.
             </p>
           </div>
 
@@ -370,13 +370,13 @@ export const SecurityAuditPage: React.FC = () => {
 
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
             <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-[#8E8E93] font-semibold block">
-              Tamper-Proof Protection
+              Audit Verification
             </span>
             <div className="text-2xl font-mono font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums flex items-center gap-1.5">
               <ShieldCheck className="w-5 h-5 text-[#3ecf8e]" />
-              <span>100% Safe</span>
+              <span>100% Verified</span>
             </div>
-            <span className="text-[11px] text-emerald-600/80 dark:text-[#3ecf8e]/80 font-sans block">All entries permanently locked</span>
+            <span className="text-[11px] text-emerald-600/80 dark:text-[#3ecf8e]/80 font-sans block">All entries permanently recorded</span>
           </div>
 
           <div className="bg-white dark:bg-[#141414] border border-slate-200/80 dark:border-[#242424] rounded-[12px] p-4 space-y-1.5 shadow-xs">
@@ -598,7 +598,7 @@ export const SecurityAuditPage: React.FC = () => {
                     Computer / Device
                   </span>
                   <span className="text-xs font-mono text-slate-600 dark:text-[#A1A1A1] block">
-                    {selectedLog.ip_address || '127.0.0.1 (Local POS Terminal)'}
+                    {selectedLog.ip_address || '127.0.0.1 (Local Showroom Counter)'}
                   </span>
                 </div>
 

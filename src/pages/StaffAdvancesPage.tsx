@@ -583,37 +583,66 @@ export const StaffAdvancesPage: React.FC = () => {
     const list = getExportData();
     const headers = [
       'Receipt #',
-      'Date',
+      'Advance Date (YYYY-MM-DD)',
+      'Days Elapsed',
+      'Ageing Bucket',
       'Staff Code',
       'Staff Name',
       'Department',
-      'Branch',
+      'Branch Code',
       'Payment Mode',
-      'Total Advance Given',
-      'Bills Submitted',
-      'Cash Returned',
-      'Pending Balance',
+      'Total Advance Given (INR)',
+      'Bills Submitted (INR)',
+      'Cash Returned (INR)',
+      'Unsettled Pending Balance (INR)',
+      'Recovery Rate (%)',
       'Status',
-      'Purpose',
+      'Salary Deduction Month',
+      'Purpose / Particulars',
+      'Settled By',
+      'Authorized By',
+      'Created At'
     ];
 
-    const rows = list.map((a) => [
-      a.receipt_number,
-      a.advance_date,
-      a.staff_code,
-      `"${a.staff_name}"`,
-      `"${a.department_name}"`,
-      a.branch_code,
-      a.payment_method,
-      a.advance_amount,
-      a.bills_submitted_amount,
-      a.cash_returned_amount,
-      a.unsettled_balance,
-      a.status,
-      `"${a.purpose.replace(/"/g, '""')}"`,
-    ]);
+    const todayMs = new Date().setHours(0, 0, 0, 0);
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const rows = list.map((a) => {
+      const advDateMs = new Date(a.advance_date).getTime();
+      const days = Math.max(0, Math.floor((todayMs - advDateMs) / (1000 * 60 * 60 * 24)));
+      let ageing = '0-7 days (On Track)';
+      if (a.unsettled_balance <= 0) ageing = 'Settled';
+      else if (days >= 15) ageing = '15+ days (Overdue)';
+      else if (days >= 8) ageing = '8-14 days (Due Soon)';
+
+      const totalGiven = Number(a.advance_amount) || 0;
+      const recovered = (Number(a.bills_submitted_amount) || 0) + (Number(a.cash_returned_amount) || 0);
+      const recoveryPct = totalGiven > 0 ? ((recovered / totalGiven) * 100).toFixed(1) + '%' : '0%';
+
+      return [
+        a.receipt_number || '',
+        a.advance_date || '',
+        days,
+        `"${ageing}"`,
+        a.staff_code || '',
+        `"${(a.staff_name || '').replace(/"/g, '""')}"`,
+        `"${(a.department_name || '').replace(/"/g, '""')}"`,
+        a.branch_code || selectedBranchId,
+        a.payment_method || 'Cash',
+        Number(a.advance_amount || 0).toFixed(2),
+        Number(a.bills_submitted_amount || 0).toFixed(2),
+        Number(a.cash_returned_amount || 0).toFixed(2),
+        Number(a.unsettled_balance || 0).toFixed(2),
+        `"${recoveryPct}"`,
+        a.status || '',
+        `"${(a.salary_deduction_month || '').replace(/"/g, '""')}"`,
+        `"${(a.purpose || '').replace(/"/g, '""')}"`,
+        `"${(a.disbursed_by_name || '').replace(/"/g, '""')}"`,
+        `"${(a.salary_deducted_by_name || '').replace(/"/g, '""')}"`,
+        a.created_at || ''
+      ];
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     downloadBlob(
       `Staff_Advances_Ledger_${new Date().toISOString().slice(0, 10)}.csv`,
       csvContent,

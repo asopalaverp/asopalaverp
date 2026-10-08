@@ -85,7 +85,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
 
   const ALL_SHORTCUT_CATEGORIES: ShortcutCategory[] = useMemo(() => [
     {
-      title: 'PRIMARY POS FUNCTION KEYS (F1 - F12)',
+      title: 'PRIMARY FUNCTION KEYS (F1 - F12)',
       items: [
         {
           label: 'F1 • Showroom Dashboard',
@@ -122,7 +122,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
           action: () => handleAction('page', 'treasury'),
         },
         {
-          label: 'F5 • POS Math Calculator',
+          label: 'F5 • Quick Calculator',
           description: 'Cash counting & discount calculator',
           keys: ['F5'],
           allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier', 'Auditor'],
@@ -147,7 +147,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
         },
         {
           label: 'F8 • Activity History & Audit',
-          description: 'Immutable system security logs',
+          description: 'Verified system security logs',
           keys: ['F8'],
           pageId: 'audit',
           requiredPermission: 'can_view_audit_logs',
@@ -156,7 +156,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
         },
         {
           label: 'F10 • Alerts & Broadcast Messages',
-          description: 'Cross-terminal announcements',
+          description: 'Store-wide announcements',
           keys: ['F10'],
           pageId: 'notifications',
           allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier', 'Auditor'],
@@ -197,8 +197,8 @@ export const KeyboardShortcutsModal: React.FC = () => {
           },
         },
         {
-          label: 'Staff Meal Split Mode',
-          description: 'Switch to multi-staff food reimbursement',
+          label: 'Staff Multi-Allocation Mode',
+          description: 'Switch to multi-staff expense reimbursement',
           keys: ['Alt', '2'],
           pageId: 'new-voucher',
           requiredPermission: 'can_create_voucher',
@@ -241,10 +241,10 @@ export const KeyboardShortcutsModal: React.FC = () => {
       ],
     },
     {
-      title: 'SYSTEM & TERMINAL TOOLS',
+      title: 'SYSTEM & COUNTER TOOLS',
       items: [
         {
-          label: 'Instant Terminal Screen Lock',
+          label: 'Instant Screen Lock',
           description: 'Locks screen requiring PIN to unlock',
           keys: ['Alt', 'L'],
           allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier', 'Auditor'],
@@ -307,7 +307,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
     <div
       ref={backdropRef}
       onClick={handleClose}
-      className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 select-none font-sans"
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 select-none font-sans"
     >
       <div
         ref={modalRef}
@@ -388,7 +388,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
           </span>
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-400 dark:text-zinc-500">
             <AsopalavLogo size={12} className="shrink-0" />
-            <span>Asopalav Enterprise POS</span>
+            <span>Asopalav Enterprise</span>
           </div>
         </div>
       </div>

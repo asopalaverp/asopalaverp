@@ -121,7 +121,7 @@ export function useHotkeys() {
         return;
       }
 
-      // Alt + 2: Staff Food Split Mode
+      // Alt + 2: Staff Split Mode
       if (e.altKey && key === '2') {
         e.preventDefault();
         e.stopPropagation();
