@@ -136,12 +136,13 @@
   body.soft-dark,
   html.soft-dark,
   .soft-dark #root,
-  .soft-dark main {
+  .soft-dark .workspace-canvas {
     background-color: #14161d !important;
     color: #f1f5f9 !important;
   }
 
   /* Root Canvas & Base Pages */
+  .soft-dark .dark\:bg-black,
   .soft-dark .dark\:bg-canvas-night,
   .soft-dark .dark\:bg-\[\#121212\],
   .soft-dark .dark\:bg-\[\#111111\],

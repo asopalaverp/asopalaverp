@@ -840,6 +840,8 @@ export const StaffDirectoryPage: React.FC = () => {
         cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
       } else if (userSortField === 'role') {
         cmp = a.role_code.localeCompare(b.role_code);
+      } else if (userSortField === 'status') {
+        cmp = Number(b.is_active !== false) - Number(a.is_active !== false);
       }
       return userSortOrder === 'desc' ? -cmp : cmp;
     });
@@ -1003,10 +1005,18 @@ export const StaffDirectoryPage: React.FC = () => {
           u.role_code,
           u.email || '',
           (u.assigned_branches || []).join(';'),
-          'Active',
+          u.is_active !== false ? 'Active' : 'Inactive',
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_users_${dateStr}.csv`, csv, 'text/csv');
+      } else if (format === 'sql') {
+        const sql = recordsToExport
+          .map(
+            (u) =>
+              `INSERT INTO app_users (id, username, first_name, last_name, role_code, email, is_active) VALUES (${esc(u.id)}, ${esc(u.username)}, ${esc(u.first_name)}, ${esc(u.last_name)}, ${esc(u.role_code)}, ${esc(u.email)}, ${u.is_active !== false});`
+          )
+          .join('\n');
+        downloadBlob(`asopalav_users_${dateStr}.sql`, sql, 'text/plain');
       }
     } else {
       const recordsToExport = selectedIds.size > 0
@@ -1029,6 +1039,14 @@ export const StaffDirectoryPage: React.FC = () => {
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_staff_${dateStr}.csv`, csv, 'text/csv');
+      } else if (format === 'sql') {
+        const sql = recordsToExport
+          .map(
+            (s) =>
+              `INSERT INTO staff_members (staff_code, first_name, middle_name, last_name, mobile_number, department_name, designation, branch_id, branch_code, is_active) VALUES (${esc(s.staff_code)}, ${esc(s.first_name)}, ${esc(s.middle_name)}, ${esc(s.last_name)}, ${esc(s.mobile_number)}, ${esc(s.department_name)}, ${esc(s.designation)}, ${esc(s.branch_id)}, ${esc(s.branch_code)}, ${s.is_active !== false});`
+          )
+          .join('\n');
+        downloadBlob(`asopalav_staff_${dateStr}.sql`, sql, 'text/plain');
       }
     }
   };
@@ -1372,8 +1390,15 @@ export const StaffDirectoryPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <span className="px-2 py-0.5 rounded-[4px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#3ecf8e]/20 text-[10px] font-mono font-medium">
-                        Active
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-[4px] text-[10px] font-mono font-medium border',
+                          u.is_active !== false
+                            ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-200 dark:border-[#3ecf8e]/20'
+                            : 'bg-slate-100 dark:bg-[#252525] text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-[#333]'
+                        )}
+                      >
+                        {u.is_active !== false ? 'Active' : 'Inactive'}
                       </span>
                     </div>
 
@@ -1504,9 +1529,16 @@ export const StaffDirectoryPage: React.FC = () => {
                     )}
 
                     {visibleUserCols.has('status') && (
-                      <th className={cn("border-r border-slate-200 dark:border-[#242424] text-center", densityStyles.header)}>
+                      <th
+                        onClick={() => {
+                          if (userSortField === 'status') setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc');
+                          else { setUserSortField('status'); setUserSortOrder('asc'); }
+                        }}
+                        className={cn("border-r border-slate-200 dark:border-[#242424] text-center cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors", densityStyles.header)}
+                      >
                         <div className="flex items-center justify-center gap-1.5">
                           <span>Status</span>
+                          <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-[#707070] opacity-60" />
                         </div>
                       </th>
                     )}
@@ -1593,8 +1625,15 @@ export const StaffDirectoryPage: React.FC = () => {
 
                         {visibleUserCols.has('status') && (
                           <td className={cn("border-r border-slate-100 dark:border-[#1f1f1f] text-center font-mono", densityStyles.cell)}>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#3ecf8e]/20 font-medium">
-                              Active
+                            <span
+                              className={cn(
+                                'inline-flex items-center px-2 py-0.5 rounded-[4px] text-[10px] font-medium border',
+                                u.is_active !== false
+                                  ? 'bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-200 dark:border-[#3ecf8e]/20'
+                                  : 'bg-slate-100 dark:bg-[#252525] text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-[#333]'
+                              )}
+                            >
+                              {u.is_active !== false ? 'Active' : 'Inactive'}
                             </span>
                           </td>
                         )}

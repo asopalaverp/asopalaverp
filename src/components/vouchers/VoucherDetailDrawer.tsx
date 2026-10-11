@@ -34,81 +34,15 @@ import {
   Undo,
   UserCheck,
   Users,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
 
-function parseLegacyStaffSplits(voucher: any, staffList: any[]): SplitItem[] {
-  if (!voucher) return [];
-  const recipient = voucher.recipient_name || '';
-  const totalAmount = Number(voucher.total_amount) || 0;
-
-  let names: string[] = [];
-  // 1. Check parenthesized format: "7 Staff (Sagar, Ramesh, Merajbhai, PARMAL, HARSH, Prakash, Bharat)"
-  const parenMatch = recipient.match(/\(([^)]+)\)/);
-  if (parenMatch && parenMatch[1]) {
-    names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
-  }
-
-  // 2. If no names from recipient, check remarks if separated by '/' or ','
-  if (names.length === 0 && voucher.remarks && (voucher.remarks.includes('/') || voucher.remarks.includes(','))) {
-    const delimiter = voucher.remarks.includes('/') ? '/' : ',';
-    const rawParts = voucher.remarks.split(delimiter).map((n: string) => n.trim()).filter(Boolean);
-    if (rawParts.length >= 2) {
-      names = rawParts;
-    }
-  }
-
-  if (names.length === 0) return [];
-
-  const perPerson = names.length > 0 ? Math.floor(totalAmount / names.length) : 0;
-  const remainder = names.length > 0 ? totalAmount - perPerson * names.length : 0;
-
-  return names.map((rawName: string, idx: number) => {
-    const cleanName = rawName.replace(/^staff\s*[:-]?\s*/i, '').trim();
-    const matched = staffList.find(
-      (s: any) =>
-        (s.staff_code && s.staff_code.toLowerCase() === cleanName.toLowerCase()) ||
-        `${s.first_name} ${s.last_name}`.toLowerCase().includes(cleanName.toLowerCase()) ||
-        cleanName.toLowerCase().includes(s.first_name.toLowerCase())
-    );
-
-    return {
-      staffCode: matched ? matched.staff_code : '',
-      staffName: matched ? `${matched.first_name} ${matched.last_name}`.trim() : cleanName,
-      departmentName: matched?.department_name || voucher.department_name || 'Store Operations',
-      categoryName: voucher.category_name || 'Staff Welfare & Food',
-      amount: idx === 0 ? perPerson + remainder : perPerson,
-    };
-  });
-}
-
-function parseLegacyVendorSplits(voucher: any): VendorSplitItem[] {
-  if (!voucher) return [];
-  const recipient = voucher.recipient_name || '';
-  const totalAmount = Number(voucher.total_amount) || 0;
-
-  let names: string[] = [];
-  const parenMatch = recipient.match(/\(([^)]+)\)/);
-  if (parenMatch && parenMatch[1]) {
-    names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
-  }
-
-  if (names.length === 0) return [];
-
-  const perVendor = names.length > 0 ? Math.floor(totalAmount / names.length) : 0;
-  const remainder = names.length > 0 ? totalAmount - perVendor * names.length : 0;
-
-  return names.map((vName: string, idx: number) => ({
-    vendor_name: vName.trim(),
-    category_name: voucher.category_name || 'General Expense',
-    department_name: voucher.department_name || 'Main Shop Floor',
-    bill_number: voucher.bill_number || '',
-    description: voucher.remarks || '',
-    amount: idx === 0 ? perVendor + remainder : perVendor,
-  }));
-}
+// NOTE: Auto-hydration of legacy staff/vendor splits has been permanently removed.
+// Financial data must ONLY come from the database (voucher_staff_splits table).
+// Guessing names, amounts, or categories from recipient strings is a data integrity violation.
 
 export const VoucherDetailDrawer: React.FC = () => {
   const { activeDrawerVoucher, setActiveDrawerVoucher, closeDrawer, openLightbox } = useUIStore();
@@ -137,6 +71,7 @@ export const VoucherDetailDrawer: React.FC = () => {
   const [editReason, setEditReason] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [staffSplits, setStaffSplits] = useState<any[]>([]);
+  const [loadingSplits, setLoadingSplits] = useState(false);
   const [editStaffSplits, setEditStaffSplits] = useState<SplitItem[]>([]);
   const [editVendorSplits, setEditVendorSplits] = useState<VendorSplitItem[]>([]);
 
@@ -159,54 +94,52 @@ export const VoucherDetailDrawer: React.FC = () => {
       setActiveAction('none');
       setFeedback(null);
 
-      // Fetch staff splits if this is a staff voucher
+      // Fetch staff splits ONLY from database — never fabricate from recipient strings
       const isStaffType =
         activeDrawerVoucher.payment_type === 'Staff_Split' ||
         Boolean(activeDrawerVoucher.recipient_name && /\bStaff\b/i.test(activeDrawerVoucher.recipient_name));
 
       if (isStaffType) {
-        erpService.getVoucherSplits(activeDrawerVoucher.voucher_number).then((splits) => {
-          let list: any[] = splits || [];
-          if (list.length === 0) {
-            // Auto-extract from legacy recipient or remarks if database has no split records
-            const parsed = parseLegacyStaffSplits(activeDrawerVoucher, staff);
-            if (parsed.length > 0) {
-              list = parsed.map((p, idx) => ({
-                id: `legacy-${activeDrawerVoucher.voucher_number}-${idx}`,
-                voucher_number: activeDrawerVoucher.voucher_number,
-                branch_id: activeDrawerVoucher.branch_id,
-                branch_code: activeDrawerVoucher.branch_code,
-                staff_code: p.staffCode,
-                staff_name: p.staffName,
-                department_name: p.departmentName,
-                category_name: p.categoryName,
-                amount: p.amount,
-                created_at: activeDrawerVoucher.created_at,
-              }));
-            }
-          }
-
-          setStaffSplits(list);
-          setEditStaffSplits(
-            list.map((s: any) => ({
-              staffCode: s.staff_code || s.staffCode || '',
-              staffName: s.staff_name || s.staffName || '',
-              departmentName: s.department_name || s.departmentName || '',
-              categoryName: s.category_name || s.categoryName || '',
-              amount: Number(s.amount) || 0,
-            }))
-          );
-        });
+        setLoadingSplits(true);
+        erpService.getVoucherSplits(activeDrawerVoucher.voucher_number)
+          .then((splits) => {
+            const list: any[] = splits || [];
+            // Only show splits that actually exist in the database
+            setStaffSplits(list);
+            setEditStaffSplits(
+              list.map((s: any) => ({
+                staffCode: s.staff_code || s.staffCode || '',
+                staffName: s.staff_name || s.staffName || '',
+                departmentName: s.department_name || s.departmentName || '',
+                categoryName: s.category_name || s.categoryName || '',
+                amount: Number(s.amount) || 0,
+              }))
+            );
+          })
+          .catch((err) => {
+            console.error('Failed to load splits from database:', err);
+            setStaffSplits([]);
+          })
+          .finally(() => {
+            setLoadingSplits(false);
+          });
       } else {
         setStaffSplits([]);
         setEditStaffSplits([]);
+        setLoadingSplits(false);
       }
 
-      if (activeDrawerVoucher.vendor_splits && Array.isArray(activeDrawerVoucher.vendor_splits) && activeDrawerVoucher.vendor_splits.length > 0) {
+      // Vendor splits — only from database for Shop_Vendor vouchers, never fabricated
+      if (
+        !isStaffType &&
+        activeDrawerVoucher.payment_type === 'Shop_Vendor' &&
+        activeDrawerVoucher.vendor_splits &&
+        Array.isArray(activeDrawerVoucher.vendor_splits) &&
+        activeDrawerVoucher.vendor_splits.length > 0
+      ) {
         setEditVendorSplits(activeDrawerVoucher.vendor_splits);
       } else {
-        const parsedVendors = parseLegacyVendorSplits(activeDrawerVoucher);
-        setEditVendorSplits(parsedVendors);
+        setEditVendorSplits([]);
       }
     }
   }, [activeDrawerVoucher, staff]);
@@ -221,7 +154,10 @@ export const VoucherDetailDrawer: React.FC = () => {
   const canVoid = can('can_void_voucher') || isSuperAdmin || user?.role_code === 'Store_Manager' || allowCashierVoid;
 
   const isStaffVoucher = v.payment_type === 'Staff_Split' || editStaffSplits.length > 0 || staffSplits.length > 0;
-  const isMultiVendorVoucher = (v.vendor_splits && v.vendor_splits.length > 0) || editVendorSplits.length > 0;
+  const isMultiVendorVoucher =
+    !isStaffVoucher &&
+    v.payment_type === 'Shop_Vendor' &&
+    ((v.vendor_splits && v.vendor_splits.length > 0) || editVendorSplits.length > 0);
 
   const handleSaveEdit = async () => {
     if (isStaffVoucher) {
@@ -229,9 +165,28 @@ export const VoucherDetailDrawer: React.FC = () => {
         setFeedback({ type: 'error', message: 'Please add at least one staff member.' });
         return;
       }
-      const invalid = editStaffSplits.find((s) => !s.staffName.trim() || Number(s.amount) <= 0);
-      if (invalid) {
-        setFeedback({ type: 'error', message: 'All staff split entries must have a valid staff name and amount > ₹0.' });
+      const invalidIdx = editStaffSplits.findIndex(
+        (s) =>
+          !s.staffCode?.trim() ||
+          !s.staffName?.trim() ||
+          !s.categoryName?.trim() ||
+          !s.departmentName?.trim() ||
+          Number(s.amount) <= 0
+      );
+      if (invalidIdx !== -1) {
+        const s = editStaffSplits[invalidIdx];
+        const rowNum = invalidIdx + 1;
+        setFeedback({
+          type: 'error',
+          message:
+            !s.staffCode?.trim() || !s.staffName?.trim()
+              ? `Row #${rowNum}: Please select a staff member.`
+              : !s.categoryName?.trim()
+              ? `Row #${rowNum} (${s.staffName}): Please select an expense category.`
+              : !s.departmentName?.trim()
+              ? `Row #${rowNum} (${s.staffName}): Please select a department.`
+              : `Row #${rowNum} (${s.staffName}): Amount must be greater than ₹0.`,
+        });
         return;
       }
     } else if (isMultiVendorVoucher) {
@@ -239,9 +194,26 @@ export const VoucherDetailDrawer: React.FC = () => {
         setFeedback({ type: 'error', message: 'Please add at least one vendor item.' });
         return;
       }
-      const invalid = editVendorSplits.find((s) => !s.vendor_name.trim() || Number(s.amount) <= 0);
-      if (invalid) {
-        setFeedback({ type: 'error', message: 'All vendor split entries must have a vendor name and amount > ₹0.' });
+      const invalidIdx = editVendorSplits.findIndex(
+        (s) =>
+          !s.vendor_name?.trim() ||
+          !s.category_name?.trim() ||
+          !s.department_name?.trim() ||
+          Number(s.amount) <= 0
+      );
+      if (invalidIdx !== -1) {
+        const s = editVendorSplits[invalidIdx];
+        const rowNum = invalidIdx + 1;
+        setFeedback({
+          type: 'error',
+          message: !s.vendor_name?.trim()
+            ? `Row #${rowNum}: Please enter a vendor name.`
+            : !s.category_name?.trim()
+            ? `Row #${rowNum} (${s.vendor_name}): Please select an expense category.`
+            : !s.department_name?.trim()
+            ? `Row #${rowNum} (${s.vendor_name}): Please select a department.`
+            : `Row #${rowNum} (${s.vendor_name}): Amount must be greater than ₹0.`,
+        });
         return;
       }
     } else {
@@ -251,6 +223,10 @@ export const VoucherDetailDrawer: React.FC = () => {
       }
       if (!editCategory || !editCategory.trim()) {
         setFeedback({ type: 'error', message: 'Expense Category is required.' });
+        return;
+      }
+      if (!editDepartment || !editDepartment.trim()) {
+        setFeedback({ type: 'error', message: 'Department is required.' });
         return;
       }
     }
@@ -268,22 +244,52 @@ export const VoucherDetailDrawer: React.FC = () => {
     setFeedback(null);
 
     try {
+      const cleanedStaffSplits = isStaffVoucher
+        ? editStaffSplits.map((s) => ({
+            ...s,
+            staffCode: s.staffCode.trim(),
+            staffName: s.staffName.trim(),
+            categoryName: s.categoryName.trim(),
+            departmentName: s.departmentName.trim(),
+            amount: Number(s.amount) || 0,
+          }))
+        : undefined;
+
+      const cleanedVendorSplits = isMultiVendorVoucher
+        ? editVendorSplits.map((s) => ({
+            ...s,
+            vendor_name: s.vendor_name.trim(),
+            category_name: s.category_name.trim(),
+            department_name: s.department_name.trim(),
+            bill_number: s.bill_number?.trim() || '',
+            description: s.description?.trim() || '',
+            amount: Number(s.amount) || 0,
+          }))
+        : undefined;
+
       const updates: any = {
-        recipient_name: isStaffVoucher
-          ? `${editStaffSplits.length} Staff (${editStaffSplits.map((s) => s.staffName.split(' ')[0]).join(', ')})`
-          : isMultiVendorVoucher
-          ? `${editVendorSplits.length} Vendors (${editVendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`
-          : editRecipient.trim(),
-        category_name: isStaffVoucher
-          ? Array.from(new Set(editStaffSplits.map((s) => s.categoryName?.trim()).filter(Boolean))).join(', ') || editCategory || 'Staff Expense'
-          : isMultiVendorVoucher
-          ? Array.from(new Set(editVendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))).join(', ') || editCategory || 'General Expense'
-          : editCategory.trim(),
-        department_name: isStaffVoucher
-          ? Array.from(new Set(editStaffSplits.map((s) => s.departmentName?.trim()).filter(Boolean))).join(', ') || editDepartment || 'Main Shop Floor'
-          : isMultiVendorVoucher
-          ? Array.from(new Set(editVendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))).join(', ') || editDepartment || 'Main Shop Floor'
-          : editDepartment ? editDepartment.trim() : null,
+        recipient_name:
+          isStaffVoucher && cleanedStaffSplits
+            ? cleanedStaffSplits.length === 1
+              ? cleanedStaffSplits[0].staffName
+              : `${cleanedStaffSplits.length} Staff (${cleanedStaffSplits.map((s) => s.staffName.split(' ')[0]).join(', ')})`
+            : isMultiVendorVoucher && cleanedVendorSplits
+            ? cleanedVendorSplits.length === 1
+              ? cleanedVendorSplits[0].vendor_name
+              : `${cleanedVendorSplits.length} Vendors (${cleanedVendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`
+            : editRecipient.trim(),
+        category_name:
+          isStaffVoucher && cleanedStaffSplits
+            ? Array.from(new Set(cleanedStaffSplits.map((s) => s.categoryName).filter(Boolean))).join(', ')
+            : isMultiVendorVoucher && cleanedVendorSplits
+            ? Array.from(new Set(cleanedVendorSplits.map((v) => v.category_name).filter(Boolean))).join(', ')
+            : editCategory.trim(),
+        department_name:
+          isStaffVoucher && cleanedStaffSplits
+            ? Array.from(new Set(cleanedStaffSplits.map((s) => s.departmentName).filter(Boolean))).join(', ')
+            : isMultiVendorVoucher && cleanedVendorSplits
+            ? Array.from(new Set(cleanedVendorSplits.map((v) => v.department_name).filter(Boolean))).join(', ')
+            : editDepartment.trim(),
         requested_by_staff_code: editStaffCode || null,
         requested_by_staff_name: editStaffName || null,
         bill_number: editBillNumber ? editBillNumber.trim() : null,
@@ -292,7 +298,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         total_amount: editAmount,
         courier_partner_name: editCourier ? editCourier.trim() : null,
         remarks: editRemarks ? editRemarks.trim() : '',
-        vendor_splits: isMultiVendorVoucher ? editVendorSplits : undefined,
+        vendor_splits: isStaffVoucher ? null : cleanedVendorSplits,
       };
 
       await erpService.updateVoucher(
@@ -301,7 +307,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim(),
         user?.role_code || 'Super_Admin',
         editReason.trim(),
-        isStaffVoucher ? editStaffSplits : undefined
+        cleanedStaffSplits
       );
 
       // Refresh staff splits view
@@ -354,14 +360,18 @@ export const VoucherDetailDrawer: React.FC = () => {
     setEditReason('');
     setEditStaffSplits(
       staffSplits.map((s: any) => ({
-        staffCode: s.staff_code || '',
-        staffName: s.staff_name || '',
-        departmentName: s.department_name || '',
-        categoryName: s.category_name || '',
+        staffCode: s.staff_code || s.staffCode || '',
+        staffName: s.staff_name || s.staffName || '',
+        departmentName: s.department_name || s.departmentName || '',
+        categoryName: s.category_name || s.categoryName || '',
         amount: Number(s.amount) || 0,
       }))
     );
-    setEditVendorSplits(v.vendor_splits && Array.isArray(v.vendor_splits) ? v.vendor_splits : []);
+    setEditVendorSplits(
+      !isStaffVoucher && v.payment_type === 'Shop_Vendor' && v.vendor_splits && Array.isArray(v.vendor_splits)
+        ? v.vendor_splits
+        : []
+    );
     setFeedback(null);
   };
 
@@ -450,29 +460,6 @@ export const VoucherDetailDrawer: React.FC = () => {
   );
 
   const handleStartEdit = () => {
-    if (isStaffVoucher && editStaffSplits.length === 0) {
-      const parsed = parseLegacyStaffSplits(v, staff);
-      if (parsed.length > 0) {
-        setEditStaffSplits(parsed);
-        setEditAmount(parsed.reduce((sum, s) => sum + (Number(s.amount) || 0), 0));
-      } else {
-        setEditStaffSplits([
-          {
-            staffCode: v.requested_by_staff_code || '',
-            staffName: v.requested_by_staff_name || v.recipient_name || '',
-            departmentName: v.department_name || 'Store Operations',
-            categoryName: v.category_name || 'Staff Welfare & Food',
-            amount: Number(v.total_amount) || 0,
-          },
-        ]);
-      }
-    } else if (isMultiVendorVoucher && editVendorSplits.length === 0) {
-      const parsed = parseLegacyVendorSplits(v);
-      if (parsed.length > 0) {
-        setEditVendorSplits(parsed);
-        setEditAmount(parsed.reduce((sum, s) => sum + (Number(s.amount) || 0), 0));
-      }
-    }
     setIsEditing(true);
   };
 
@@ -708,14 +695,14 @@ export const VoucherDetailDrawer: React.FC = () => {
                         label: c.category_name,
                       }))}
                       placeholder="Select category..."
-                      allowCustom={true}
+                      allowCustom={false}
                       clearable={true}
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
-                      Department
+                      Department *
                     </label>
                     <SearchableSelect
                       value={editDepartment}
@@ -725,7 +712,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                         label: d.department_name,
                       }))}
                       placeholder="Select department..."
-                      allowCustom={true}
+                      allowCustom={false}
                       clearable={true}
                     />
                   </div>
@@ -745,8 +732,8 @@ export const VoucherDetailDrawer: React.FC = () => {
                           setEditStaffCode(foundStaff.staff_code);
                           setEditStaffName(`${foundStaff.first_name} ${foundStaff.last_name}`.trim());
                         } else {
-                          setEditStaffCode(val);
-                          setEditStaffName(val);
+                          setEditStaffCode('');
+                          setEditStaffName('');
                         }
                       }}
                       options={staff.map((s) => ({
@@ -755,7 +742,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                         subLabel: `${s.staff_code} • ${s.department_name || s.designation || 'Staff'}`,
                       }))}
                       placeholder="Select staff (or leave blank)..."
-                      allowCustom={true}
+                      allowCustom={false}
                       clearable={true}
                     />
                   </div>
@@ -953,7 +940,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                   Department
                 </span>
                 <span className="text-xs font-medium text-slate-900 dark:text-white block font-sans">
-                  {v.department_name || 'Main Shop Floor'}
+                  {v.department_name || '—'}
                 </span>
               </div>
             </div>
@@ -979,7 +966,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                       {v.requested_by_staff_name} {v.requested_by_staff_code && `(${v.requested_by_staff_code})`}
                     </span>
                   ) : (
-                    'Central Counter'
+                    '—'
                   )}
                 </span>
               </div>
@@ -989,20 +976,20 @@ export const VoucherDetailDrawer: React.FC = () => {
                   Recorded By
                 </span>
                 <span className="text-xs text-slate-900 dark:text-white block">
-                  {v.created_by_name || 'Cashier'}
+                  {v.created_by_name || '—'}
                 </span>
               </div>
             </div>
 
             {/* Multi-Vendor Line Items Breakdown if present */}
-            {v.vendor_splits && v.vendor_splits.length > 0 && (
+            {!isStaffVoucher && v.payment_type === 'Shop_Vendor' && v.vendor_splits && v.vendor_splits.length > 0 && (
               <div className="p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
                     Vendor Bills ({v.vendor_splits.length})
                   </span>
                   <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e]">
-                    Total: ₹{formatINR(v.total_amount)}
+                    Total: {formatINR(v.total_amount)}
                   </span>
                 </div>
                 <div className="overflow-x-auto">
@@ -1014,7 +1001,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                         <th className="py-1.5 px-2">Category</th>
                         <th className="py-1.5 px-2">Dept</th>
                         <th className="py-1.5 px-2">Bill / Details</th>
-                        <th className="py-1.5 px-2 text-right">Amount (₹)</th>
+                        <th className="py-1.5 px-2 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#222]">
@@ -1025,7 +1012,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                           <td className="py-1.5 px-2 text-slate-600 dark:text-zinc-300">{vs.category_name}</td>
                           <td className="py-1.5 px-2 text-slate-500 dark:text-zinc-400">{vs.department_name || '-'}</td>
                           <td className="py-1.5 px-2 font-mono text-[11px] text-slate-500">{vs.bill_number || vs.description || '-'}</td>
-                          <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">₹{formatINR(vs.amount)}</td>
+                          <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">{formatINR(vs.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1034,15 +1021,23 @@ export const VoucherDetailDrawer: React.FC = () => {
               </div>
             )}
 
+            {/* Loading Indicator while fetching splits from Supabase */}
+            {isStaffVoucher && loadingSplits && (
+              <div className="p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] flex items-center gap-2.5 text-slate-500 dark:text-zinc-400 text-xs shadow-xs animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin text-[#3ecf8e]" />
+                <span className="font-mono text-[11px]">Loading staff allocations from database...</span>
+              </div>
+            )}
+
             {/* Staff / Multi-Employee Allocations Breakdown if present */}
-            {staffSplits && staffSplits.length > 0 && (
+            {!loadingSplits && staffSplits && staffSplits.length > 0 && (
               <div className="p-3.5 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-2.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
                     Staff Allocations ({staffSplits.length})
                   </span>
                   <span className="text-xs font-mono font-medium text-emerald-600 dark:text-[#3ecf8e]">
-                    Total: ₹{formatINR(v.total_amount)}
+                    Total: {formatINR(v.total_amount)}
                   </span>
                 </div>
                 <div className="overflow-x-auto">
@@ -1053,7 +1048,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                         <th className="py-1.5 px-2">Staff Member</th>
                         <th className="py-1.5 px-2">Department</th>
                         <th className="py-1.5 px-2">Category</th>
-                        <th className="py-1.5 px-2 text-right">Amount (₹)</th>
+                        <th className="py-1.5 px-2 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#222]">
@@ -1065,7 +1060,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                           </td>
                           <td className="py-1.5 px-2 text-slate-500 dark:text-zinc-400">{s.department_name || '-'}</td>
                           <td className="py-1.5 px-2 text-emerald-600 dark:text-[#3ecf8e] font-medium">{s.category_name || '-'}</td>
-                          <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">₹{formatINR(s.amount)}</td>
+                          <td className="py-1.5 px-2 text-right font-mono font-semibold text-slate-900 dark:text-white">{formatINR(s.amount)}</td>
                         </tr>
                       ))}
                     </tbody>

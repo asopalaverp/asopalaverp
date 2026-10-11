@@ -53,9 +53,14 @@ export const AllExpensesPage: React.FC = () => {
     });
   }, [vouchers, dateFilter, selectedMode]);
 
-  // Totals calculations (active valid vouchers only)
+  // Totals calculations (approved real wallet outflows only — excludes Voided, Pending_Approval, and non-cash Advance_Settlement)
   const activeValidVouchers = useMemo(() => {
-    return filteredByDateVouchers.filter((v) => v.status !== 'Voided');
+    return filteredByDateVouchers.filter(
+      (v) =>
+        v.status !== 'Voided' &&
+        v.status !== 'Pending_Approval' &&
+        v.payment_type !== 'Advance_Settlement'
+    );
   }, [filteredByDateVouchers]);
 
   const totalAmount = useMemo(() => {
@@ -77,9 +82,19 @@ export const AllExpensesPage: React.FC = () => {
   const cashPercent = totalAmount > 0 ? Math.round((cashAmount / totalAmount) * 100) : 0;
   const upiPercent = totalAmount > 0 ? Math.round((upiAmount / totalAmount) * 100) : 0;
 
-  const handleExportTally = () => {
+  const handleExportTally = async () => {
     try {
-      const csvDataUri = erpService.generateTallyExportCSV(filteredByDateVouchers);
+      const splitsMap: Record<string, any[]> = {};
+      const staffSplitVouchers = filteredByDateVouchers.filter((v) => v.payment_type === 'Staff_Split');
+      await Promise.all(
+        staffSplitVouchers.map(async (v) => {
+          const rows = await erpService.getVoucherSplits(v.voucher_number);
+          if (rows && rows.length > 0) {
+            splitsMap[v.voucher_number] = rows;
+          }
+        })
+      );
+      const csvDataUri = erpService.generateTallyExportCSV(filteredByDateVouchers, splitsMap);
       const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,/, '');
       const blob = new Blob([cleanCsv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -127,7 +142,7 @@ export const AllExpensesPage: React.FC = () => {
                 <span>All Expenses</span>
               </h1>
               <span className="px-2 py-0.5 rounded-[4px] text-[10px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
-                {filteredByDateVouchers.length} bills
+                {activeValidVouchers.length} bills
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#8E8E93] mt-0.5">
@@ -219,7 +234,7 @@ export const AllExpensesPage: React.FC = () => {
                 <span className="hidden sm:inline">{formatINR(totalAmount)}</span>
               </>
             }
-            subValue={`${filteredByDateVouchers.length} bills recorded`}
+            subValue={`${activeValidVouchers.length} bills recorded`}
             statusDotColor="#3ecf8e"
             icon={Receipt}
           />

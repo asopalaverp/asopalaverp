@@ -23,6 +23,7 @@ import {
   AppRole,
   RolePermissions,
   StaffMember,
+  Department,
 } from '@/types/database';
 
 export const isPrivilegedAdminRole = (role?: string | null): boolean => {
@@ -199,13 +200,11 @@ class ERPService {
       lock_reason: lock ? reason || 'Monthly Accounts Finalized & Audited' : null,
     };
 
-    try {
-      const { error } = await supabase
-        .from('accounting_periods')
-        .upsert([updateData], { onConflict: 'period_key' });
-      if (error) throw error;
-    } catch (e: any) {
-      console.warn('Accounting period upsert fallback to local storage:', e);
+    const { error } = await supabase
+      .from('accounting_periods')
+      .upsert([updateData], { onConflict: 'period_key' });
+    if (error) {
+      throw new Error(`Failed to update accounting period lock in Supabase: ${error.message}`);
     }
 
     // Update local cache immediately
@@ -436,7 +435,6 @@ class ERPService {
                 normalizeBranchId(l.branch_id) === canonicalId
             );
             if (filtered.length > 0) return sanitizeAndDeduplicateLedger(filtered);
-            return sanitizeAndDeduplicateLedger(parsed); // fallback
           }
         } catch {
           // Ignore
@@ -520,14 +518,15 @@ class ERPService {
     localStorage.setItem(`asopalav_ledger_${branchId}`, JSON.stringify(updated.slice(0, 200)));
 
     // Remove from Supabase
-    try {
-      if (target?.id) {
-        await supabase.from('wallet_ledger').delete().eq('id', target.id);
-      } else if (target?.reference_number) {
-        await supabase.from('wallet_ledger').delete().eq('reference_number', target.reference_number);
-      }
-    } catch (e) {
-      console.warn('Ledger delete fallback:', e);
+    if (target?.id) {
+      const { error } = await supabase.from('wallet_ledger').delete().eq('id', target.id);
+      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
+    } else if (target?.reference_number) {
+      const { error } = await supabase.from('wallet_ledger').delete().eq('reference_number', target.reference_number);
+      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
+    } else {
+      const { error } = await supabase.from('wallet_ledger').delete().or(`id.eq.${entryId},reference_number.eq.${entryId}`);
+      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
     }
 
     // Audit Log
@@ -919,7 +918,8 @@ class ERPService {
   }
 
   /**
-   * Universal Split Extractor: Parses staff splits, vendor splits, and legacy recipient strings into itemized lines
+   * Extracts ONLY real saved splits (staff splits from DB or vendor splits JSON).
+   * Never guesses names, divides amounts, or fabricates categories/departments from recipient strings.
    */
   extractAllSplitsFromVoucher(
     voucher: ExpenseVoucher,
@@ -935,111 +935,53 @@ class ERPService {
     isStaff: boolean;
   }> {
     if (!voucher) return [];
-    const totalAmount = Number(voucher.total_amount) || 0;
-    const staffList = this.getStaffMembersSync();
 
-    // 1. Direct splitsMap override
+    // 1. Direct splitsMap from voucher_splits database table
     const mapped = customSplitsMap?.[voucher.voucher_number];
     if (Array.isArray(mapped) && mapped.length > 0) {
-      return mapped.map((s: any) => {
-        const rawName = s.staff_name || s.staffName || s.vendor_name || s.vendorName || voucher.recipient_name || '';
-        const matched = staffList.find(
-          (st) =>
-            (s.staff_code && st.staff_code?.toLowerCase() === s.staff_code.toLowerCase()) ||
-            (s.staffCode && st.staff_code?.toLowerCase() === s.staffCode.toLowerCase()) ||
-            (rawName && `${st.first_name} ${st.last_name}`.toLowerCase().includes(rawName.toLowerCase())) ||
-            (rawName && st.first_name && rawName.toLowerCase().includes(st.first_name.toLowerCase()))
-        );
-        return {
-          staffName: s.staff_name || s.staffName || (matched ? `${matched.first_name} ${matched.last_name}`.trim() : rawName),
-          staffCode: s.staff_code || s.staffCode || matched?.staff_code || '',
-          departmentName: s.department_name || s.departmentName || matched?.department_name || voucher.department_name || 'Store Operations',
-          categoryName: s.category_name || s.categoryName || voucher.category_name || 'General Expense',
-          amount: Number(s.amount) || 0,
-          billNumber: s.bill_number || s.billNumber || voucher.bill_number || '',
-          description: s.description || s.remarks || voucher.remarks || '',
-          isStaff: Boolean(s.staff_code || s.staffCode || s.staff_name || s.staffName),
-        };
-      });
+      return mapped.map((s: any) => ({
+        staffName: s.staff_name || s.staffName || s.vendor_name || s.vendorName || '',
+        staffCode: s.staff_code || s.staffCode || '',
+        departmentName: s.department_name || s.departmentName || voucher.department_name || '',
+        categoryName: s.category_name || s.categoryName || voucher.category_name || '',
+        amount: Number(s.amount) || 0,
+        billNumber: s.bill_number || s.billNumber || voucher.bill_number || '',
+        description: s.description || s.remarks || voucher.remarks || '',
+        isStaff: Boolean(s.staff_code || s.staffCode || s.staff_name || s.staffName),
+      }));
     }
 
-    // 2. voucher.staff_splits (stored as JSON array)
+    // 2. voucher.staff_splits (if explicitly stored as JSON array)
     const staffSplits = (voucher as any).staff_splits;
     if (Array.isArray(staffSplits) && staffSplits.length > 0) {
-      return staffSplits.map((s: any) => {
-        const rawName = s.staffName || s.staff_name || '';
-        const matched = staffList.find(
-          (st) =>
-            (s.staffCode && st.staff_code?.toLowerCase() === s.staffCode.toLowerCase()) ||
-            (s.staff_code && st.staff_code?.toLowerCase() === s.staff_code.toLowerCase()) ||
-            (rawName && `${st.first_name} ${st.last_name}`.toLowerCase().includes(rawName.toLowerCase())) ||
-            (rawName && st.first_name && rawName.toLowerCase().includes(st.first_name.toLowerCase()))
-        );
-        return {
-          staffName: rawName || (matched ? `${matched.first_name} ${matched.last_name}`.trim() : 'Staff Member'),
-          staffCode: s.staffCode || s.staff_code || matched?.staff_code || '',
-          departmentName: s.departmentName || s.department_name || matched?.department_name || voucher.department_name || 'Store Operations',
-          categoryName: s.categoryName || s.category_name || voucher.category_name || 'Staff Welfare & Food',
-          amount: Number(s.amount) || 0,
-          billNumber: s.billNumber || s.bill_number || voucher.bill_number || '',
-          description: s.description || voucher.remarks || '',
-          isStaff: true,
-        };
-      });
+      return staffSplits.map((s: any) => ({
+        staffName: s.staffName || s.staff_name || '',
+        staffCode: s.staffCode || s.staff_code || '',
+        departmentName: s.departmentName || s.department_name || voucher.department_name || '',
+        categoryName: s.categoryName || s.category_name || voucher.category_name || '',
+        amount: Number(s.amount) || 0,
+        billNumber: s.billNumber || s.bill_number || voucher.bill_number || '',
+        description: s.description || voucher.remarks || '',
+        isStaff: true,
+      }));
     }
 
-    // 3. voucher.vendor_splits
-    if (Array.isArray(voucher.vendor_splits) && voucher.vendor_splits.length > 0) {
+    // 3. voucher.vendor_splits (explicitly stored multi-vendor array on Shop_Vendor vouchers)
+    if (
+      voucher.payment_type !== 'Staff_Split' &&
+      Array.isArray(voucher.vendor_splits) &&
+      voucher.vendor_splits.length > 0
+    ) {
       return voucher.vendor_splits.map((s: any) => ({
-        staffName: s.vendor_name || s.vendorName || s.staff_name || voucher.recipient_name || '',
+        staffName: s.vendor_name || s.vendorName || s.staff_name || '',
         staffCode: s.staff_code || s.staffCode || '',
-        departmentName: s.department_name || s.departmentName || voucher.department_name || 'Store Operations',
-        categoryName: s.category_name || s.categoryName || voucher.category_name || 'General Expense',
+        departmentName: s.department_name || s.departmentName || voucher.department_name || '',
+        categoryName: s.category_name || s.categoryName || voucher.category_name || '',
         amount: Number(s.amount) || 0,
         billNumber: s.bill_number || s.billNumber || voucher.bill_number || '',
         description: s.description || s.remarks || voucher.remarks || '',
         isStaff: Boolean(s.staff_code || s.staffCode),
       }));
-    }
-
-    // 4. Legacy format parsing from recipient_name: e.g. "11 Staff (Hitesh, Parimal, Jignesh, Jignesh, Chintan, ...)"
-    const recipient = voucher.recipient_name || '';
-    let names: string[] = [];
-    const parenMatch = recipient.match(/\(([^)]+)\)/);
-    if (parenMatch && parenMatch[1]) {
-      names = parenMatch[1].split(',').map((n: string) => n.trim()).filter(Boolean);
-    } else if ((voucher.payment_type as any) === 'Staff_Split' || (voucher.payment_type as any) === 'Split') {
-      if (voucher.remarks && (voucher.remarks.includes('/') || voucher.remarks.includes(','))) {
-        const delimiter = voucher.remarks.includes('/') ? '/' : ',';
-        const rawParts = voucher.remarks.split(delimiter).map((n: string) => n.trim()).filter(Boolean);
-        if (rawParts.length >= 2) names = rawParts;
-      }
-    }
-
-    if (names.length > 0) {
-      const perPerson = Math.floor(totalAmount / names.length);
-      const remainder = totalAmount - perPerson * names.length;
-
-      return names.map((rawName: string, idx: number) => {
-        const cleanName = rawName.replace(/^staff\s*[:-]?\s*/i, '').trim();
-        const matched = staffList.find(
-          (s: any) =>
-            (s.staff_code && s.staff_code.toLowerCase() === cleanName.toLowerCase()) ||
-            `${s.first_name} ${s.last_name}`.toLowerCase().includes(cleanName.toLowerCase()) ||
-            cleanName.toLowerCase().includes(s.first_name?.toLowerCase() || '___')
-        );
-
-        return {
-          staffName: matched ? `${matched.first_name} ${matched.last_name}`.trim() : cleanName,
-          staffCode: matched ? matched.staff_code : '',
-          departmentName: matched?.department_name || voucher.department_name || 'Store Operations',
-          categoryName: voucher.category_name || 'Staff Welfare & Refreshment',
-          amount: idx === 0 ? perPerson + remainder : perPerson,
-          billNumber: voucher.bill_number || '',
-          description: voucher.remarks || '',
-          isStaff: true,
-        };
-      });
     }
 
     return [];
@@ -1121,7 +1063,7 @@ class ERPService {
         Number(v.total_amount) || 0,
         `"${sanitize(v.recipient_name)}"`,
         `"${sanitize(v.category_name)}"`,
-        `"${sanitize(v.department_name || 'Main Shop Floor')}"`,
+        `"${sanitize(v.department_name || '')}"`,
         `"${sanitize(v.department_code || '')}"`,
         `"${sanitize(v.bill_number || '')}"`,
         `"${sanitize(v.courier_partner_name || (v as any).courier_company || '')}"`,
@@ -1226,7 +1168,7 @@ class ERPService {
           `"${sanitize(v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI')}"`,
           `"${sanitize(v.recipient_name)}"`,
           `"${sanitize(v.requested_by_staff_code || '')}"`,
-          `"${sanitize(v.department_name || 'Main Shop Floor')}"`,
+          `"${sanitize(v.department_name || '')}"`,
           `"${sanitize(v.category_name)}"`,
           Number(v.total_amount) || 0,
           Number(v.total_amount) || 0,
@@ -1272,6 +1214,7 @@ class ERPService {
 
     const mapCategoryToDebitLedger = (category: string) => {
       const cat = (category || '').trim().toLowerCase();
+      if (cat.includes('advance') || cat.includes('imprest')) return 'Staff Imprest & Advance A/c';
       if (cat.includes('incentive') || cat.includes('commission') || cat.includes('target')) return 'Sales Incentive & Commission A/c';
       if (cat.includes('stationery') || cat.includes('printing') || cat.includes('paper')) return 'Printing & Stationery A/c';
       if (cat.includes('food') || cat.includes('welfare') || cat.includes('tea') || cat.includes('refreshment') || cat.includes('snacks')) return 'Staff Welfare & Refreshment A/c';
@@ -1280,9 +1223,8 @@ class ERPService {
       if (cat.includes('electricity') || cat.includes('power') || cat.includes('utility') || cat.includes('water')) return 'Electricity & Utility Expenses A/c';
       if (cat.includes('travel') || cat.includes('conveyance') || cat.includes('fuel') || cat.includes('petrol') || cat.includes('auto')) return 'Conveyance & Travel Expenses A/c';
       if (cat.includes('housekeeping') || cat.includes('cleaning') || cat.includes('pantry') || cat.includes('sanitation')) return 'Housekeeping & Cleaning A/c';
-      if (cat.includes('marketing') || cat.includes('ad') || cat.includes('branding') || cat.includes('promotion')) return 'Advertisement & Publicity A/c';
-      if (cat.includes('advance') || cat.includes('imprest')) return 'Staff Imprest & Advance A/c';
-      return `${category || 'General Expense'} A/c`;
+      if (cat.includes('marketing') || cat.includes('advertisement') || /\bad\b/.test(cat) || cat.includes('branding') || cat.includes('promotion')) return 'Advertisement & Publicity A/c';
+      return `${category || 'Expense'} A/c`;
     };
 
     const mapPaymentToCreditLedger = (method: string, branchCode: string) => {
@@ -1335,7 +1277,7 @@ class ERPService {
           const splitDebitLedger = mapCategoryToDebitLedger(splitCategory);
           const splitPayee = s.staffName || v.recipient_name;
           const splitCode = s.staffCode || '';
-          const splitDept = s.departmentName || v.department_name || 'Store Operations';
+          const splitDept = s.departmentName || v.department_name || '';
           const splitBillRef = s.billNumber || v.bill_number || '';
           const splitAmt = Number(s.amount) || 0;
           const splitNarration = sanitizeCsvCell(
@@ -1364,7 +1306,7 @@ class ERPService {
         const debitLedger = mapCategoryToDebitLedger(v.category_name);
         const payee = sanitizeCsvCell(v.recipient_name || '');
         const staffCode = sanitizeCsvCell(v.requested_by_staff_code || '');
-        const deptName = sanitizeCsvCell(v.department_name || 'Main Shop Floor');
+        const deptName = sanitizeCsvCell(v.department_name || '');
         const billRef = sanitizeCsvCell(v.bill_number || '');
         const rawRemarks = v.remarks ? ` - ${v.remarks}` : '';
         const billInfo = v.bill_number ? ` (Bill Ref: ${v.bill_number})` : '';
@@ -1648,15 +1590,7 @@ class ERPService {
     const isHighValue = voucher.total_amount > 10000;
     const requiresSuperAdminApproval = voucher.total_amount > 50000;
 
-    // 2. Prepare Database Voucher Record (Ensuring category existence and schema compliance)
-    try {
-      await supabase.from('expense_categories').upsert([
-        { category_name: voucher.category_name, color_theme: 'Vanilla', is_active: true }
-      ]);
-    } catch (e) {
-      console.warn('Category ensure fallback:', e);
-    }
-
+    // 2. Prepare Database Voucher Record
     const voucherDbRecord = {
       id: crypto.randomUUID(),
       voucher_number: voucher.voucher_number,
@@ -1731,13 +1665,6 @@ class ERPService {
       await this.insertExpenseVoucherRecord(voucherDbRecord);
 
       if (splits && splits.length > 0) {
-        for (const s of splits) {
-          if (s.categoryName) {
-            await supabase.from('expense_categories').upsert([
-              { category_name: s.categoryName, color_theme: 'Vanilla', is_active: true }
-            ]);
-          }
-        }
         const splitRecords = splits.map((s) => ({
           id: crypto.randomUUID(),
           voucher_number: voucher.voucher_number,
@@ -1841,13 +1768,6 @@ class ERPService {
 
     // 8. Insert Multi-Staff Splits if applicable
     if (splits && splits.length > 0) {
-      for (const s of splits) {
-        if (s.categoryName) {
-          await supabase.from('expense_categories').upsert([
-            { category_name: s.categoryName, color_theme: 'Vanilla', is_active: true }
-          ]);
-        }
-      }
       const splitRecords = splits.map((s) => ({
         id: crypto.randomUUID(),
         voucher_number: voucher.voucher_number,
@@ -1902,7 +1822,15 @@ class ERPService {
     return fullVoucher;
   }
 
-  async getVoucherSplits(voucherNumber: string): Promise<VoucherSplit[]> {
+  private voucherSplitsCache: Map<string, { splits: VoucherSplit[]; fetchedAt: number }> = new Map();
+
+  async getVoucherSplits(voucherNumber: string, forceRefresh: boolean = false): Promise<VoucherSplit[]> {
+    if (!forceRefresh) {
+      const cached = this.voucherSplitsCache.get(voucherNumber);
+      if (cached && Date.now() - cached.fetchedAt < 300000) { // 5 minutes cache
+        return cached.splits;
+      }
+    }
     try {
       const { data, error } = await supabase
         .from('voucher_splits')
@@ -1910,12 +1838,22 @@ class ERPService {
         .eq('voucher_number', voucherNumber)
         .order('created_at', { ascending: true });
       if (!error && data) {
-        return data as VoucherSplit[];
+        const splits = data as VoucherSplit[];
+        this.voucherSplitsCache.set(voucherNumber, { splits, fetchedAt: Date.now() });
+        return splits;
       }
     } catch (e) {
       console.warn('Voucher splits fetch error:', e);
     }
-    return [];
+    return this.voucherSplitsCache.get(voucherNumber)?.splits || [];
+  }
+
+  invalidateVoucherSplits(voucherNumber?: string) {
+    if (voucherNumber) {
+      this.voucherSplitsCache.delete(voucherNumber);
+    } else {
+      this.voucherSplitsCache.clear();
+    }
   }
 
   async approveVoucher(
@@ -2147,14 +2085,6 @@ class ERPService {
     // 5. Insert All Individual Voucher Records
     const createdVouchers: ExpenseVoucher[] = [];
     for (const item of items) {
-      try {
-        await supabase.from('expense_categories').upsert([
-          { category_name: item.category_name, color_theme: 'Vanilla', is_active: true }
-        ]);
-      } catch (e) {
-        // Ignore category upsert errors
-      }
-
       const vRecord: ExpenseVoucher = {
         id: crypto.randomUUID(),
         voucher_number: item.voucher_number,
@@ -2314,6 +2244,7 @@ class ERPService {
     reason: string,
     splits?: { staffCode: string; staffName: string; departmentName?: string; categoryName?: string; amount: number }[]
   ) {
+    this.invalidateVoucherSplits(voucherNumber);
     const isPrivileged = isPrivilegedAdminRole(userRole);
     const ALLOWED_UPDATE_FIELDS: (keyof ExpenseVoucher)[] = [
       'payment_date',
@@ -2385,48 +2316,77 @@ class ERPService {
       const splitTotal = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
 
       sanitizedUpdates.total_amount = splitTotal;
-      sanitizedUpdates.category_name = uniqueCategories.length === 1 ? uniqueCategories[0] : uniqueCategories.length > 1 ? uniqueCategories.join(', ') : 'Staff Expense';
-      sanitizedUpdates.department_name = uniqueDepartments.length === 1 ? uniqueDepartments[0] : uniqueDepartments.length > 1 ? uniqueDepartments.join(', ') : 'Main Shop Floor';
-      sanitizedUpdates.recipient_name = `${splits.length} Staff (${splits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
+      sanitizedUpdates.category_name =
+        uniqueCategories.length === 1
+          ? uniqueCategories[0]
+          : uniqueCategories.length > 1
+          ? uniqueCategories.join(', ')
+          : (sanitizedUpdates.category_name || existingVoucher?.category_name || '');
+      sanitizedUpdates.department_name =
+        uniqueDepartments.length === 1
+          ? uniqueDepartments[0]
+          : uniqueDepartments.length > 1
+          ? uniqueDepartments.join(', ')
+          : (sanitizedUpdates.department_name || existingVoucher?.department_name || '');
+      sanitizedUpdates.recipient_name =
+        splits.length === 1
+          ? splits[0].staffName
+          : `${splits.length} Staff (${splits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
 
-      try {
-        await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
-        for (const s of splits) {
-          if (s.categoryName) {
-            await supabase.from('expense_categories').upsert([
-              { category_name: s.categoryName, color_theme: 'Vanilla', is_active: true }
-            ]);
-          }
-        }
-        const splitRecords = splits.map((s) => ({
-          id: crypto.randomUUID(),
-          voucher_number: voucherNumber,
-          branch_id: existingVoucher?.branch_id || 'Aellp-ASI',
-          branch_code: existingVoucher?.branch_code || 'ASI',
-          staff_code: s.staffCode,
-          staff_name: s.staffName,
-          department_name: s.departmentName || null,
-          category_name: s.categoryName || null,
-          amount: s.amount,
-          created_at: new Date().toISOString(),
-        }));
-        await supabase.from('voucher_splits').insert(splitRecords);
-      } catch (e) {
-        console.warn('Update voucher_splits DB fallback:', e);
+      const { error: delSplitErr } = await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
+      if (delSplitErr) {
+        throw new Error(`Failed to update voucher splits in Supabase: ${delSplitErr.message}`);
+      }
+      const splitRecords = splits.map((s) => ({
+        id: crypto.randomUUID(),
+        voucher_number: voucherNumber,
+        branch_id: existingVoucher?.branch_id || 'Aellp-ASI',
+        branch_code: existingVoucher?.branch_code || 'ASI',
+        staff_code: s.staffCode,
+        staff_name: s.staffName,
+        department_name: s.departmentName?.trim() || null,
+        category_name: s.categoryName?.trim() || null,
+        amount: s.amount,
+        created_at: new Date().toISOString(),
+      }));
+      const { error: insSplitErr } = await supabase.from('voucher_splits').insert(splitRecords);
+      if (insSplitErr) {
+        throw new Error(`Failed to save updated voucher splits in Supabase: ${insSplitErr.message}`);
+      }
+    } else if (Array.isArray(splits) && splits.length === 0) {
+      const { error: clrSplitErr } = await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
+      if (clrSplitErr) {
+        throw new Error(`Failed to clear voucher splits in Supabase: ${clrSplitErr.message}`);
       }
     }
 
-    // 1C. Handle Multi-Vendor Splits Update
-    if (sanitizedUpdates.vendor_splits && Array.isArray(sanitizedUpdates.vendor_splits) && sanitizedUpdates.vendor_splits.length > 0) {
+    // 1C. Handle Multi-Vendor Splits Update (only for non-Staff_Split vouchers)
+    const effectivePaymentType = sanitizedUpdates.payment_type || existingVoucher?.payment_type;
+    if (effectivePaymentType === 'Staff_Split') {
+      sanitizedUpdates.vendor_splits = null;
+    } else if (sanitizedUpdates.vendor_splits && Array.isArray(sanitizedUpdates.vendor_splits) && sanitizedUpdates.vendor_splits.length > 0) {
       const vSplits = sanitizedUpdates.vendor_splits;
       const uniqueCategories = Array.from(new Set(vSplits.map((v: any) => v.category_name?.trim()).filter(Boolean)));
       const uniqueDepartments = Array.from(new Set(vSplits.map((v: any) => v.department_name?.trim()).filter(Boolean)));
       const vendorTotal = vSplits.reduce((sum: number, v: any) => sum + (Number(v.amount) || 0), 0);
 
       sanitizedUpdates.total_amount = vendorTotal;
-      sanitizedUpdates.category_name = uniqueCategories.length === 1 ? uniqueCategories[0] : uniqueCategories.length > 1 ? uniqueCategories.join(', ') : 'General Expense';
-      sanitizedUpdates.department_name = uniqueDepartments.length === 1 ? uniqueDepartments[0] : uniqueDepartments.length > 1 ? uniqueDepartments.join(', ') : 'Main Shop Floor';
-      sanitizedUpdates.recipient_name = `${vSplits.length} Vendors (${vSplits.map((v: any) => v.vendor_name.split(' ')[0]).join(', ')})`;
+      sanitizedUpdates.category_name =
+        uniqueCategories.length === 1
+          ? uniqueCategories[0]
+          : uniqueCategories.length > 1
+          ? uniqueCategories.join(', ')
+          : (sanitizedUpdates.category_name || existingVoucher?.category_name || '');
+      sanitizedUpdates.department_name =
+        uniqueDepartments.length === 1
+          ? uniqueDepartments[0]
+          : uniqueDepartments.length > 1
+          ? uniqueDepartments.join(', ')
+          : (sanitizedUpdates.department_name || existingVoucher?.department_name || '');
+      sanitizedUpdates.recipient_name =
+        vSplits.length === 1
+          ? vSplits[0].vendor_name
+          : `${vSplits.length} Vendors (${vSplits.map((v: any) => v.vendor_name.split(' ')[0]).join(', ')})`;
     }
 
     if (Object.keys(sanitizedUpdates).length === 0) {
@@ -2434,27 +2394,32 @@ class ERPService {
     }
 
     // 2. Update Voucher in Database
-    try {
-      const { error } = await supabase
-        .from('expense_vouchers')
-        .update(sanitizedUpdates)
-        .eq('voucher_number', voucherNumber);
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Update voucher DB fallback to offline queue:', e);
-      useOfflineQueue.getState().enqueueMutation({
-        type: 'update_voucher',
-        table: 'expense_vouchers',
-        action: 'update',
-        payload: sanitizedUpdates,
-        matchField: 'voucher_number',
-        matchValue: voucherNumber,
-        description: `Update voucher ${voucherNumber}`,
-      });
+    const { error: voucherUpdateErr } = await supabase
+      .from('expense_vouchers')
+      .update(sanitizedUpdates)
+      .eq('voucher_number', voucherNumber);
+    if (voucherUpdateErr) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        useOfflineQueue.getState().enqueueMutation({
+          type: 'update_voucher',
+          table: 'expense_vouchers',
+          action: 'update',
+          payload: sanitizedUpdates,
+          matchField: 'voucher_number',
+          matchValue: voucherNumber,
+          description: `Update voucher ${voucherNumber}`,
+        });
+      } else {
+        throw new Error(`Failed to update voucher in Supabase: ${voucherUpdateErr.message}`);
+      }
     }
 
-    // 3. Double-Entry Ledger & Wallet Balance Reconciliation
-    if (existingVoucher) {
+    // 3. Double-Entry Ledger & Wallet Balance Reconciliation (only for Approved, wallet-impacting vouchers)
+    if (
+      existingVoucher &&
+      (existingVoucher.status === 'Approved' || !existingVoucher.status) &&
+      existingVoucher.payment_type !== 'Advance_Settlement'
+    ) {
       const oldPaymentMethod = existingVoucher.payment_method || 'Physical_Cash';
       const newPaymentMethod = (sanitizedUpdates.payment_method || oldPaymentMethod) as 'Physical_Cash' | 'Online_UPI';
       const oldWalletType: 'Cash' | 'UPI' = oldPaymentMethod === 'Physical_Cash' ? 'Cash' : 'UPI';
@@ -2472,18 +2437,16 @@ class ERPService {
 
       if (isPaymentMethodChanged || isAmountChanged || sanitizedUpdates.category_name || sanitizedUpdates.recipient_name || sanitizedUpdates.remarks !== undefined) {
         // A. Update Supabase wallet_ledger record
-        try {
-          const { error: ledgerUpdateError } = await supabase
-            .from('wallet_ledger')
-            .update({
-              wallet_type: newWalletType,
-              debit_amount: newAmount,
-              remarks: formattedRemarks,
-            })
-            .eq('reference_number', voucherNumber);
-          if (ledgerUpdateError) console.warn('Supabase ledger update error:', ledgerUpdateError);
-        } catch (e) {
-          console.warn('Ledger update DB error:', e);
+        const { error: ledgerUpdateError } = await supabase
+          .from('wallet_ledger')
+          .update({
+            wallet_type: newWalletType,
+            debit_amount: newAmount,
+            remarks: formattedRemarks,
+          })
+          .eq('reference_number', voucherNumber);
+        if (ledgerUpdateError) {
+          console.warn('Supabase ledger update warning:', ledgerUpdateError);
         }
 
         // B. Update localStorage ledger caches
@@ -2566,6 +2529,7 @@ class ERPService {
     userRole: string,
     reason: string
   ) {
+    this.invalidateVoucherSplits(voucher.voucher_number);
     // 1. If previously approved, refund wallet (Pending_Approval vouchers never deducted funds)
     if (voucher.status === 'Approved') {
       const currentWallet = await this.getBranchWallet(voucher.branch_id);
@@ -2756,24 +2720,6 @@ class ERPService {
 
     const dropNumber = `SD-${Date.now().toString().slice(-6)}`;
 
-    try {
-      await supabase.from('safe_drops').insert([
-        {
-          drop_number: dropNumber,
-          branch_id: params.branchId,
-          branch_code: params.branchCode,
-          amount: params.amount,
-          dropped_by_name: params.transferredByName,
-          witnessed_by_name: params.verifiedByName || null,
-          status: 'In_Safe',
-          remarks: params.reason || 'Safe Drop: Transferred excess cash from till to showroom vault',
-          created_at: new Date().toISOString(),
-        },
-      ]);
-    } catch (e) {
-      console.warn('Safe drops table insert fallback:', e);
-    }
-
     await this.appendLedgerEntry({
       branch_id: params.branchId,
       branch_code: params.branchCode,
@@ -2851,7 +2797,6 @@ class ERPService {
                 normalizeBranchId(a.branch_id) === canonicalId
             );
             if (filtered.length > 0) return filtered;
-            return parsed; // fallback
           }
         } catch {
           // Ignore
@@ -3072,7 +3017,7 @@ class ERPService {
         total_amount: params.billsSubmittedAmount,
         recipient_name: target.staff_name,
         category_name: 'Staff Advance Settlement Bill',
-        department_name: 'Staff Imprest',
+        department_name: target.department_name || null,
         remarks: `[ADV-SETTLEMENT] Bill for Advance #${params.receiptNumber} (${target.purpose}) — excluded from Tally cash flow. Original debit was at advance disbursement.`,
         bill_photo_urls: params.settlementProofs || [],
         created_by_name: params.userName,
@@ -3135,13 +3080,14 @@ class ERPService {
 
   async flagForSalaryDeduction(receiptNumber: string, month: string, userName: string, branchId: string = 'Aellp-ASI') {
     const advances = await this.getStaffAdvances(branchId);
+    const deductedAt = new Date().toISOString();
     const updated = advances.map((a) => {
       if (a.receipt_number === receiptNumber) {
         return {
           ...a,
           status: 'Flagged_Salary_Deduction' as const,
           salary_deduction_month: month,
-          salary_deducted_at: new Date().toISOString(),
+          salary_deducted_at: deductedAt,
           salary_deducted_by_name: userName,
         };
       }
@@ -3149,33 +3095,34 @@ class ERPService {
     });
     localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
 
-    try {
-      const { error } = await supabase
-        .from('staff_advances')
-        .update({
-          status: 'Flagged_Salary_Deduction',
-          salary_deduction_month: month,
-          salary_deducted_at: new Date().toISOString(),
-          salary_deducted_by_name: userName,
-        })
-        .eq('receipt_number', receiptNumber);
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Salary deduction flag fallback to offline queue:', e);
-      useOfflineQueue.getState().enqueueMutation({
-        type: 'flag_salary_deduction',
-        table: 'staff_advances',
-        action: 'update',
-        payload: {
-          status: 'Flagged_Salary_Deduction',
-          salary_deduction_month: month,
-          salary_deducted_at: new Date().toISOString(),
-          salary_deducted_by_name: userName,
-        },
-        matchField: 'receipt_number',
-        matchValue: receiptNumber,
-        description: `Flag salary deduction ${receiptNumber} (${month})`,
-      });
+    const { error } = await supabase
+      .from('staff_advances')
+      .update({
+        status: 'Flagged_Salary_Deduction',
+        salary_deduction_month: month,
+        salary_deducted_at: deductedAt,
+        salary_deducted_by_name: userName,
+      })
+      .eq('receipt_number', receiptNumber);
+    if (error) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        useOfflineQueue.getState().enqueueMutation({
+          type: 'flag_salary_deduction',
+          table: 'staff_advances',
+          action: 'update',
+          payload: {
+            status: 'Flagged_Salary_Deduction',
+            salary_deduction_month: month,
+            salary_deducted_at: deductedAt,
+            salary_deducted_by_name: userName,
+          },
+          matchField: 'receipt_number',
+          matchValue: receiptNumber,
+          description: `Flag salary deduction ${receiptNumber} (${month})`,
+        });
+      } else {
+        throw new Error(`Failed to flag advance for salary deduction in Supabase: ${error.message}`);
+      }
     }
 
     await logSecurityEvent({
@@ -3217,29 +3164,30 @@ class ERPService {
     });
     localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
 
-    try {
-      const { error } = await supabase
-        .from('staff_advances')
-        .update({
-          unsettled_balance: 0,
-          status: 'Settled_Bills',
-        })
-        .eq('receipt_number', receiptNumber);
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Waive advance DB fallback to offline queue:', e);
-      useOfflineQueue.getState().enqueueMutation({
-        type: 'waive_advance',
-        table: 'staff_advances',
-        action: 'update',
-        payload: {
-          unsettled_balance: 0,
-          status: 'Settled_Bills',
-        },
-        matchField: 'receipt_number',
-        matchValue: receiptNumber,
-        description: `Waive advance ${receiptNumber}`,
-      });
+    const { error } = await supabase
+      .from('staff_advances')
+      .update({
+        unsettled_balance: 0,
+        status: 'Settled_Bills',
+      })
+      .eq('receipt_number', receiptNumber);
+    if (error) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        useOfflineQueue.getState().enqueueMutation({
+          type: 'waive_advance',
+          table: 'staff_advances',
+          action: 'update',
+          payload: {
+            unsettled_balance: 0,
+            status: 'Settled_Bills',
+          },
+          matchField: 'receipt_number',
+          matchValue: receiptNumber,
+          description: `Waive advance ${receiptNumber}`,
+        });
+      } else {
+        throw new Error(`Failed to waive advance in Supabase: ${error.message}`);
+      }
     }
 
     await logSecurityEvent({
@@ -3291,20 +3239,21 @@ class ERPService {
     const filtered = advances.filter((a) => a.receipt_number !== receiptNumber);
     localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(filtered));
 
-    try {
-      const { error } = await supabase.from('staff_advances').delete().eq('receipt_number', receiptNumber);
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Advance delete DB fallback to offline queue:', e);
-      useOfflineQueue.getState().enqueueMutation({
-        type: 'delete_advance',
-        table: 'staff_advances',
-        action: 'delete',
-        payload: {},
-        matchField: 'receipt_number',
-        matchValue: receiptNumber,
-        description: `Delete advance ${receiptNumber}`,
-      });
+    const { error } = await supabase.from('staff_advances').delete().eq('receipt_number', receiptNumber);
+    if (error) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        useOfflineQueue.getState().enqueueMutation({
+          type: 'delete_advance',
+          table: 'staff_advances',
+          action: 'delete',
+          payload: {},
+          matchField: 'receipt_number',
+          matchValue: receiptNumber,
+          description: `Delete advance ${receiptNumber}`,
+        });
+      } else {
+        throw new Error(`Failed to delete advance in Supabase: ${error.message}`);
+      }
     }
 
     await logSecurityEvent({
@@ -3361,24 +3310,22 @@ class ERPService {
       localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
     }
 
-    try {
-      // Update by IDs or receipt numbers
-      const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
-      const field = isUUID ? 'id' : 'receipt_number';
+    // Update by IDs or receipt numbers
+    const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
+    const field = isUUID ? 'id' : 'receipt_number';
 
-      const { error } = await supabase
-        .from('staff_advances')
-        .update({
-          status: 'Flagged_Salary_Deduction',
-          salary_deduction_month: month,
-          salary_deducted_at: now,
-          salary_deducted_by_name: userName,
-        })
-        .in(field, advanceIdsOrReceipts);
+    const { error } = await supabase
+      .from('staff_advances')
+      .update({
+        status: 'Flagged_Salary_Deduction',
+        salary_deduction_month: month,
+        salary_deducted_at: now,
+        salary_deducted_by_name: userName,
+      })
+      .in(field, advanceIdsOrReceipts);
 
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Batch flag salary deduction fallback:', e);
+    if (error) {
+      throw new Error(`Failed to batch flag salary deductions in Supabase: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3433,21 +3380,19 @@ class ERPService {
       localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
     }
 
-    try {
-      const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
-      const field = isUUID ? 'id' : 'receipt_number';
+    const isUUID = advanceIdsOrReceipts[0] && advanceIdsOrReceipts[0].includes('-');
+    const field = isUUID ? 'id' : 'receipt_number';
 
-      const { error } = await supabase
-        .from('staff_advances')
-        .update({
-          status: 'Cleared_Salary_Deduction',
-          unsettled_balance: 0,
-        })
-        .in(field, advanceIdsOrReceipts);
+    const { error } = await supabase
+      .from('staff_advances')
+      .update({
+        status: 'Cleared_Salary_Deduction',
+        unsettled_balance: 0,
+      })
+      .in(field, advanceIdsOrReceipts);
 
-      if (error) throw error;
-    } catch (e) {
-      console.warn('Batch clear salary deduction fallback:', e);
+    if (error) {
+      throw new Error(`Failed to batch clear salary deductions in Supabase: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3648,25 +3593,6 @@ class ERPService {
       console.warn('Wallet closing reconciliation fallback:', err);
     }
 
-    // 2. Update Till Session to Closed
-    const sessionNumber = `SES-${params.branchCode}-${params.closingDate.replace(/-/g, '')}-01`;
-    try {
-      await supabase
-        .from('drawer_sessions')
-        .update({
-          status: 'Closed',
-          closed_at: new Date().toISOString(),
-          actual_closing: params.actualCash,
-          expected_closing: params.expectedCash,
-          variance: params.variance,
-          denominations_breakdown: params.denominationsBreakdown,
-          verified_by_name: params.verifiedByName,
-        })
-        .eq('session_number', sessionNumber);
-    } catch (e) {
-      console.warn('Drawer session update fallback:', e);
-    }
-
     // Audit Log
     await logSecurityEvent({
       userName: params.verifiedByName,
@@ -3694,17 +3620,14 @@ class ERPService {
     userRole: string,
     reason: string
   ) {
-    const sessionNumber = `SES-${branchCode}-${closingDate.replace(/-/g, '')}-01`;
-    try {
-      await supabase
-        .from('drawer_sessions')
-        .update({
-          status: 'Open',
-          closed_at: null,
-        })
-        .eq('session_number', sessionNumber);
-    } catch (e) {
-      console.warn('Drawer session reopen fallback:', e);
+    const { error } = await supabase
+      .from('cash_closings')
+      .delete()
+      .eq('branch_id', branchId)
+      .eq('closing_date', closingDate);
+
+    if (error) {
+      throw new Error(`Failed to reopen cash closing in Supabase: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3731,14 +3654,14 @@ class ERPService {
     userRole: string,
     reason: string
   ) {
-    try {
-      await supabase
-        .from('cash_closings')
-        .update(updates)
-        .eq('closing_date', closingDate)
-        .eq('branch_code', branchCode);
-    } catch (e) {
-      console.warn('Cash closing update DB fallback:', e);
+    const { error } = await supabase
+      .from('cash_closings')
+      .update(updates)
+      .eq('closing_date', closingDate)
+      .eq('branch_code', branchCode);
+
+    if (error) {
+      throw new Error(`Failed to update cash closing in Supabase: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3870,7 +3793,7 @@ class ERPService {
   }
 
   async deleteCategory(categoryName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('expense_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('category_name', categoryName);
+    const { error } = await supabase.from('expense_categories').update({ is_active: false }).eq('category_name', categoryName);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -3908,139 +3831,217 @@ class ERPService {
       const cleanOld = oldIdOrName.trim();
       const cleanNew = newIdOrName.trim();
 
-      // 1. Update master record in expense_categories
       if (cleanOld !== cleanNew) {
+        // 1. Upsert new category in expense_categories first
         const { error: insErr } = await supabase.from('expense_categories').upsert([
           {
             category_name: cleanNew,
-            color_theme: additionalUpdates.color_theme || 'General Expenses',
+            color_theme: additionalUpdates.color_theme || 'Vanilla',
             is_active: additionalUpdates.is_active ?? true,
           }
         ]);
         if (insErr) throw new Error(insErr.message);
 
-        // Delete old category entry
-        await supabase.from('expense_categories').delete().eq('category_name', cleanOld);
+        // 2. Cascade to historical records BEFORE removing old category so FK constraints are satisfied
+        if (updateHistoricalData) {
+          const { data: vData, error: vErr } = await supabase
+            .from('expense_vouchers')
+            .update({ category_name: cleanNew })
+            .eq('category_name', cleanOld)
+            .select('voucher_number');
+          if (vErr) throw new Error(vErr.message);
+          if (vData) updatedRecordsCount += vData.length;
+
+          const { data: sData, error: sErr } = await supabase
+            .from('voucher_splits')
+            .update({ category_name: cleanNew })
+            .eq('category_name', cleanOld)
+            .select('id');
+          if (sErr) throw new Error(sErr.message);
+          if (sData) updatedRecordsCount += sData.length;
+        }
+
+        // 3. Delete old category entry (or deactivate if historical records still reference it)
+        const { error: delErr } = await supabase.from('expense_categories').delete().eq('category_name', cleanOld);
+        if (delErr) {
+          const { error: deactErr } = await supabase
+            .from('expense_categories')
+            .update({ is_active: false })
+            .eq('category_name', cleanOld);
+          if (deactErr) throw new Error(deactErr.message);
+        }
       } else {
-        await supabase.from('expense_categories').update(additionalUpdates).eq('category_name', cleanOld);
-      }
-
-      // 2. Cascade to historical records if user confirmed
-      if (updateHistoricalData && cleanOld !== cleanNew) {
-        const { data: vData, error: vErr } = await supabase
-          .from('expense_vouchers')
-          .update({ category_name: cleanNew })
-          .eq('category_name', cleanOld)
-          .select('voucher_number');
-        if (!vErr && vData) updatedRecordsCount += vData.length;
-
-        const { data: sData, error: sErr } = await supabase
-          .from('voucher_splits')
-          .update({ category_name: cleanNew })
-          .eq('category_name', cleanOld)
-          .select('id');
-        if (!sErr && sData) updatedRecordsCount += sData.length;
+        const { error: updErr } = await supabase
+          .from('expense_categories')
+          .update({
+            color_theme: additionalUpdates.color_theme || 'Vanilla',
+            is_active: additionalUpdates.is_active ?? true,
+          })
+          .eq('category_name', cleanOld);
+        if (updErr) throw new Error(updErr.message);
       }
     } else if (entityType === 'department') {
       const cleanOld = oldIdOrName.trim();
       const cleanNew = newIdOrName.trim();
       const deptCode = additionalUpdates.department_code || cleanOld;
+      const deptPayload = {
+        department_name: cleanNew,
+        is_active: additionalUpdates.is_active ?? true,
+      };
 
-      const { error: dErr } = await supabase
+      const { data: dData, error: dErr } = await supabase
         .from('departments')
-        .update({ department_name: cleanNew, ...additionalUpdates })
-        .eq('department_code', deptCode);
-      if (dErr) {
-        await supabase.from('departments').update({ department_name: cleanNew, ...additionalUpdates }).eq('department_name', cleanOld);
+        .update(deptPayload)
+        .eq('department_code', deptCode)
+        .select('department_code');
+      if (dErr) throw new Error(dErr.message);
+
+      if (!dData || dData.length === 0) {
+        const { error: fallbackErr } = await supabase
+          .from('departments')
+          .update(deptPayload)
+          .eq('department_name', cleanOld);
+        if (fallbackErr) throw new Error(fallbackErr.message);
       }
 
       if (updateHistoricalData && cleanOld !== cleanNew) {
-        const { data: vData } = await supabase
+        const { data: vData, error: vErr } = await supabase
           .from('expense_vouchers')
           .update({ department_name: cleanNew })
           .eq('department_name', cleanOld)
           .select('voucher_number');
+        if (vErr) throw new Error(vErr.message);
         if (vData) updatedRecordsCount += vData.length;
 
-        const { data: sData } = await supabase
+        const { data: sData, error: sErr } = await supabase
           .from('voucher_splits')
           .update({ department_name: cleanNew })
           .eq('department_name', cleanOld)
           .select('id');
+        if (sErr) throw new Error(sErr.message);
         if (sData) updatedRecordsCount += sData.length;
 
-        const { data: staffData } = await supabase
+        const { data: staffData, error: stErr } = await supabase
           .from('staff_members')
           .update({ department_name: cleanNew })
           .eq('department_name', cleanOld)
           .select('staff_code');
+        if (stErr) throw new Error(stErr.message);
         if (staffData) updatedRecordsCount += staffData.length;
 
-        const { data: advData } = await supabase
+        const { data: advData, error: advErr } = await supabase
           .from('staff_advances')
           .update({ department_name: cleanNew })
           .eq('department_name', cleanOld)
           .select('id');
+        if (advErr) throw new Error(advErr.message);
         if (advData) updatedRecordsCount += advData.length;
       }
     } else if (entityType === 'courier') {
       const cleanOld = oldIdOrName.trim();
       const cleanNew = newIdOrName.trim();
       const partnerCode = additionalUpdates.partner_code || cleanOld;
+      const courierPayload: Record<string, any> = {
+        partner_name: cleanNew,
+        is_active: additionalUpdates.is_active ?? true,
+      };
+      if (additionalUpdates.contact_phone !== undefined) {
+        courierPayload.contact_phone = additionalUpdates.contact_phone || null;
+      }
+      if (additionalUpdates.tracking_url_template !== undefined) {
+        courierPayload.tracking_url_template = additionalUpdates.tracking_url_template || null;
+      }
 
-      await supabase
+      const { error: cErr } = await supabase
         .from('courier_partners')
-        .update({ partner_name: cleanNew, ...additionalUpdates })
+        .update(courierPayload)
         .eq('partner_code', partnerCode);
+      if (cErr) throw new Error(cErr.message);
 
       if (updateHistoricalData && cleanOld !== cleanNew) {
-        const { data: vData } = await supabase
+        const { data: vData, error: vErr } = await supabase
           .from('expense_vouchers')
           .update({ courier_partner_name: cleanNew, recipient_name: cleanNew })
           .eq('courier_partner_name', cleanOld)
           .select('voucher_number');
+        if (vErr) throw new Error(vErr.message);
         if (vData) updatedRecordsCount += vData.length;
       }
     } else if (entityType === 'staff') {
       const cleanOld = oldIdOrName.trim();
       const cleanNew = newIdOrName.trim();
       const staffCode = additionalUpdates.staff_code || cleanOld;
+      const staffPayload: Record<string, any> = {
+        first_name: (additionalUpdates.first_name || cleanNew).trim(),
+        middle_name: additionalUpdates.middle_name ? String(additionalUpdates.middle_name).trim() : null,
+        last_name: additionalUpdates.last_name ? String(additionalUpdates.last_name).trim() : null,
+        mobile_number: additionalUpdates.mobile_number ? String(additionalUpdates.mobile_number).trim() : null,
+        branch_id: additionalUpdates.branch_id || 'Aellp-ASI',
+        branch_code: additionalUpdates.branch_code || 'ASI',
+        department_code: additionalUpdates.department_code || null,
+        department_name: additionalUpdates.department_name ? String(additionalUpdates.department_name).trim() : null,
+        designation: additionalUpdates.designation ? String(additionalUpdates.designation).trim() : null,
+        is_active: additionalUpdates.is_active ?? true,
+        updated_at: new Date().toISOString(),
+      };
 
-      await supabase
+      const { error: stErr } = await supabase
         .from('staff_members')
-        .update({ first_name: cleanNew, ...additionalUpdates })
+        .update(staffPayload)
         .eq('staff_code', staffCode);
+      if (stErr) throw new Error(stErr.message);
 
       if (updateHistoricalData && cleanOld !== cleanNew) {
-        const { data: vData } = await supabase
+        const { data: vData, error: vErr } = await supabase
           .from('expense_vouchers')
           .update({ requested_by_staff_name: cleanNew })
           .eq('requested_by_staff_code', staffCode)
           .select('voucher_number');
+        if (vErr) throw new Error(vErr.message);
         if (vData) updatedRecordsCount += vData.length;
 
-        const { data: sData } = await supabase
+        const { data: sData, error: sErr } = await supabase
           .from('voucher_splits')
           .update({ staff_name: cleanNew })
           .eq('staff_code', staffCode)
           .select('id');
+        if (sErr) throw new Error(sErr.message);
         if (sData) updatedRecordsCount += sData.length;
 
-        const { data: advData } = await supabase
+        const { data: advData, error: advErr } = await supabase
           .from('staff_advances')
           .update({ staff_name: cleanNew })
           .eq('staff_code', staffCode)
           .select('id');
+        if (advErr) throw new Error(advErr.message);
         if (advData) updatedRecordsCount += advData.length;
       }
     } else if (entityType === 'branch') {
       const cleanNew = newIdOrName.trim();
       const branchId = additionalUpdates.branch_id || oldIdOrName;
+      const branchPayload: Record<string, any> = {
+        branch_name: cleanNew,
+        short_name: (additionalUpdates.short_name || cleanNew).trim(),
+        city: (additionalUpdates.city || 'Ahmedabad').trim(),
+        state: (additionalUpdates.state || 'Gujarat').trim(),
+        gstin: additionalUpdates.gstin ? String(additionalUpdates.gstin).trim() : null,
+        pan_number: additionalUpdates.pan_number ? String(additionalUpdates.pan_number).trim() : null,
+        min_cash_threshold: Number(additionalUpdates.min_cash_threshold) || 3000,
+        is_active: additionalUpdates.is_active ?? true,
+        updated_at: new Date().toISOString(),
+      };
+      if (additionalUpdates.max_cash_ceiling !== undefined && additionalUpdates.max_cash_ceiling !== '') {
+        branchPayload.max_cash_ceiling = Number(additionalUpdates.max_cash_ceiling) || 25000;
+      }
+      if (additionalUpdates.max_upi_ceiling !== undefined && additionalUpdates.max_upi_ceiling !== '') {
+        branchPayload.max_upi_ceiling = Number(additionalUpdates.max_upi_ceiling) || 50000;
+      }
 
-      await supabase
+      const { error: bErr } = await supabase
         .from('branches')
-        .update({ branch_name: cleanNew, ...additionalUpdates })
+        .update(branchPayload)
         .eq('branch_id', branchId);
+      if (bErr) throw new Error(bErr.message);
     }
 
     // 3. Create strong audit log entry
@@ -4108,7 +4109,7 @@ class ERPService {
   }
 
   async deleteDepartment(deptCode: string, deptName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('departments').update({ is_active: false, updated_at: new Date().toISOString() }).eq('department_code', deptCode);
+    const { error } = await supabase.from('departments').update({ is_active: false }).eq('department_code', deptCode);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -4168,7 +4169,7 @@ class ERPService {
   }
 
   async deleteCourier(partnerCode: string, partnerName: string, userName: string, userRole: string, reason?: string) {
-    const { error } = await supabase.from('courier_partners').update({ is_active: false, updated_at: new Date().toISOString() }).eq('partner_code', partnerCode);
+    const { error } = await supabase.from('courier_partners').update({ is_active: false }).eq('partner_code', partnerCode);
     if (error) throw new Error(error.message);
 
     await logSecurityEvent({
@@ -4294,15 +4295,31 @@ class ERPService {
     }
     if (error) throw new Error(error.message);
 
-    // Guarantee sub-wallet row exists
-    await supabase.from('branch_wallets').upsert([
-      {
-        branch_id: branchId,
-        cash_balance: branch.cash_balance !== undefined ? Number(branch.cash_balance) : 0,
-        upi_balance: branch.upi_balance !== undefined ? Number(branch.upi_balance) : 0,
-        updated_at: new Date().toISOString(),
-      },
-    ]);
+    // Guarantee sub-wallet row exists without overwriting existing balances to 0 on edit
+    if (!isEdit || branch.cash_balance !== undefined || branch.upi_balance !== undefined) {
+      const { data: existingWallet } = await supabase
+        .from('branch_wallets')
+        .select('branch_id, cash_balance, upi_balance')
+        .eq('branch_id', branchId)
+        .maybeSingle();
+
+      if (!existingWallet || branch.cash_balance !== undefined || branch.upi_balance !== undefined) {
+        await supabase.from('branch_wallets').upsert([
+          {
+            branch_id: branchId,
+            cash_balance:
+              branch.cash_balance !== undefined
+                ? Number(branch.cash_balance)
+                : Number(existingWallet?.cash_balance || 0),
+            upi_balance:
+              branch.upi_balance !== undefined
+                ? Number(branch.upi_balance)
+                : Number(existingWallet?.upi_balance || 0),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      }
+    }
 
     await logSecurityEvent({
       userName,
@@ -4705,7 +4722,12 @@ class ERPService {
         .from('app_users')
         .select('*')
         .order('created_at', { ascending: true });
-      if (data && data.length > 0) users = data;
+      if (data && data.length > 0) {
+        users = data.map((u: any) => {
+          const { password_hash: _p, lock_pin_hash: _l, studio_password: _s, ...safeUser } = u;
+          return safeUser as AppUser;
+        });
+      }
     } catch (e) {
       console.warn('App users fetch fallback:', e);
     }
@@ -4889,6 +4911,25 @@ class ERPService {
       if (data && data.length > 0) return data;
     } catch (e) {
       console.warn('Staff members fetch fallback:', e);
+    }
+    return [];
+  }
+
+  async getDepartments(includeInactive: boolean = false): Promise<Department[]> {
+    try {
+      let query = supabase
+        .from('departments')
+        .select('*')
+        .order('department_name', { ascending: true });
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data } = await query;
+      if (data && data.length > 0) return data;
+    } catch (e) {
+      console.warn('Departments fetch fallback:', e);
     }
     return [];
   }
@@ -5118,6 +5159,17 @@ class ERPService {
           console.error(`Direct insert error in ${targetTable}:`, error);
           throw new Error(error.message || `Database error while saving records into ${targetTable}.`);
         }
+
+        if (classification === 'branches') {
+          const walletRows = newRecords.map((b) => ({
+            branch_id: b.branch_id,
+            cash_balance: 0,
+            upi_balance: 0,
+            updated_at: new Date().toISOString(),
+          }));
+          await supabase.from('branch_wallets').upsert(walletRows);
+          useBranchStore.getState().fetchBranchesAndWallets(true);
+        }
       }
 
       // Audit Log
@@ -5131,6 +5183,7 @@ class ERPService {
         justification: 'Automated Master Data spreadsheet import with duplicate prevention',
       });
 
+      useVoucherStore.getState().invalidateMasterData();
       // Dispatch global window event for live refresh
       window.dispatchEvent(new CustomEvent('asopalav:master-data-updated', { detail: { classification } }));
 

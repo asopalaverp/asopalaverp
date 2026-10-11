@@ -610,7 +610,7 @@ export const BulkMasterDataImportModal: React.FC = () => {
         return;
       }
 
-      fetchBranchesAndWallets();
+      fetchBranchesAndWallets(true);
       refresh();
 
       // Update existing keys state immediately

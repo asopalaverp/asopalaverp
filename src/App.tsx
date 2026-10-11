@@ -360,8 +360,8 @@ export const App: React.FC = () => {
   // If user is unauthenticated, render lazy Login portal with toast container
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen w-full bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED]">
-        <Suspense fallback={<div className="h-screen w-screen bg-[#141414] flex items-center justify-center" />}>
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-black text-slate-900 dark:text-[#EDEDED]">
+        <Suspense fallback={<div className="h-screen w-screen bg-black flex items-center justify-center" />}>
           <LoginPage />
         </Suspense>
         <Suspense fallback={null}>
@@ -441,7 +441,7 @@ export const App: React.FC = () => {
           {/* Workspace Canvas Area with Suspense Fallback */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-[#141414] focus:outline-none transition-all duration-200 ease-out flex flex-col p-0 pb-20 lg:pb-0"
+            className="workspace-canvas flex-1 overflow-y-auto bg-white dark:bg-[#141414] focus:outline-none transition-all duration-200 ease-out flex flex-col p-0 pb-20 lg:pb-0"
           >
             {!isLocked && (
               <PageTransition pageKey={activePage}>

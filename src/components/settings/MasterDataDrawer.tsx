@@ -33,13 +33,13 @@ export interface MasterDrawerProps {
 }
 
 const tableNames: Record<MasterDrawerType, string> = {
-  branch: 'master_branches',
+  branch: 'branches',
   category: 'expense_categories',
-  department: 'master_departments',
-  courier: 'master_couriers',
-  user: 'users',
-  staff: 'master_staff',
-  role: 'roles',
+  department: 'departments',
+  courier: 'courier_partners',
+  user: 'app_users',
+  staff: 'staff_members',
+  role: 'app_roles',
 };
 
 export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
@@ -61,6 +61,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   const [formData, setFormData] = useState<any>({});
   const [availableRoles, setAvailableRoles] = useState<AppRole[]>([]);
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
+  const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
   const [isCustomStaffCode, setIsCustomStaffCode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
@@ -91,6 +92,13 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
           }
         });
       }
+      if (type === 'staff') {
+        erpService.getDepartments(true).then((deptList) => {
+          if (deptList && deptList.length > 0) {
+            setAvailableDepartments(deptList);
+          }
+        });
+      }
     }
   }, [isOpen, type]);
 
@@ -103,7 +111,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
       setIsPreviewOpen(false);
 
       if (record) {
-        setFormData({ ...record });
+        const { password_hash: _p, lock_pin_hash: _l, studio_password: _s, ...cleanRecord } = record;
+        setFormData({ ...cleanRecord });
         if (type === 'role' && record.role_code) {
           erpService.getRolePermissions(record.role_code).then((p) => {
             if (p) {
@@ -153,7 +162,6 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
             setFormData({
               department_name: '',
               department_code: '',
-              description: '',
               is_active: true,
             });
             break;
@@ -798,14 +806,18 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                   <p className="text-[11px] text-slate-500 dark:text-[#707070]">Additional information (optional)</p>
                 </div>
 
-                <SupabaseFieldRow columnName="description" dataType="text">
-                  <input
-                    type="text"
-                    value={formData.description || ''}
-                    onChange={(e) => handleChange('description', e.target.value)}
-                    placeholder="Showroom operational division..."
-                    className={inputStyles}
-                  />
+                <SupabaseFieldRow columnName="is_active" dataType="boolean">
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active ?? true}
+                      onChange={(e) => handleChange('is_active', e.target.checked)}
+                      className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
+                    />
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </label>
                 </SupabaseFieldRow>
               </div>
             )}
@@ -859,6 +871,20 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                     placeholder="+91 98765 43210"
                     className={inputStyles}
                   />
+                </SupabaseFieldRow>
+
+                <SupabaseFieldRow columnName="is_active" dataType="boolean">
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active ?? true}
+                      onChange={(e) => handleChange('is_active', e.target.checked)}
+                      className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
+                    />
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </label>
                 </SupabaseFieldRow>
               </div>
             )}
@@ -1060,6 +1086,20 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                     className={inputStyles}
                   />
                 </SupabaseFieldRow>
+
+                <SupabaseFieldRow columnName="is_active" dataType="boolean">
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active ?? true}
+                      onChange={(e) => handleChange('is_active', e.target.checked)}
+                      className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
+                    />
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </label>
+                </SupabaseFieldRow>
               </div>
             )}
 
@@ -1160,12 +1200,27 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                 </SupabaseFieldRow>
 
                 <SupabaseFieldRow columnName="department_name" dataType="varchar">
-                  <input
-                    type="text"
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: '-- No Department Selected --' },
+                      ...availableDepartments.map((d) => ({
+                        value: d.department_name,
+                        label: d.department_name,
+                        badge: d.department_code,
+                      })),
+                    ]}
                     value={formData.department_name || ''}
-                    onChange={(e) => handleChange('department_name', e.target.value)}
-                    placeholder="Showroom Sales"
-                    className={inputStyles}
+                    onChange={(deptName) => {
+                      const matchedDept = availableDepartments.find((d) => d.department_name === deptName);
+                      setFormData((prev: any) => ({
+                        ...prev,
+                        department_name: deptName,
+                        department_code: matchedDept?.department_code || prev.department_code || null,
+                      }));
+                    }}
+                    placeholder="Select department from Supabase..."
+                    searchPlaceholder="Search department..."
+                    allowCustom={false}
                   />
                 </SupabaseFieldRow>
 
@@ -1187,6 +1242,20 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                     placeholder="+91 98765 43210"
                     className={inputStyles}
                   />
+                </SupabaseFieldRow>
+
+                <SupabaseFieldRow columnName="is_active" dataType="boolean">
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active ?? true}
+                      onChange={(e) => handleChange('is_active', e.target.checked)}
+                      className="rounded text-[#3ecf8e] focus:ring-0 w-4 h-4 bg-[#181818] border-[#2e2e2e]"
+                    />
+                    <span className="text-slate-700 dark:text-zinc-300 font-sans text-xs font-medium">
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </label>
                 </SupabaseFieldRow>
               </div>
             )}

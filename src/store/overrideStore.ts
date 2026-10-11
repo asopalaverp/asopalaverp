@@ -2,12 +2,11 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { showToast } from '@/components/ui/ToastContainer';
 import { triggerHaptic } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
 
 /** C-4 Security: Read role from in-memory Zustand store, NOT from localStorage (which is spoofable). */
 const getCallerRole = (): string | null => {
   try {
-    // Lazy import to avoid circular dependency — authStore imports overrideStore indirectly
-    const { useAuthStore } = require('@/store/authStore');
     return useAuthStore.getState().user?.role_code ?? null;
   } catch {
     return null;
@@ -152,15 +151,17 @@ const logAuditOverrideChange = async (
 ) => {
   try {
     const auditPayload = {
-      action,
-      entity_type: 'System_Policy_Override',
-      entity_id: 'GLOBAL_OVERRIDE_SWITCHBOARD',
+      audit_number: `AUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_name: userName,
       user_role: userRole,
-      details: JSON.stringify(details),
+      action_type: 'SuperAdmin_Override',
+      target_entity: 'System_Policy_Override',
+      target_identifier: 'GLOBAL_OVERRIDE_SWITCHBOARD',
+      event_description: action,
+      justification: JSON.stringify(details),
       created_at: new Date().toISOString(),
     };
-    await supabase.from('security_audit_trail').insert([auditPayload]);
+    await supabase.from('security_audit_logs').insert([auditPayload]);
   } catch (err) {
     console.warn('Could not write audit trail for override change:', err);
   }

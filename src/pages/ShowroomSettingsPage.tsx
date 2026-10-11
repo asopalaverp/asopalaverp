@@ -1495,7 +1495,7 @@ export const ShowroomSettingsPage: React.FC = () => {
 
                             {/* STAFF ROWS */}
                             {activeTabId === 'staff' &&
-                              filteredStaff.slice(0, 100).map((s) => (
+                              filteredStaff.map((s) => (
                                 <tr key={s.staff_code} className="hover:bg-slate-50 dark:hover:bg-[#202020] transition-colors">
                                   <td className={cn(densityClasses, 'font-semibold text-slate-900 dark:text-white')}>
                                     {s.staff_code}
@@ -1504,8 +1504,8 @@ export const ShowroomSettingsPage: React.FC = () => {
                                     {s.first_name} {s.last_name}
                                   </td>
                                   <td className={densityClasses}>{s.branch_code || 'ASI'}</td>
-                                  <td className={densityClasses}>{s.department_name || 'Showroom Sales'}</td>
-                                  <td className={densityClasses}>{s.designation || 'Sales Executive'}</td>
+                                  <td className={densityClasses}>{s.department_name || '—'}</td>
+                                  <td className={densityClasses}>{s.designation || '—'}</td>
                                   <td className={densityClasses}>
                                     <span
                                       className={cn(

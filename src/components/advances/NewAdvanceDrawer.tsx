@@ -100,10 +100,22 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     }
   }, [isAdvanceModalOpen, targetBranchId]);
 
+  const resetFormState = () => {
+    setStaffCode('');
+    setReceiptNumber('');
+    setAdvanceDate(format(new Date(), 'yyyy-MM-dd'));
+    setAmount('');
+    setPaymentMethod('Physical_Cash');
+    setPurpose('');
+    setSignatureData('');
+    setError('');
+    setIsPreviewOpen(false);
+  };
+
   const handleClose = () => {
     if (submitting) return;
+    resetFormState();
     setAdvanceModalOpen(false);
-    setIsPreviewOpen(false);
   };
 
   // Calculations
@@ -148,7 +160,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     }
 
     if (isInsufficient && !isNegativeWalletAllowed()) {
-      const msg = `Insufficient ${paymentMethod === 'Physical_Cash' ? 'Cash Till' : 'UPI'} balance (${formatINR(availableBalance)}) for ₹${numAmount} advance.`;
+      const msg = `Insufficient ${paymentMethod === 'Physical_Cash' ? 'Cash Till' : 'UPI'} balance (${formatINR(availableBalance)}) for ${formatINR(numAmount)} advance.`;
       setError(msg);
       showToast({ type: 'error', title: 'Insufficient Balance', message: msg });
       triggerHaptic('error');
@@ -160,8 +172,8 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
     const isExcessRestricted = isExcessAdvance && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer';
     if (isExcessRestricted && !isExcessAdvancesAllowed()) {
       const msg = numAmount > 10000
-        ? `Advance Limit Exceeded: Staff advance maximum limit is ₹10,000. For ₹${formatINR(numAmount)}, enable Emergency Excess Advance Override in Settings.`
-        : `Active Advance Exists: ${selectedStaff.first_name} already has an unsettled advance of ₹${formatINR(pendingAdvanceInfo.totalUnsettled)}. Settle prior advance or enable Excess Advance Override in Settings.`;
+        ? `Advance Limit Exceeded: Staff advance maximum limit is ₹10,000. For ${formatINR(numAmount)}, enable Emergency Excess Advance Override in Settings.`
+        : `Active Advance Exists: ${selectedStaff.first_name} already has an unsettled advance of ${formatINR(pendingAdvanceInfo.totalUnsettled)}. Settle prior advance or enable Excess Advance Override in Settings.`;
       setError(msg);
       showToast({ type: 'error', title: 'Excess Advance Restricted', message: msg });
       triggerHaptic('error');
@@ -172,6 +184,14 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       const msg = 'Please provide a reason or purpose for this advance.';
       setError(msg);
       showToast({ type: 'error', title: 'Purpose Required', message: msg });
+      triggerHaptic('error');
+      return;
+    }
+
+    if (!signatureData) {
+      const msg = 'Staff digital signature is required to authorize advance disbursal.';
+      setError(msg);
+      showToast({ type: 'error', title: 'Signature Required', message: msg });
       triggerHaptic('error');
       return;
     }
@@ -195,12 +215,6 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       const userName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
       const userRole = user?.role_code || 'Store_Manager';
 
-      let finalSignature = signatureData;
-      if (!finalSignature) {
-        const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="90" viewBox="0 0 300 90"><text x="150" y="48" font-family="'Brush Script MT', 'Segoe Script', cursive, sans-serif" font-size="28" font-style="italic" fill="#059669" text-anchor="middle">${staffFullName}</text><text x="150" y="72" font-family="monospace" font-size="9" fill="#64748b" text-anchor="middle">Digital Staff Sign-off • ${advanceDate}</text></svg>`;
-        finalSignature = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
-      }
-
       await erpService.disburseStaffAdvance({
         advance: {
           receipt_number: receiptNo,
@@ -210,11 +224,11 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
           staff_code: selectedStaff.staff_code,
           staff_name: staffFullName,
           department_name: selectedStaff.department_name || undefined,
-          designation: selectedStaff.designation || 'Showroom Staff',
+          designation: selectedStaff.designation || '',
           payment_method: paymentMethod,
           advance_amount: numAmount,
           purpose: purpose.trim(),
-          signature_image_url: finalSignature,
+          signature_image_url: signatureData,
           disbursed_by_name: userName,
         },
         userName,
@@ -225,9 +239,10 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
       showToast({
         type: 'success',
         title: 'Advance Given',
-        message: `Advance #${receiptNo} of ₹${numAmount} given to ${staffFullName}.`,
+        message: `Advance #${receiptNo} of ${formatINR(numAmount)} given to ${staffFullName}.`,
       });
 
+      resetFormState();
       onSuccess();
       setAdvanceModalOpen(false);
     } catch (err: any) {
@@ -279,10 +294,10 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
         <button
           type="button"
           onClick={() => handleOpenPreview()}
-          disabled={submitting || isInsufficient || numAmount <= 0}
+          disabled={submitting || (isInsufficient && !isNegativeWalletAllowed()) || numAmount <= 0}
           className={cn(
             'inline-flex items-center gap-1.5 h-10 min-h-[40px] px-4 rounded-[6px] text-xs font-medium font-sans transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed',
-            isInsufficient
+            isInsufficient && !isNegativeWalletAllowed()
               ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60'
               : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717]'
           )}

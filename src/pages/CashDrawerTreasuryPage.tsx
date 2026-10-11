@@ -167,7 +167,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
   const [customDate, setCustomDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
   const [ledgerSearch, setLedgerSearch] = useState('');
-  const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI'>('ALL');
+  const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI' | 'Float_Topup'>('ALL');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
@@ -304,7 +304,11 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     }
 
     if (ledgerWalletFilter !== 'ALL') {
-      list = list.filter((l) => l.wallet_type === ledgerWalletFilter);
+      list = list.filter((l) =>
+        ledgerWalletFilter === 'Float_Topup'
+          ? l.transaction_type === 'Float_Topup' || (Number(l.credit_amount) > 0 && !l.transaction_type)
+          : l.wallet_type === ledgerWalletFilter
+      );
     }
 
     const now = new Date();
@@ -646,7 +650,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       const sql = filteredAllocations
         .map(
           (l) =>
-            `INSERT INTO wallet_ledgers (id, branch_id, transaction_type, wallet_type, credit_amount, debit_amount, remarks, cashier_name, authorized_by_name, created_at) VALUES (${esc(l.id)}, ${esc(l.branch_id)}, '${l.transaction_type || (Number(l.credit_amount) > 0 ? 'Float_Topup' : 'Expense_Voucher')}', ${esc(l.wallet_type)}, ${Number(l.credit_amount) || 0}, ${Number(l.debit_amount) || 0}, ${esc(l.remarks)}, ${esc(l.cashier_name)}, ${esc(l.authorized_by_name)}, ${esc(l.created_at)});`
+            `INSERT INTO wallet_ledger (id, branch_id, transaction_type, wallet_type, credit_amount, debit_amount, remarks, cashier_name, authorized_by_name, created_at) VALUES (${esc(l.id)}, ${esc(l.branch_id)}, '${l.transaction_type || (Number(l.credit_amount) > 0 ? 'Float_Topup' : 'Expense_Voucher')}', ${esc(l.wallet_type)}, ${Number(l.credit_amount) || 0}, ${Number(l.debit_amount) || 0}, ${esc(l.remarks)}, ${esc(l.cashier_name)}, ${esc(l.authorized_by_name)}, ${esc(l.created_at)});`
         )
         .join('\n');
       downloadBlob(`asopalav_treasury_ledger_${dateStr}.sql`, sql, 'text/plain');
@@ -692,10 +696,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
       const userName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
       const authName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
+      const matchedBranch = branches.find((b) => b.branch_id === selectedBranch);
+      const branchCode = matchedBranch?.branch_code || selectedBranch.replace(/^Aellp-/, '') || activeBranch.branch_code;
 
       await erpService.createFloatTopup({
         branchId: selectedBranch,
-        branchCode: activeBranch.branch_code,
+        branchCode,
         walletType,
         amount: amountToAdd,
         referenceNotes: fullRemarks,
@@ -1496,7 +1502,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                         <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
                           {credit > 0 ? (
                             <span className="text-emerald-600 dark:text-[#3ecf8e] font-mono font-bold text-xs">
-                              +₹{formatINR(credit)}
+                              +{formatINR(credit)}
                             </span>
                           ) : (
                             <span className="text-slate-300 dark:text-zinc-600 font-mono text-xs">—</span>
@@ -1507,7 +1513,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                         <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
                           {debit > 0 ? (
                             <span className="text-rose-600 dark:text-rose-400 font-mono font-bold text-xs">
-                              -₹{formatINR(debit)}
+                              -{formatINR(debit)}
                             </span>
                           ) : (
                             <span className="text-slate-300 dark:text-zinc-600 font-mono text-xs">—</span>
@@ -1517,7 +1523,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                         {/* 7. Progressive Running Balance */}
                         <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
                           <span className="font-mono text-xs text-slate-900 dark:text-white font-bold bg-slate-50 dark:bg-black/30 px-2 py-0.5 rounded border border-slate-200/60 dark:border-white/5">
-                            ₹{formatINR(runningBal !== undefined ? runningBal : (Number(entry.running_balance) || 0))}
+                            {formatINR(runningBal !== undefined ? runningBal : (Number(entry.running_balance) || 0))}
                           </span>
                         </td>
 
@@ -1738,8 +1744,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                     Number(viewLedgerEntry.credit_amount) > 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-rose-600 dark:text-rose-400"
                   )}>
                     {Number(viewLedgerEntry.credit_amount) > 0
-                      ? `+₹${formatINR(Number(viewLedgerEntry.credit_amount))}`
-                      : `-₹${formatINR(Number(viewLedgerEntry.debit_amount))}`}
+                      ? `+${formatINR(Number(viewLedgerEntry.credit_amount))}`
+                      : `-${formatINR(Number(viewLedgerEntry.debit_amount))}`}
                   </div>
                   <div className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans">
                     {numberToWordsINR(Number(viewLedgerEntry.credit_amount || viewLedgerEntry.debit_amount) || 0)}

@@ -423,12 +423,26 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       );
     }
 
-    // Dropdown filters
+    // Dropdown filters (supports comma-separated multi-split categories and departments)
     if (selectedCategory !== 'ALL') {
-      result = result.filter((v) => v.category_name === selectedCategory);
+      result = result.filter((v) => {
+        if (!v.category_name) return false;
+        if (v.category_name === selectedCategory) return true;
+        return v.category_name
+          .split(',')
+          .map((c) => c.trim())
+          .includes(selectedCategory);
+      });
     }
     if (selectedDept !== 'ALL') {
-      result = result.filter((v) => v.department_name === selectedDept);
+      result = result.filter((v) => {
+        if (!v.department_name) return false;
+        if (v.department_name === selectedDept) return true;
+        return v.department_name
+          .split(',')
+          .map((d) => d.trim())
+          .includes(selectedDept);
+      });
     }
     if (selectedMode !== 'ALL') {
       result = result.filter((v) => v.payment_method === selectedMode);
@@ -484,10 +498,23 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     sortOrder,
   ]);
 
+  // Active valid vouchers for financial telemetry (excludes Voided, Pending_Approval, and non-cash Advance_Settlement)
+  const validAnalyticsVouchers = useMemo(() => {
+    if (selectedStatus === 'Voided' || selectedStatus === 'Pending_Approval') {
+      return filteredVouchers;
+    }
+    return filteredVouchers.filter(
+      (v) =>
+        v.status !== 'Voided' &&
+        v.status !== 'Pending_Approval' &&
+        v.payment_type !== 'Advance_Settlement'
+    );
+  }, [filteredVouchers, selectedStatus]);
+
   // Telemetry Aggregates
   const telemetry = useMemo(() => {
-    const count = filteredVouchers.length;
-    const totalAmount = filteredVouchers.reduce(
+    const count = validAnalyticsVouchers.length;
+    const totalAmount = validAnalyticsVouchers.reduce(
       (sum, v) => sum + (Number(v.total_amount) || 0),
       0
     );
@@ -497,7 +524,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     let cashSum = 0;
     let upiSum = 0;
 
-    filteredVouchers.forEach((v) => {
+    validAnalyticsVouchers.forEach((v) => {
       const amt = Number(v.total_amount) || 0;
       if (amt < min) min = amt;
       if (amt > max) max = amt;
@@ -520,12 +547,12 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       cashPercent,
       upiPercent,
     };
-  }, [filteredVouchers]);
+  }, [validAnalyticsVouchers]);
 
   // Grouped Analytics Breakdowns
   const categoryAnalytics = useMemo(() => {
     const map = new Map<string, { count: number; total: number }>();
-    filteredVouchers.forEach((v) => {
+    validAnalyticsVouchers.forEach((v) => {
       const cat = v.category_name || 'Uncategorized';
       const amt = Number(v.total_amount) || 0;
       const prev = map.get(cat) || { count: 0, total: 0 };
@@ -539,11 +566,11 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
         percentage: telemetry.totalAmount > 0 ? (data.total / telemetry.totalAmount) * 100 : 0,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [filteredVouchers, telemetry.totalAmount]);
+  }, [validAnalyticsVouchers, telemetry.totalAmount]);
 
   const departmentAnalytics = useMemo(() => {
     const map = new Map<string, { count: number; total: number }>();
-    filteredVouchers.forEach((v) => {
+    validAnalyticsVouchers.forEach((v) => {
       const dept = v.department_name || 'General Operations';
       const amt = Number(v.total_amount) || 0;
       const prev = map.get(dept) || { count: 0, total: 0 };
@@ -557,11 +584,11 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
         percentage: telemetry.totalAmount > 0 ? (data.total / telemetry.totalAmount) * 100 : 0,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [filteredVouchers, telemetry.totalAmount]);
+  }, [validAnalyticsVouchers, telemetry.totalAmount]);
 
   const payeeAnalytics = useMemo(() => {
     const map = new Map<string, { count: number; total: number; category: string }>();
-    filteredVouchers.forEach((v) => {
+    validAnalyticsVouchers.forEach((v) => {
       const name = v.recipient_name || 'Cash Disbursal';
       const amt = Number(v.total_amount) || 0;
       const prev = map.get(name) || { count: 0, total: 0, category: v.category_name || 'General' };
@@ -577,7 +604,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 25);
-  }, [filteredVouchers, telemetry.totalAmount]);
+  }, [validAnalyticsVouchers, telemetry.totalAmount]);
 
   // Paginated records
   const totalPages = Math.max(1, Math.ceil(filteredVouchers.length / pageSize));
@@ -1618,7 +1645,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <h4 className="font-semibold text-xs text-slate-900 dark:text-white truncate">
-                                {v.recipient_name || 'General Expense'}
+                                {v.recipient_name || '—'}
                               </h4>
                               {getRelativeDateBadge(v.payment_date) && (
                                 <span className="px-1.5 py-0.2 rounded-[4px] text-[9px] font-mono font-semibold uppercase bg-slate-100 dark:bg-[#252528] text-slate-600 dark:text-zinc-300 border border-slate-200/80 dark:border-[#333]">
@@ -1629,7 +1656,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                             <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400 truncate font-sans">
                               <span>{v.category_name}</span>
                               <span>•</span>
-                              <span className="font-mono text-[10px]">{formatDate(v.payment_date, 'HH:mm')}</span>
+                              <span className="font-mono text-[10px]">{formatDate(v.created_at || v.payment_date, 'HH:mm')}</span>
                             </div>
                             <div className="flex items-center gap-1.5 mt-1">
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#222222] text-slate-600 dark:text-zinc-300 font-mono text-[10px] font-medium border border-slate-200/80 dark:border-[#2a2a2a]">

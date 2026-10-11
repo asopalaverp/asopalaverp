@@ -223,7 +223,12 @@ export const DashboardPage: React.FC = () => {
 
   // Metrics calculation
   const metrics = useMemo(() => {
-    const active = filteredVouchers.filter((v) => v.status !== 'Voided');
+    const active = filteredVouchers.filter(
+      (v) =>
+        v.status !== 'Voided' &&
+        v.status !== 'Pending_Approval' &&
+        v.payment_type !== 'Advance_Settlement'
+    );
     const totalSpend = active.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
     const cashSpend = active
       .filter((v) => v.payment_method === 'Physical_Cash')
@@ -244,7 +249,7 @@ export const DashboardPage: React.FC = () => {
       upiPaid: upiSpend,
       maxTicket,
       avgTicket,
-      totalBills: filteredVouchers.length,
+      totalBills: active.length,
       cashBills: active.filter((v) => v.payment_method === 'Physical_Cash').length,
       upiBills: active.filter((v) => v.payment_method === 'Online_UPI').length,
     };
@@ -298,7 +303,12 @@ export const DashboardPage: React.FC = () => {
   const departmentStats = useMemo(() => {
     const map = new Map<string, { count: number; amount: number }>();
     filteredVouchers
-      .filter((v) => v.status !== 'Voided')
+      .filter(
+        (v) =>
+          v.status !== 'Voided' &&
+          v.status !== 'Pending_Approval' &&
+          v.payment_type !== 'Advance_Settlement'
+      )
       .forEach((v) => {
         const dept = v.department_name || 'General Operations';
         const cur = map.get(dept) || { count: 0, amount: 0 };
@@ -325,7 +335,12 @@ export const DashboardPage: React.FC = () => {
   const categoryStats = useMemo(() => {
     const map = new Map<string, { count: number; amount: number }>();
     filteredVouchers
-      .filter((v) => v.status !== 'Voided')
+      .filter(
+        (v) =>
+          v.status !== 'Voided' &&
+          v.status !== 'Pending_Approval' &&
+          v.payment_type !== 'Advance_Settlement'
+      )
       .forEach((v) => {
         const cat = v.category_name || 'Other';
         const cur = map.get(cat) || { count: 0, amount: 0 };
@@ -348,7 +363,7 @@ export const DashboardPage: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
   }, [filteredVouchers, metrics.totalSpend]);
 
-  const handleExportTally = () => {
+  const handleExportTally = async () => {
     if (!can('can_export_tally')) {
       showToast({
         type: 'error',
@@ -357,7 +372,17 @@ export const DashboardPage: React.FC = () => {
       });
       return;
     }
-    const csvContent = erpService.generateTallyExportCSV(filteredVouchers);
+    const splitsMap: Record<string, any[]> = {};
+    const staffSplitVouchers = filteredVouchers.filter((v) => v.payment_type === 'Staff_Split');
+    await Promise.all(
+      staffSplitVouchers.map(async (v) => {
+        const rows = await erpService.getVoucherSplits(v.voucher_number);
+        if (rows && rows.length > 0) {
+          splitsMap[v.voucher_number] = rows;
+        }
+      })
+    );
+    const csvContent = erpService.generateTallyExportCSV(filteredVouchers, splitsMap);
     const cleanCsv = csvContent.replace(/^data:text\/csv;charset=utf-8,/, '');
     const blob = new Blob([cleanCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -387,7 +412,7 @@ export const DashboardPage: React.FC = () => {
                 <span>Dashboard</span>
               </h1>
               <span className="px-2.5 py-0.5 rounded-[4px] text-[11px] font-medium font-mono tabular-nums bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center">
-                {filteredVouchers.length} bills
+                {metrics.totalBills} bills
               </span>
               {isPeriodLocked && (
                 <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 inline-flex items-center gap-1">

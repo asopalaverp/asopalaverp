@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useBranchStore } from '@/store/branchStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
@@ -124,18 +124,6 @@ export const NewVoucherPage: React.FC = () => {
     checkPeriod();
   }, [paymentDate]);
 
-  // Listen for Global Voucher Mode Change (Alt+1 / Alt+2 / Alt+3)
-  useEffect(() => {
-    const handleSetMode = (e: any) => {
-      if (e.detail?.mode) {
-        triggerHaptic('selection');
-        setMode(e.detail.mode);
-      }
-    };
-    window.addEventListener('asopalav:set-voucher-mode', handleSetMode);
-    return () => window.removeEventListener('asopalav:set-voucher-mode', handleSetMode);
-  }, []);
-
   // Form Fields State
   const [categoryName, setCategoryName] = useState<string>('');
   const [departmentName, setDepartmentName] = useState<string>('');
@@ -189,12 +177,14 @@ export const NewVoucherPage: React.FC = () => {
   const formRef = useRef<HTMLFormElement | null>(null);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Listen to Global Counter Custom Events
+  // Listen to Global Counter Custom Events (Alt+1 / Alt+2 / Alt+3 / F2)
   useEffect(() => {
     const handleSetMode = (e: Event) => {
-      const custom = e as CustomEvent<VoucherMode>;
-      if (custom.detail) {
-        setMode(custom.detail);
+      const custom = e as CustomEvent<any>;
+      const nextMode = typeof custom.detail === 'string' ? custom.detail : custom.detail?.mode;
+      if (nextMode === 'Shop_Vendor' || nextMode === 'Staff_Split' || nextMode === 'Courier') {
+        triggerHaptic('selection');
+        setMode(nextMode);
       }
     };
     const handleTriggerDisburse = () => {
@@ -284,7 +274,7 @@ export const NewVoucherPage: React.FC = () => {
 
   const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const isBackdated = paymentDate < todayStr;
-  const isBackdateRestricted = isBackdated && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer';
+  const isBackdateRestricted = isBackdated && !isPrivilegedAdminRole(user?.role_code);
   const isBackdateBlocked = isBackdateRestricted && !allowBackdated;
 
   // Balance Check
@@ -342,7 +332,7 @@ export const NewVoucherPage: React.FC = () => {
     }
 
     // Block future-dated vouchers
-    if (paymentDate > todayStr && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer') {
+    if (paymentDate > todayStr && !isPrivilegedAdminRole(user?.role_code)) {
       setError("Cannot pick future date. Please use today's date.");
       return;
     }
@@ -388,7 +378,7 @@ export const NewVoucherPage: React.FC = () => {
       return;
     }
 
-    // Mode-Specific Validations
+    // Mode-Specific Validations (Strict: NO default Category or Department allowed)
     if (mode === 'Shop_Vendor') {
       if (isMultiVendor) {
         if (vendorSplits.length === 0) {
@@ -398,26 +388,47 @@ export const NewVoucherPage: React.FC = () => {
           triggerHaptic('error');
           return;
         }
-        const invalidItem = vendorSplits.find((v) => !v.vendor_name.trim() || Number(v.amount) <= 0);
-        if (invalidItem) {
-          const msg = 'Every item must have a vendor name and amount > ₹0.';
+        const invalidVendorIndex = vendorSplits.findIndex(
+          (v) =>
+            !v.vendor_name?.trim() ||
+            !v.category_name?.trim() ||
+            !v.department_name?.trim() ||
+            Number(v.amount) <= 0
+        );
+        if (invalidVendorIndex !== -1) {
+          const rowNum = invalidVendorIndex + 1;
+          const v = vendorSplits[invalidVendorIndex];
+          const msg = !v.vendor_name?.trim()
+            ? `Row #${rowNum}: Please enter the shop/vendor name.`
+            : !v.category_name?.trim()
+            ? `Row #${rowNum} (${v.vendor_name}): Please select an expense category.`
+            : !v.department_name?.trim()
+            ? `Row #${rowNum} (${v.vendor_name}): Please select a department.`
+            : `Row #${rowNum} (${v.vendor_name}): Amount must be greater than ₹0.`;
           setError(msg);
-          showToast({ type: 'error', title: 'Check Table', message: msg });
+          showToast({ type: 'error', title: 'Incomplete Vendor Row', message: msg });
           triggerHaptic('error');
           return;
         }
       } else {
-        if (!categoryName) {
+        if (!recipientName.trim()) {
+          const msg = 'Please write who was paid (shop or person name).';
+          setError(msg);
+          showToast({ type: 'error', title: 'Name Needed', message: msg });
+          triggerHaptic('error');
+          return;
+        }
+        if (!categoryName.trim()) {
           const msg = 'Please choose an expense category.';
           setError(msg);
           showToast({ type: 'error', title: 'Category Needed', message: msg });
           triggerHaptic('error');
           return;
         }
-        if (!recipientName.trim()) {
-          const msg = 'Please write who was paid (shop or person name).';
+        if (!departmentName.trim()) {
+          const msg = 'Please choose a department.';
           setError(msg);
-          showToast({ type: 'error', title: 'Name Needed', message: msg });
+          showToast({ type: 'error', title: 'Department Needed', message: msg });
           triggerHaptic('error');
           return;
         }
@@ -430,6 +441,27 @@ export const NewVoucherPage: React.FC = () => {
         triggerHaptic('error');
         return;
       }
+      if (!trackingNumber.trim()) {
+        const msg = 'Please enter the tracking number or agent name.';
+        setError(msg);
+        showToast({ type: 'error', title: 'Tracking / Agent Needed', message: msg });
+        triggerHaptic('error');
+        return;
+      }
+      if (!categoryName.trim()) {
+        const msg = 'Please choose an expense category for this courier bill.';
+        setError(msg);
+        showToast({ type: 'error', title: 'Category Needed', message: msg });
+        triggerHaptic('error');
+        return;
+      }
+      if (!departmentName.trim()) {
+        const msg = 'Please choose a department for this courier bill.';
+        setError(msg);
+        showToast({ type: 'error', title: 'Department Needed', message: msg });
+        triggerHaptic('error');
+        return;
+      }
     } else if (mode === 'Staff_Split') {
       if (splits.length === 0) {
         const msg = 'Please add at least one staff member to split.';
@@ -438,18 +470,34 @@ export const NewVoucherPage: React.FC = () => {
         triggerHaptic('error');
         return;
       }
-      const invalidSplit = splits.find((s) => !s.staffName.trim() || Number(s.amount) <= 0);
-      if (invalidSplit) {
-        const msg = 'All staff entries must have a name and amount > ₹0.';
+      const invalidSplitIndex = splits.findIndex(
+        (s) =>
+          !s.staffCode?.trim() ||
+          !s.staffName?.trim() ||
+          !s.categoryName?.trim() ||
+          !s.departmentName?.trim() ||
+          Number(s.amount) <= 0
+      );
+      if (invalidSplitIndex !== -1) {
+        const rowNum = invalidSplitIndex + 1;
+        const s = splits[invalidSplitIndex];
+        const msg =
+          !s.staffCode?.trim() || !s.staffName?.trim()
+            ? `Staff Row #${rowNum}: Please select a staff member.`
+            : !s.categoryName?.trim()
+            ? `Staff Row #${rowNum} (${s.staffName}): Please select an expense category.`
+            : !s.departmentName?.trim()
+            ? `Staff Row #${rowNum} (${s.staffName}): Please select a department.`
+            : `Staff Row #${rowNum} (${s.staffName}): Amount must be greater than ₹0.`;
         setError(msg);
-        showToast({ type: 'error', title: 'Check Staff Split', message: msg });
+        showToast({ type: 'error', title: 'Incomplete Staff Split', message: msg });
         triggerHaptic('error');
         return;
       }
     }
 
     // Period Lock Validation
-    if (isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer') {
+    if (isPeriodLocked && !allowLockedPeriod && !isPrivilegedAdminRole(user?.role_code)) {
       const msg = `Today's register has been closed. New expenses cannot be saved.`;
       setError(msg);
       showToast({ type: 'error', title: 'Day Closed', message: msg });
@@ -492,8 +540,11 @@ export const NewVoucherPage: React.FC = () => {
         payment_type: mode,
         payment_method: paymentMethod,
         total_amount: finalCalculatedAmount,
-        remarks,
-        bill_number: billNumber.trim() || (mode === 'Courier' && trackingNumber.trim() ? trackingNumber.trim() : undefined),
+        remarks: remarks.trim(),
+        bill_number:
+          mode === 'Courier'
+            ? trackingNumber.trim() || billNumber.trim() || undefined
+            : billNumber.trim() || undefined,
         bill_photo_urls: photoUrls,
         created_by_name: `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim(),
         status: 'Approved',
@@ -501,62 +552,65 @@ export const NewVoucherPage: React.FC = () => {
         requested_by_staff_name: requestedByStaffName.trim() || undefined,
       };
 
+      let cleanedStaffSplits: SplitItem[] | undefined = undefined;
+
       if (mode === 'Shop_Vendor') {
         if (isMultiVendor) {
+          const cleanedVendorSplits: VendorSplitItem[] = vendorSplits.map((v) => ({
+            vendor_name: v.vendor_name.trim(),
+            category_name: v.category_name.trim(),
+            department_name: v.department_name.trim(),
+            bill_number: v.bill_number?.trim() || '',
+            description: v.description?.trim() || '',
+            amount: Number(v.amount) || 0,
+          }));
           const uniqueCategories = Array.from(
-            new Set(vendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))
+            new Set(cleanedVendorSplits.map((v) => v.category_name).filter(Boolean))
           );
           const uniqueDepartments = Array.from(
-            new Set(vendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))
+            new Set(cleanedVendorSplits.map((v) => v.department_name).filter(Boolean))
           );
 
-          payload.category_name =
-            uniqueCategories.length === 1
-              ? uniqueCategories[0]
-              : uniqueCategories.length > 1
-              ? uniqueCategories.join(', ')
-              : (categoryName || 'General Expense');
-          payload.department_name =
-            uniqueDepartments.length === 1
-              ? uniqueDepartments[0]
-              : uniqueDepartments.length > 1
-              ? uniqueDepartments.join(', ')
-              : (departmentName || 'Main Shop Floor');
-          payload.recipient_name = `${vendorSplits.length} Vendors (${vendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`;
-          payload.vendor_splits = vendorSplits;
+          payload.category_name = uniqueCategories.join(', ');
+          payload.department_name = uniqueDepartments.join(', ');
+          payload.recipient_name =
+            cleanedVendorSplits.length === 1
+              ? cleanedVendorSplits[0].vendor_name
+              : `${cleanedVendorSplits.length} Vendors (${cleanedVendorSplits.map((v) => v.vendor_name.split(' ')[0]).join(', ')})`;
+          payload.vendor_splits = cleanedVendorSplits;
         } else {
-          payload.category_name = categoryName || 'General Expense';
-          payload.department_name = departmentName || 'Main Shop Floor';
-          payload.recipient_name = recipientName;
+          payload.category_name = categoryName.trim();
+          payload.department_name = departmentName.trim();
+          payload.recipient_name = recipientName.trim();
         }
       } else if (mode === 'Courier') {
-        payload.category_name = categoryName || 'Customer Courier & Packing';
-        payload.department_name = departmentName || 'Logistics & Dispatch';
-        payload.recipient_name = courierCompany;
-        payload.courier_company = courierCompany;
-        payload.tracking_number = trackingNumber;
+        payload.category_name = categoryName.trim();
+        payload.department_name = departmentName.trim();
+        payload.recipient_name = courierCompany.trim();
+        payload.courier_company = courierCompany.trim();
+        payload.tracking_number = trackingNumber.trim();
       } else if (mode === 'Staff_Split') {
+        cleanedStaffSplits = splits.map((s) => ({
+          staffCode: s.staffCode.trim(),
+          staffName: s.staffName.trim(),
+          departmentName: s.departmentName.trim(),
+          categoryName: s.categoryName.trim(),
+          amount: Number(s.amount) || 0,
+        }));
         const uniqueCategories = Array.from(
-          new Set(splits.map((s) => s.categoryName?.trim()).filter(Boolean))
+          new Set(cleanedStaffSplits.map((s) => s.categoryName).filter(Boolean))
         );
         const uniqueDepartments = Array.from(
-          new Set(splits.map((s) => s.departmentName?.trim()).filter(Boolean))
+          new Set(cleanedStaffSplits.map((s) => s.departmentName).filter(Boolean))
         );
 
-        payload.category_name =
-          uniqueCategories.length === 1
-            ? uniqueCategories[0]
-            : uniqueCategories.length > 1
-            ? uniqueCategories.join(', ')
-            : (categoryName || 'Staff Expense');
-        payload.department_name =
-          uniqueDepartments.length === 1
-            ? uniqueDepartments[0]
-            : uniqueDepartments.length > 1
-            ? uniqueDepartments.join(', ')
-            : (departmentName || 'Main Shop Floor');
-        payload.recipient_name = `${splits.length} Staff (${splits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
-        payload.splits = splits;
+        payload.category_name = uniqueCategories.join(', ');
+        payload.department_name = uniqueDepartments.join(', ');
+        payload.recipient_name =
+          cleanedStaffSplits.length === 1
+            ? cleanedStaffSplits[0].staffName
+            : `${cleanedStaffSplits.length} Staff (${cleanedStaffSplits.map((s) => s.staffName.split(' ')[0]).join(', ')})`;
+        payload.splits = cleanedStaffSplits;
       }
 
       const created = await erpService.createVoucherWithLedger({
@@ -564,16 +618,7 @@ export const NewVoucherPage: React.FC = () => {
           ...payload,
           voucher_number: generatedVoucherNumber,
         },
-        splits:
-          mode === 'Staff_Split'
-            ? splits.map((s) => ({
-                staffCode: s.staffCode,
-                staffName: s.staffName,
-                departmentName: s.departmentName?.trim() || departmentName || 'Main Shop Floor',
-                categoryName: s.categoryName?.trim() || categoryName || 'Staff Expense',
-                amount: s.amount,
-              }))
-            : undefined,
+        splits: cleanedStaffSplits,
         userName: `${user?.first_name || 'Cashier'} ${user?.last_name || ''}`.trim(),
         userRole: user?.role_code || 'Cashier',
       });
@@ -581,7 +626,7 @@ export const NewVoucherPage: React.FC = () => {
       showToast({
         type: 'success',
         title: 'Expense Saved',
-        message: `Bill #${created.voucher_number} for ₹${created.total_amount} paid successfully.`,
+        message: `Bill #${created.voucher_number} for ${formatINR(created.total_amount)} paid successfully.`,
       });
 
       setIsPreviewOpen(false);
@@ -607,6 +652,9 @@ export const NewVoucherPage: React.FC = () => {
     }
   };
 
+  const executeFinalDisbursalRef = useRef(executeFinalDisbursal);
+  executeFinalDisbursalRef.current = executeFinalDisbursal;
+
   // Keyboard Shortcuts Listener when Preview Modal is open
   useEffect(() => {
     if (!isPreviewOpen) return;
@@ -616,7 +664,7 @@ export const NewVoucherPage: React.FC = () => {
         setIsPreviewOpen(false);
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        executeFinalDisbursal();
+        executeFinalDisbursalRef.current();
       }
     };
     window.addEventListener('keydown', handlePreviewKeyDown);
@@ -693,10 +741,17 @@ export const NewVoucherPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="flex justify-between items-center pt-2.5">
+            <div className="flex justify-between items-center py-2.5">
               <span className="text-slate-500 dark:text-zinc-400 font-sans">Category:</span>
               <span className="text-slate-700 dark:text-zinc-300 font-sans">
                 {successVoucher.category_name}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center pt-2.5">
+              <span className="text-slate-500 dark:text-zinc-400 font-sans">Department:</span>
+              <span className="text-slate-700 dark:text-zinc-300 font-sans">
+                {successVoucher.department_name}
               </span>
             </div>
           </div>
@@ -1003,12 +1058,13 @@ export const NewVoucherPage: React.FC = () => {
               <SearchableSelect
                 value={requestedByStaffCode}
                 onChange={(val) => {
-                  setRequestedByStaffCode(val);
-                  if (!val) {
-                    setRequestedByStaffName('');
+                  const found = staff.find((s) => s.staff_code === val);
+                  if (found) {
+                    setRequestedByStaffCode(found.staff_code);
+                    setRequestedByStaffName(`${found.first_name} ${found.last_name || ''}`.trim());
                   } else {
-                    const found = staff.find((s) => s.staff_code === val);
-                    setRequestedByStaffName(found ? `${found.first_name} ${found.last_name || ''}`.trim() : val);
+                    setRequestedByStaffCode('');
+                    setRequestedByStaffName('');
                   }
                 }}
                 options={staff.map((s) => ({
@@ -1017,7 +1073,7 @@ export const NewVoucherPage: React.FC = () => {
                   subLabel: s.department_name || s.designation,
                 }))}
                 placeholder="Select staff member..."
-                allowCustom={true}
+                allowCustom={false}
                 clearable={true}
               />
             </div>
@@ -1107,7 +1163,7 @@ export const NewVoucherPage: React.FC = () => {
                             label: c.category_name,
                           }))}
                           placeholder="Select category..."
-                          allowCustom={true}
+                          allowCustom={false}
                           clearable={true}
                         />
                       </div>
@@ -1124,7 +1180,7 @@ export const NewVoucherPage: React.FC = () => {
                             label: d.department_name,
                           }))}
                           placeholder="Select department..."
-                          allowCustom={true}
+                          allowCustom={false}
                           clearable={true}
                         />
                       </div>
@@ -1170,7 +1226,7 @@ export const NewVoucherPage: React.FC = () => {
                         label: c.partner_name,
                       }))}
                       placeholder="Select courier (Maruti, DTDC)..."
-                      allowCustom={true}
+                      allowCustom={false}
                       clearable={true}
                     />
                   </div>
@@ -1185,6 +1241,42 @@ export const NewVoucherPage: React.FC = () => {
                       onChange={(e) => setTrackingNumber(e.target.value)}
                       placeholder="e.g. Ramesh Bhai / Track No."
                       className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
+                      Category *
+                    </label>
+                    <SearchableSelect
+                      value={categoryName}
+                      onChange={setCategoryName}
+                      options={categories.map((c) => ({
+                        value: c.category_name,
+                        label: c.category_name,
+                      }))}
+                      placeholder="Select category..."
+                      allowCustom={false}
+                      clearable={true}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
+                      Department *
+                    </label>
+                    <SearchableSelect
+                      value={departmentName}
+                      onChange={setDepartmentName}
+                      options={departments.map((d) => ({
+                        value: d.department_name,
+                        label: d.department_name,
+                      }))}
+                      placeholder="Select department..."
+                      allowCustom={false}
+                      clearable={true}
                     />
                   </div>
                 </div>
@@ -1260,7 +1352,7 @@ export const NewVoucherPage: React.FC = () => {
                   disabled={
                     submitting ||
                     (isInsufficientBalance && !allowNegative) ||
-                    (isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer')
+                    (isPeriodLocked && !allowLockedPeriod && !isPrivilegedAdminRole(user?.role_code))
                   }
                   className={cn(
                     'w-full h-11 px-5 rounded-[6px] font-sans font-medium text-sm tracking-tight transition-all cursor-pointer select-none flex items-center justify-center gap-2 shadow-2xs',
@@ -1268,7 +1360,7 @@ export const NewVoucherPage: React.FC = () => {
                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-900/60 cursor-not-allowed'
                       : isInsufficientBalance && allowNegative
                       ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold'
-                      : isPeriodLocked && !allowLockedPeriod && user?.role_code !== 'Super_Admin' && user?.role_code !== 'Developer'
+                      : isPeriodLocked && !allowLockedPeriod && !isPrivilegedAdminRole(user?.role_code)
                       ? 'bg-amber-600 text-white cursor-not-allowed opacity-80'
                       : 'bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] shadow-emerald-500/20 shadow-md font-semibold'
                   )}
@@ -1378,24 +1470,74 @@ export const NewVoucherPage: React.FC = () => {
                     <span className="font-medium text-slate-900 dark:text-white text-right truncate max-w-[240px]">
                       {mode === 'Shop_Vendor'
                         ? isMultiVendor
-                          ? `${vendorSplits.length} Vendors`
-                          : recipientName
+                          ? vendorSplits.length === 1
+                            ? vendorSplits[0].vendor_name.trim()
+                            : `${vendorSplits.length} Vendors (${vendorSplits.map((v) => v.vendor_name.trim().split(' ')[0]).join(', ')})`
+                          : recipientName.trim()
                         : mode === 'Courier'
-                        ? courierCompany
-                        : `${splits.length} Staff Members`}
+                        ? courierCompany.trim()
+                        : splits.length === 1
+                        ? splits[0].staffName.trim()
+                        : `${splits.length} Staff (${splits.map((s) => s.staffName.trim().split(' ')[0]).join(', ')})`}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between p-3">
                     <span className="text-slate-500 dark:text-zinc-400">Category &amp; Dept:</span>
-                    <span className="text-slate-700 dark:text-zinc-300 text-right truncate max-w-[240px]">
+                    <span className="text-slate-700 dark:text-zinc-300 text-right truncate max-w-[260px]">
                       {mode === 'Staff_Split'
-                        ? `${Array.from(new Set(splits.map((s) => s.categoryName?.trim()).filter(Boolean))).join(', ') || 'Staff Expense'} • ${Array.from(new Set(splits.map((s) => s.departmentName?.trim()).filter(Boolean))).join(', ') || 'Main Shop Floor'}`
+                        ? `${Array.from(new Set(splits.map((s) => s.categoryName.trim()).filter(Boolean))).join(', ')} • ${Array.from(new Set(splits.map((s) => s.departmentName.trim()).filter(Boolean))).join(', ')}`
                         : mode === 'Shop_Vendor' && isMultiVendor
-                        ? `${Array.from(new Set(vendorSplits.map((v) => v.category_name?.trim()).filter(Boolean))).join(', ') || 'General Expense'} • ${Array.from(new Set(vendorSplits.map((v) => v.department_name?.trim()).filter(Boolean))).join(', ') || 'Main Shop Floor'}`
-                        : `${categoryName || 'General Expense'} • ${departmentName || 'Main Shop Floor'}`}
+                        ? `${Array.from(new Set(vendorSplits.map((v) => v.category_name.trim()).filter(Boolean))).join(', ')} • ${Array.from(new Set(vendorSplits.map((v) => v.department_name.trim()).filter(Boolean))).join(', ')}`
+                        : `${categoryName.trim()} • ${departmentName.trim()}`}
                     </span>
                   </div>
+
+                  {mode === 'Staff_Split' && splits.length > 0 && (
+                    <div className="p-3 space-y-1.5 bg-slate-50/50 dark:bg-[#111113]">
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 block">
+                        Staff Allocation Breakdown:
+                      </span>
+                      <div className="space-y-1">
+                        {splits.map((s, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[11px] py-1 border-b border-slate-100 dark:border-white/5 last:border-b-0">
+                            <div className="truncate pr-2">
+                              <span className="font-medium text-slate-900 dark:text-white">{s.staffName.trim()}</span>
+                              <span className="text-slate-500 dark:text-zinc-400 ml-1.5">
+                                ({s.categoryName.trim()} • {s.departmentName.trim()})
+                              </span>
+                            </div>
+                            <span className="font-mono font-medium text-slate-900 dark:text-white shrink-0 tabular-nums">
+                              {formatINR(Number(s.amount) || 0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {mode === 'Shop_Vendor' && isMultiVendor && vendorSplits.length > 0 && (
+                    <div className="p-3 space-y-1.5 bg-slate-50/50 dark:bg-[#111113]">
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 block">
+                        Vendor Split Breakdown:
+                      </span>
+                      <div className="space-y-1">
+                        {vendorSplits.map((v, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[11px] py-1 border-b border-slate-100 dark:border-white/5 last:border-b-0">
+                            <div className="truncate pr-2">
+                              <span className="font-medium text-slate-900 dark:text-white">{v.vendor_name.trim()}</span>
+                              <span className="text-slate-500 dark:text-zinc-400 ml-1.5">
+                                ({v.category_name.trim()} • {v.department_name.trim()})
+                              </span>
+                            </div>
+                            <span className="font-mono font-medium text-slate-900 dark:text-white shrink-0 tabular-nums">
+                              {formatINR(Number(v.amount) || 0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between p-3">
                     <span className="text-slate-500 dark:text-zinc-400">Bill Number:</span>

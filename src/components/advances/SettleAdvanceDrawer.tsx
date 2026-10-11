@@ -110,6 +110,17 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
       return;
     }
 
+    if (!signatureDataUrl) {
+      const msg = 'Staff digital signature is required to verify advance settlement.';
+      setError(msg);
+      showToast({
+        type: 'error',
+        title: 'Signature Required',
+        message: msg,
+      });
+      return;
+    }
+
     setIsPreviewOpen(true);
   };
 

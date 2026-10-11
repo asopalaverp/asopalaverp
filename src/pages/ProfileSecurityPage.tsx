@@ -3,7 +3,7 @@ import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
-import { uploadAvatarToSupabase } from '@/lib/supabase';
+import { supabase, uploadAvatarToSupabase } from '@/lib/supabase';
 import { uploadToR2 } from '@/lib/r2';
 import bcrypt from 'bcryptjs';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -220,7 +220,7 @@ export const ProfileSecurityPage: React.FC = () => {
   };
 
   // Open Update Security Confirmation Modal
-  const handleOpenSecurityPreview = (e: React.FormEvent) => {
+  const handleOpenSecurityPreview = async (e: React.FormEvent) => {
     e.preventDefault();
     setSecurityError('');
 
@@ -234,7 +234,26 @@ export const ProfileSecurityPage: React.FC = () => {
         setSecurityError('Please enter your current password to change it.');
         return;
       }
-      if (!(user as any).password_hash || !bcrypt.compareSync(currentPassword, (user as any).password_hash)) {
+
+      if (!user?.id) {
+        setSecurityError('Active user session not found.');
+        return;
+      }
+
+      const { data: dbUser, error: dbErr } = await supabase
+        .from('app_users')
+        .select('password_hash')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const storedHash = dbUser?.password_hash || (user as any).password_hash;
+      const isCurrentValid =
+        storedHash &&
+        (storedHash === currentPassword ||
+          ((storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) &&
+            bcrypt.compareSync(currentPassword, storedHash)));
+
+      if (dbErr || !isCurrentValid) {
         setSecurityError('Current password is incorrect.');
         return;
       }
@@ -276,24 +295,30 @@ export const ProfileSecurityPage: React.FC = () => {
     setIsUpdatingSecurity(true);
 
     try {
-      if (pin && user) {
-        const hashedPin = bcrypt.hashSync(pin, 10);
-        updateUserPin(user.id, pin);
-        // Also persist to database
-        await erpService.saveAppUser(
-          { id: user.id, username: user.username, role_code: user.role_code, lock_pin_hash: hashedPin },
-          true,
-          `${user.first_name} ${user.last_name}`,
-          user.role_code
-        );
-      }
+      if (user && (pin || newPassword)) {
+        const updatePayload: any = {
+          id: user.id,
+          username: user.username,
+          role_code: user.role_code,
+          first_name: user.first_name,
+          last_name: user.last_name,
+        };
 
-      if (newPassword && user) {
-        const hashedPassword = bcrypt.hashSync(newPassword, 10);
+        if (pin) {
+          const hashedPin = bcrypt.hashSync(pin, 10);
+          updateUserPin(user.id, pin);
+          updatePayload.lock_pin_hash = hashedPin;
+        }
+
+        if (newPassword) {
+          const hashedPassword = bcrypt.hashSync(newPassword, 10);
+          updatePayload.password_hash = hashedPassword;
+        }
+
         await erpService.saveAppUser(
-          { ...user, password_hash: hashedPassword },
+          updatePayload,
           true,
-          `${user.first_name} ${user.last_name}`,
+          `${user.first_name} ${user.last_name}`.trim(),
           user.role_code
         );
       }
