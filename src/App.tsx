@@ -29,6 +29,9 @@ const CashDrawerTreasuryPage = lazy(() =>
 const StaffAdvancesPage = lazy(() =>
   import('@/pages/StaffAdvancesPage').then((m) => ({ default: m.StaffAdvancesPage }))
 );
+const ReportsPage = lazy(() =>
+  import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage }))
+);
 const SecurityAuditPage = lazy(() =>
   import('@/pages/SecurityAuditPage').then((m) => ({ default: m.SecurityAuditPage }))
 );
@@ -91,6 +94,7 @@ const prefetchCoreRoutes = () => {
       import('@/pages/NewVoucherPage');
       import('@/pages/AllExpensesPage');
       import('@/pages/StaffAdvancesPage');
+      import('@/pages/ReportsPage');
     };
 
     if ('requestIdleCallback' in window) {
@@ -105,6 +109,7 @@ const PAGE_PERMISSIONS: Partial<Record<PageId, keyof RolePermissions>> = {
   'new-voucher': 'can_create_voucher',
   'treasury': 'can_inject_float',
   'advances': 'can_disburse_advance',
+  'reports': 'can_export_tally',
   'staff': 'can_manage_users_roles',
   'settings': 'can_manage_periods',
   'audit': 'can_view_audit_logs',
@@ -172,10 +177,16 @@ export const App: React.FC = () => {
 
   // Load branches, wallet state, realtime channel, and idle-prefetch routes
   useEffect(() => {
-    // Purge any stale mock cache keys from browser localStorage
+    // Purge any stale mock or pre-reconciliation cache keys from browser localStorage
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem('asopalav_pos_drafts_v1');
+        ['asopalav_wallet_Aellp-ASI', 'asopalav_wallet_ASI', 'asopalav_wallet_ALL'].forEach((k) => {
+          const raw = localStorage.getItem(k);
+          if (raw && (raw.includes('103050') || raw.includes('102900'))) {
+            localStorage.removeItem(k);
+          }
+        });
       } catch {}
     }
 
@@ -404,6 +415,8 @@ export const App: React.FC = () => {
           );
         }
         return <StaffAdvancesPage />;
+      case 'reports':
+        return <ReportsPage />;
       case 'audit':
         return <SecurityAuditPage />;
       case 'staff':

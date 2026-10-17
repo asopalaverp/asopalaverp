@@ -17,8 +17,10 @@ import {
   Smartphone,
   Layers,
   RefreshCw,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
+import { ForensicAuditSection } from '@/components/treasury/ForensicAuditSection';
 
 type DateFilterType = 'today' | 'week' | 'month' | 'all';
 
@@ -29,6 +31,7 @@ export const AllExpensesPage: React.FC = () => {
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
   const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
+  const [auditSelectedDate, setAuditSelectedDate] = useState<string | null>(null);
 
   const activeBranch = getActiveBranch();
   const showroomTitle = selectedBranchId === 'ALL' ? 'All Showrooms' : (activeBranch?.branch_name || 'Satellite Road Showroom');
@@ -45,13 +48,16 @@ export const AllExpensesPage: React.FC = () => {
 
     return vouchers.filter((v) => {
       const vDate = v.payment_date || (v.created_at ? v.created_at.slice(0, 10) : '');
-      if (dateFilter === 'today' && vDate !== todayStr) return false;
-      if (dateFilter === 'week' && vDate < startOfWeekStr) return false;
-      if (dateFilter === 'month' && vDate < startOfMonthStr) return false;
+      if (auditSelectedDate && vDate !== auditSelectedDate) return false;
+      if (!auditSelectedDate) {
+        if (dateFilter === 'today' && vDate !== todayStr) return false;
+        if (dateFilter === 'week' && vDate < startOfWeekStr) return false;
+        if (dateFilter === 'month' && vDate < startOfMonthStr) return false;
+      }
       if (selectedMode !== 'ALL' && v.payment_method !== selectedMode) return false;
       return true;
     });
-  }, [vouchers, dateFilter, selectedMode]);
+  }, [vouchers, dateFilter, selectedMode, auditSelectedDate]);
 
   // Totals calculations (approved real wallet outflows only — excludes Voided, Pending_Approval, and non-cash Advance_Settlement)
   const activeValidVouchers = useMemo(() => {
@@ -81,44 +87,6 @@ export const AllExpensesPage: React.FC = () => {
 
   const cashPercent = totalAmount > 0 ? Math.round((cashAmount / totalAmount) * 100) : 0;
   const upiPercent = totalAmount > 0 ? Math.round((upiAmount / totalAmount) * 100) : 0;
-
-  const handleExportTally = async () => {
-    try {
-      const splitsMap: Record<string, any[]> = {};
-      const staffSplitVouchers = filteredByDateVouchers.filter((v) => v.payment_type === 'Staff_Split');
-      await Promise.all(
-        staffSplitVouchers.map(async (v) => {
-          const rows = await erpService.getVoucherSplits(v.voucher_number);
-          if (rows && rows.length > 0) {
-            splitsMap[v.voucher_number] = rows;
-          }
-        })
-      );
-      const csvDataUri = erpService.generateTallyExportCSV(filteredByDateVouchers, splitsMap);
-      const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,/, '');
-      const blob = new Blob([cleanCsv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Tally_Prime_Export_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      showToast({
-        type: 'success',
-        title: 'Tally CSV Exported',
-        message: `Exported ${filteredByDateVouchers.length} expense records for Tally Prime.`,
-      });
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Download Failed',
-        message: err?.message || 'Could not export expense data.',
-      });
-    }
-  };
 
   const handleRefresh = async () => {
     await refresh();
@@ -155,12 +123,12 @@ export const AllExpensesPage: React.FC = () => {
             {can('can_export_tally') && (
               <button
                 type="button"
-                onClick={handleExportTally}
+                onClick={() => setActivePage('reports')}
                 className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                title="Download CSV for Excel or Tally"
+                title="View All Financial Reports & Tally Statements"
               >
-                <Download className="w-3.5 h-3.5 text-slate-600 dark:text-[#A1A1A1]" />
-                <span>Download CSV</span>
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                <span>Reports &amp; Tally</span>
               </button>
             )}
 
@@ -275,6 +243,16 @@ export const AllExpensesPage: React.FC = () => {
             icon={Layers}
           />
         </div>
+
+        {/* Forensic Audit & Day-by-Day Cash Statement */}
+        <ForensicAuditSection
+          vouchers={vouchers}
+          selectedBranchId={selectedBranchId}
+          onSelectDate={setAuditSelectedDate}
+          selectedDate={auditSelectedDate}
+          defaultExpanded={true}
+          contextTitle="Expenses & Cash Ledger Forensic Audit"
+        />
 
         {/* Voucher Data Grid */}
         <VoucherTable

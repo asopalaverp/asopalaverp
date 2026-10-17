@@ -5,7 +5,7 @@ import { SecurityAuditLog } from '@/types/database';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { format } from 'date-fns';
-import { cn, triggerHaptic } from '@/lib/utils';
+import { cn, triggerHaptic, formatVoucherNumber } from '@/lib/utils';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { toast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -589,7 +589,7 @@ export const SecurityAuditPage: React.FC = () => {
                     Reference Item
                   </span>
                   <span className="text-xs font-mono font-medium text-slate-900 dark:text-[#EDEDED] block">
-                    {selectedLog.target_entity}: {selectedLog.target_identifier}
+                    {selectedLog.target_entity}: {selectedLog.target_entity === 'expense_vouchers' ? formatVoucherNumber(selectedLog.target_identifier) : selectedLog.target_identifier}
                   </span>
                 </div>
 

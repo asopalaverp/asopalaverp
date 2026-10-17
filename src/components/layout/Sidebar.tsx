@@ -24,6 +24,7 @@ import {
   Clock,
   Store,
   Bell,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   AppTableIcon,
@@ -165,6 +166,13 @@ export const Sidebar: React.FC = () => {
     {
       title: 'MANAGEMENT & AUDIT',
       items: [
+        {
+          id: 'reports',
+          label: 'Financial Reports',
+          description: 'Tally, Advances & CA Pack',
+          icon: FileSpreadsheet,
+          permission: 'can_export_tally',
+        },
         {
           id: 'staff',
           label: 'Staff Directory',

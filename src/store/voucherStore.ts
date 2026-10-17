@@ -38,9 +38,9 @@ interface VoucherStoreState {
 let masterDataInFlight: Promise<void> | null = null;
 const vouchersInFlight: Record<string, Promise<void> | null> = {};
 
-// Cache duration: 10 minutes for master data, 2 minutes for vouchers
+// Cache duration: 10 minutes for master data, 10 minutes for vouchers (synchronized via Realtime)
 const MASTER_CACHE_TTL = 10 * 60 * 1000;
-const VOUCHERS_CACHE_TTL = 2 * 60 * 1000;
+const VOUCHERS_CACHE_TTL = 10 * 60 * 1000;
 
 export const useVoucherStore = create<VoucherStoreState>((set, get) => ({
   vouchers: {},

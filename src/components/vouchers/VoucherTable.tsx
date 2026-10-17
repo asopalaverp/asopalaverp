@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ExpenseVoucher, ExpenseCategory, Department } from '@/types/database';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
-import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatDate, formatVoucherNumber, cn, triggerHaptic } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   Search,
@@ -723,32 +723,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     setIsExportMenuOpen(false);
   };
 
-  const handleExportTallyCSV = async () => {
-    const list = getExportData();
-    const splitsMap: Record<string, any[]> = {};
-    for (const v of list) {
-      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
-        const splits = await erpService.getVoucherSplits(v.voucher_number);
-        if (splits && splits.length > 0) {
-          splitsMap[v.voucher_number] = splits;
-        }
-      }
-    }
-
-    const csvDataUri = erpService.generateTallyExportCSV(list, splitsMap);
-    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
-    downloadBlob(
-      `Asopalav_Tally_Prime_Export_${new Date().toISOString().slice(0, 10)}.csv`,
-      '\uFEFF' + cleanCsv,
-      'text/csv;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Tally Prime Export Complete',
-      message: `Exported ${list.length} vouchers with compound ledger mapping for Tally Prime.`,
-    });
-    setIsExportMenuOpen(false);
-  };
 
   const handleExportJSON = () => {
     const list = getExportData();
@@ -1147,22 +1121,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                     <div>
                       <div className="font-medium text-xs">Itemized Splits CSV</div>
                       <div className="text-[10px] text-slate-500 dark:text-zinc-400">Line-by-line staff / vendor rows</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
-                </button>
-
-                {/* Option 3: Tally Prime CSV */}
-                <button
-                  type="button"
-                  onClick={handleExportTallyCSV}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-amber-500 shrink-0" />
-                    <div>
-                      <div className="font-medium text-xs">Tally Prime Ledger CSV</div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Multi-debit compound payment entries</div>
                     </div>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
@@ -1668,7 +1626,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                                 </span>
                               )}
                               <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500">
-                                #{v.voucher_number}
+                                #{formatVoucherNumber(v.voucher_number)}
                               </span>
                             </div>
                           </div>
@@ -1880,7 +1838,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                       >
                         <button
                           type="button"
-                          aria-label={`Select receipt ${v.voucher_number}`}
+                          aria-label={`Select receipt ${formatVoucherNumber(v.voucher_number)}`}
                           className="cursor-pointer text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white inline-flex items-center justify-center"
                         >
                           {isSelected ? (
@@ -1900,7 +1858,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                           )}
                         >
                           <div className="flex items-center">
-                            <span>{v.voucher_number}</span>
+                            <span>{formatVoucherNumber(v.voucher_number)}</span>
                           </div>
                         </td>
                       )}
@@ -1935,7 +1893,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                                   openDrawer(v);
                                 }}
                                 title="View Attached Bill Photo"
-                                aria-label={`View bill photo for ${v.voucher_number}`}
+                                aria-label={`View bill photo for ${formatVoucherNumber(v.voucher_number)}`}
                                 className="p-1 rounded text-emerald-600 dark:text-primary hover:bg-emerald-50 dark:hover:bg-primary/10 transition-colors ml-1"
                               >
                                 <Eye className="w-3.5 h-3.5" />

@@ -163,10 +163,35 @@ export const useBranchStore = create<BranchState>((set, get) => ({
           wRes.data.forEach((w) => {
             walletMap[w.branch_id] = w;
             walletMap[normalizeBranchCode(w.branch_id)] = w;
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem(`asopalav_wallet_${w.branch_id}`, JSON.stringify(w));
+                localStorage.setItem(`asopalav_wallet_${normalizeBranchCode(w.branch_id)}`, JSON.stringify(w));
+              } catch {}
+            }
           });
+
+          // Compute unified ALL showrooms wallet
+          const totalCash = wRes.data.reduce((sum, w) => sum + (Number(w.cash_balance) || 0), 0);
+          const totalUpi = wRes.data.reduce((sum, w) => sum + (Number(w.upi_balance) || 0), 0);
+          const allWallet: BranchWallet = {
+            branch_id: 'ALL',
+            cash_balance: totalCash,
+            upi_balance: totalUpi,
+          };
+          walletMap['ALL'] = allWallet;
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('asopalav_wallet_ALL', JSON.stringify(allWallet));
+            } catch {}
+          }
         }
         set({ wallets: walletMap });
         set({ lastFetched: Date.now() });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('asopalav:wallet-updated', { detail: walletMap }));
+        }
       } catch (e) {
         console.warn('Error fetching branches and wallets from database:', e);
       } finally {

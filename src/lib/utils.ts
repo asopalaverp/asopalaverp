@@ -298,3 +298,53 @@ export function triggerHaptic(type: HapticFeedbackType = 'light') {
     // Graceful fallback for non-supported browsers
   }
 }
+
+/**
+ * Formats a raw database voucher number (e.g. 'ASI-2048-e54gf') for user display,
+ * invoice printing, tables, and reports by stripping the internal 5-char collision token,
+ * cleanly returning 'ASI-2048'.
+ * Safely preserves past entries (e.g. 'ASI-2048', 'ASI-10025', 'ASI-EMG-1024').
+ */
+export function formatVoucherNumber(rawVoucherNumber?: string | null): string {
+  if (!rawVoucherNumber || typeof rawVoucherNumber !== 'string') return '';
+  const trimmed = rawVoucherNumber.trim();
+  
+  // Handle any timestamp suffixes (e.g. -16.10.11.35)
+  const withoutTimestamp = trimmed.replace(/-(\d{2}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?)$/, '');
+  
+  // Check if there are at least 3 hyphen-separated segments (e.g. 'ASI-2048-e54gf')
+  const parts = withoutTimestamp.split('-');
+  if (parts.length >= 3) {
+    const last = parts[parts.length - 1];
+    // If the last segment is a 4-10 char token (e.g. 5-char hash 'e54gf')
+    if (/^[a-zA-Z0-9]{4,10}$/.test(last)) {
+      // Preserve past auto-vouchers like 'ASI-EMG-1024' where 2nd part is EMG and last part is pure digits
+      if (parts.length === 3 && parts[1].toUpperCase() === 'EMG' && /^\d+$/.test(last)) {
+        return withoutTimestamp;
+      }
+      return parts.slice(0, -1).join('-');
+    }
+  }
+  
+  return withoutTimestamp;
+}
+
+/**
+ * Generates an internal 5-character cryptographic random hash suffix (e.g. 'e54gf')
+ * used to guarantee zero database collisions across repeating physical printing batches.
+ */
+export function generateVoucherCollisionToken(): string {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let token = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = new Uint8Array(5);
+    crypto.getRandomValues(bytes);
+    for (let i = 0; i < 5; i++) {
+      token += chars[bytes[i] % chars.length];
+    }
+    return token;
+  }
+  return Math.random().toString(36).slice(2, 7).toLowerCase();
+}
+
+

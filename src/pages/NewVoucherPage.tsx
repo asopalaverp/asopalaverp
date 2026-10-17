@@ -5,6 +5,7 @@ import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
+import { supabase } from '@/lib/supabase';
 import { StaffSplitTable, SplitItem } from '@/components/vouchers/StaffSplitTable';
 import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
 import { BillUploader } from '@/components/vouchers/BillUploader';
@@ -13,7 +14,7 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import { SegmentedControl } from '@/components/ui';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { cn, formatINR, numberToWordsINR, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
+import { cn, formatINR, formatVoucherNumber, generateVoucherCollisionToken, numberToWordsINR, triggerHaptic, normalizeBranchCode, DEFAULT_BRANCHES } from '@/lib/utils';
 import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -106,9 +107,19 @@ export const NewVoucherPage: React.FC = () => {
 
   useEffect(() => {
     loadBalances();
-    const handleWalletUpdate = () => loadBalances();
+    let timeoutId: any = null;
+    const handleWalletUpdate = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadBalances();
+      }, 300);
+    };
     window.addEventListener('asopalav:wallet-updated', handleWalletUpdate);
-    return () => window.removeEventListener('asopalav:wallet-updated', handleWalletUpdate);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('asopalav:wallet-updated', handleWalletUpdate);
+    };
   }, [selectedBranch]);
 
   // Check Accounting Period Lock
@@ -531,7 +542,10 @@ export const NewVoucherPage: React.FC = () => {
     }
 
     try {
-      const generatedVoucherNumber = `${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()}`;
+      // Internal batch-collision prevention random hash token (e.g. 'e54gf71e54')
+      // Guarantees mathematical uniqueness in Supabase when bill book series repeat every 3-4 months
+      const collisionToken = generateVoucherCollisionToken();
+      const generatedVoucherNumber = `${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()}-${collisionToken}`;
 
       const payload: any = {
         branch_id: selectedBranch,
@@ -626,7 +640,7 @@ export const NewVoucherPage: React.FC = () => {
       showToast({
         type: 'success',
         title: 'Expense Saved',
-        message: `Bill #${created.voucher_number} for ${formatINR(created.total_amount)} paid successfully.`,
+        message: `Bill #${formatVoucherNumber(created.voucher_number)} for ${formatINR(created.total_amount)} paid successfully.`,
       });
 
       setIsPreviewOpen(false);
@@ -707,7 +721,7 @@ export const NewVoucherPage: React.FC = () => {
               Expense Saved &amp; Paid Successfully!
             </h2>
             <p className="text-xs font-mono text-slate-500 dark:text-zinc-400">
-              Bill #{successVoucher.voucher_number} • {currBranch.branch_name}
+              Bill #{formatVoucherNumber(successVoucher.voucher_number)} • {currBranch.branch_name}
             </p>
           </div>
 
@@ -716,7 +730,7 @@ export const NewVoucherPage: React.FC = () => {
             <div className="flex justify-between items-center pb-2.5">
               <span className="text-slate-500 dark:text-zinc-400 font-sans">Bill Number:</span>
               <span className="font-mono font-medium text-slate-900 dark:text-white text-xs px-2 py-0.5 rounded-[4px] bg-white dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e]">
-                #{successVoucher.voucher_number}
+                #{formatVoucherNumber(successVoucher.voucher_number)}
               </span>
             </div>
 

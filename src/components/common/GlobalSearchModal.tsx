@@ -4,7 +4,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { searchEngine, SearchResultItem, SearchCategory } from '@/lib/searchEngine';
-import { formatINR, formatDate, cn } from '@/lib/utils';
+import { formatINR, formatDate, formatVoucherNumber, cn } from '@/lib/utils';
 import { animateModalOpen, animateModalClose, animateStaggerCards } from '@/lib/animations';
 import {
   Search,
@@ -184,7 +184,7 @@ export const GlobalSearchModal: React.FC = () => {
       showToast({
         type: 'info',
         title: 'Opening Voucher',
-        message: `Voucher #${item.rawItem.voucher_number}`,
+        message: `Voucher #${formatVoucherNumber(item.rawItem.voucher_number)}`,
       });
     } else if (item.actionType === 'open_advance' && item.rawItem) {
       setSettleTargetAdvance(item.rawItem);
@@ -417,6 +417,7 @@ export const GlobalSearchModal: React.FC = () => {
     if (item.id === 'cmd-new-expense') return Receipt;
     if (item.id === 'cmd-cash-drawer') return Wallet;
     if (item.id === 'cmd-advances') return HandCoins;
+    if (item.id === 'cmd-reports' || item.actionPayload?.page === 'reports') return FileSpreadsheet;
     if (item.id === 'cmd-ledger') return AppTableIcon;
     if (item.id === 'cmd-staff') return Users;
     if (item.id === 'cmd-settings') return Sliders;

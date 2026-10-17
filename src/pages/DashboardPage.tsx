@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
 import { supabase } from '@/lib/supabase';
+import { calculateDailyCashBalances } from '@/lib/dailyCashBalance';
 import { StaffAdvance, ExpenseVoucher, WalletLedger } from '@/types/database';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
@@ -130,37 +131,30 @@ export const DashboardPage: React.FC = () => {
     loadWallet();
     loadLedger();
     loadAdvances();
+
+    let timeoutId: any = null;
     const handleUpdates = () => {
-      loadWallet();
-      loadLedger();
-      loadAdvances();
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadWallet();
+        loadLedger();
+        loadAdvances();
+      }, 300);
     };
+
     window.addEventListener('asopalav:wallet-updated', handleUpdates);
     window.addEventListener('asopalav:ledger-updated', handleUpdates);
     window.addEventListener('asopalav:advances-updated', handleUpdates);
-
-    // Realtime Supabase Channel Subscription for Live Multi-Device / Tab Refresh
-    const channel = supabase
-      .channel('dashboard-realtime-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_ledger' }, () => {
-        loadLedger();
-        loadWallet();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'branch_wallets' }, () => {
-        loadWallet();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expense_vouchers' }, () => {
-        refresh();
-      })
-      .subscribe();
+    window.addEventListener('asopalav:vouchers-updated', handleUpdates);
 
     return () => {
+      if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('asopalav:wallet-updated', handleUpdates);
       window.removeEventListener('asopalav:ledger-updated', handleUpdates);
       window.removeEventListener('asopalav:advances-updated', handleUpdates);
-      supabase.removeChannel(channel);
+      window.removeEventListener('asopalav:vouchers-updated', handleUpdates);
     };
-  }, [selectedBranchId, loadWallet, loadLedger, loadAdvances, refresh]);
+  }, [selectedBranchId, loadWallet, loadLedger, loadAdvances]);
 
   // Slicer Filter Pipeline for Vouchers
   const filteredVouchers = useMemo(() => {
@@ -299,6 +293,37 @@ export const DashboardPage: React.FC = () => {
     };
   }, [advances]);
 
+  // Daily Cash Flow & Day-by-Day Opening and Closing
+  const dailyCashSummary = useMemo(() => {
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const startOfWeekStr = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const startOfMonthStr = format(startOfMonth(now), 'yyyy-MM-dd');
+    const startOfQuarterStr = format(startOfQuarter(now), 'yyyy-MM-dd');
+
+    let sDate: string | undefined = todayStr;
+    let eDate: string | undefined = todayStr;
+
+    if (timeRange === 'week') {
+      sDate = startOfWeekStr;
+      eDate = todayStr;
+    } else if (timeRange === 'month') {
+      sDate = startOfMonthStr;
+      eDate = todayStr;
+    } else if (timeRange === 'quarter') {
+      sDate = startOfQuarterStr;
+      eDate = todayStr;
+    } else if (timeRange === 'all') {
+      sDate = undefined;
+      eDate = undefined;
+    } else if (timeRange === 'custom') {
+      sDate = customStartDate || undefined;
+      eDate = customEndDate || undefined;
+    }
+
+    return calculateDailyCashBalances(ledgerEntries, cashBalance, sDate, eDate);
+  }, [ledgerEntries, cashBalance, timeRange, customStartDate, customEndDate]);
+
   // Department Allocation Stats
   const departmentStats = useMemo(() => {
     const map = new Map<string, { count: number; amount: number }>();
@@ -363,37 +388,6 @@ export const DashboardPage: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
   }, [filteredVouchers, metrics.totalSpend]);
 
-  const handleExportTally = async () => {
-    if (!can('can_export_tally')) {
-      showToast({
-        type: 'error',
-        title: 'Access Restricted',
-        message: 'Your role does not have permission to export Tally financial data.',
-      });
-      return;
-    }
-    const splitsMap: Record<string, any[]> = {};
-    const staffSplitVouchers = filteredVouchers.filter((v) => v.payment_type === 'Staff_Split');
-    await Promise.all(
-      staffSplitVouchers.map(async (v) => {
-        const rows = await erpService.getVoucherSplits(v.voucher_number);
-        if (rows && rows.length > 0) {
-          splitsMap[v.voucher_number] = rows;
-        }
-      })
-    );
-    const csvContent = erpService.generateTallyExportCSV(filteredVouchers, splitsMap);
-    const cleanCsv = csvContent.replace(/^data:text\/csv;charset=utf-8,/, '');
-    const blob = new Blob([cleanCsv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Asopalav_Tally_Export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const showroomTitle = selectedBranchId === 'ALL' ? 'All Showrooms' : (activeBranch?.branch_name || 'Satellite Road Showroom');
   const showroomCode = selectedBranchId === 'ALL' ? 'ALL' : (activeBranch?.branch_code || 'ASI');
@@ -441,12 +435,12 @@ export const DashboardPage: React.FC = () => {
             {can('can_export_tally') && (
               <button
                 type="button"
-                onClick={handleExportTally}
+                onClick={() => setActivePage('reports')}
                 className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Export all vouchers in Tally Prime compatible CSV format"
+                title="Consolidated Financial & Tally Prime Reports Hub"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span className="hidden sm:inline">Tally Export</span>
+                <span className="hidden sm:inline">Reports &amp; Tally</span>
               </button>
             )}
 
@@ -599,79 +593,73 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {selectedMode === 'Physical_Cash' ? (
             <>
-              {/* Cash KPI 1: Cash Outflow */}
+              {/* Cash KPI 1: Opening Cash Balance */}
               <MetricCard
-                label="Cash Expenses (Outflow)"
+                label="Opening Cash Balance"
                 value={
                   <>
-                    <span className="sm:hidden">{formatCompactINR(metrics.cashSpend)}</span>
-                    <span className="hidden sm:inline">{formatINR(metrics.cashSpend)}</span>
+                    <span className="sm:hidden">{formatCompactINR(dailyCashSummary.periodOpening)}</span>
+                    <span className="hidden sm:inline">{formatINR(dailyCashSummary.periodOpening)}</span>
                   </>
                 }
-                subValue={
-                  <>
-                    <span className="sm:hidden">{metrics.cashBills} cash bills · Avg: {formatCompactINR(metrics.avgTicket)}</span>
-                    <span className="hidden sm:inline">{metrics.cashBills} cash bills · Avg: {formatINR(metrics.avgTicket)}</span>
-                  </>
-                }
-                badge={timeRangeLabel}
+                subValue={`Opening for ${timeRangeLabel}`}
+                badge="OPENING"
                 badgeColor="neutral"
-                icon={Receipt}
-                onClick={() => setActivePage('expenses')}
-              />
-
-              {/* Cash KPI 2: Current Cash in Till */}
-              <MetricCard
-                label="Cash in Box (Current)"
-                value={
-                  <>
-                    <span className="sm:hidden">{formatCompactINR(cashBalance)}</span>
-                    <span className="hidden sm:inline">{formatINR(cashBalance)}</span>
-                  </>
-                }
-                statusText={isSafeDropAlert ? 'Move Extra Cash to Safe (>₹25k)' : isLowFloatAlert ? 'Low Float (<₹3k)' : 'Cash Drawer Normal'}
-                statusDotColor={isSafeDropAlert ? '#f59e0b' : isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
-                badge={isSafeDropAlert ? 'ALERT' : isLowFloatAlert ? 'LOW FLOAT' : 'LIVE TILL'}
-                badgeColor={isSafeDropAlert ? 'amber' : isLowFloatAlert ? 'amber' : 'emerald'}
                 icon={Wallet}
                 onClick={() => setActivePage('treasury')}
               />
 
-              {/* Cash KPI 3: Cash Top-ups */}
+              {/* Cash KPI 2: Cash Inflows (Credits) */}
               <MetricCard
-                label="Cash Top-ups (Inflow)"
+                label="Cash Inflows (Credits)"
                 value={
                   <>
-                    <span className="sm:hidden">+{formatCompactINR(inflowMetrics.cashInflow)}</span>
-                    <span className="hidden sm:inline">+{formatINR(inflowMetrics.cashInflow)}</span>
+                    <span className="sm:hidden">+{formatCompactINR(dailyCashSummary.periodInflows)}</span>
+                    <span className="hidden sm:inline">+{formatINR(dailyCashSummary.periodInflows)}</span>
                   </>
                 }
-                subValue={`${inflowMetrics.cashCount} cash additions in period`}
+                subValue={`${inflowMetrics.cashCount} cash additions / top-ups`}
                 statusDotColor="#3ecf8e"
-                badge="FLOAT"
+                badge="FLOAT IN"
                 badgeColor="emerald"
                 icon={Coins}
                 onClick={() => setActivePage('treasury')}
               />
 
-              {/* Cash KPI 4: Net Cash Flow */}
+              {/* Cash KPI 3: Cash Outflow (Debits) */}
               <MetricCard
-                label="Net Cash Flow (Period)"
+                label="Cash Outflow (Debits)"
                 value={
                   <>
-                    <span className="sm:hidden">{inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}{formatCompactINR(inflowMetrics.cashInflow - metrics.cashSpend)}</span>
-                    <span className="hidden sm:inline">{inflowMetrics.cashInflow - metrics.cashSpend >= 0 ? '+' : ''}{formatINR(inflowMetrics.cashInflow - metrics.cashSpend)}</span>
+                    <span className="sm:hidden">-{formatCompactINR(dailyCashSummary.periodOutflows)}</span>
+                    <span className="hidden sm:inline">-{formatINR(dailyCashSummary.periodOutflows)}</span>
+                  </>
+                }
+                subValue={`${metrics.cashBills} cash expense vouchers`}
+                badge="SPENT"
+                badgeColor="neutral"
+                icon={Receipt}
+                onClick={() => setActivePage('expenses')}
+              />
+
+              {/* Cash KPI 4: Closing Cash Balance */}
+              <MetricCard
+                label="Closing Cash in Till"
+                value={
+                  <>
+                    <span className="sm:hidden">{formatCompactINR(dailyCashSummary.periodClosing)}</span>
+                    <span className="hidden sm:inline">{formatINR(dailyCashSummary.periodClosing)}</span>
                   </>
                 }
                 subValue={
                   <>
-                    <span className="sm:hidden">In {formatCompactINR(inflowMetrics.cashInflow)} − Out {formatCompactINR(metrics.cashSpend)}</span>
-                    <span className="hidden sm:inline">Inflow {formatINR(inflowMetrics.cashInflow)} − Outflow {formatINR(metrics.cashSpend)}</span>
+                    <span className="sm:hidden">Net: {dailyCashSummary.periodNet >= 0 ? '+' : ''}{formatCompactINR(dailyCashSummary.periodNet)} · Box: {formatCompactINR(dailyCashSummary.currentWalletCash)}</span>
+                    <span className="hidden sm:inline">Net: {dailyCashSummary.periodNet >= 0 ? '+' : ''}{formatINR(dailyCashSummary.periodNet)} · Box: {formatINR(dailyCashSummary.currentWalletCash)}</span>
                   </>
                 }
-                statusDotColor={inflowMetrics.cashInflow >= metrics.cashSpend ? '#3ecf8e' : '#f59e0b'}
-                badge={inflowMetrics.cashInflow >= metrics.cashSpend ? 'SURPLUS' : 'DEFICIT'}
-                badgeColor={inflowMetrics.cashInflow >= metrics.cashSpend ? 'emerald' : 'amber'}
+                statusDotColor={isSafeDropAlert ? '#f59e0b' : isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
+                badge={isSafeDropAlert ? 'ALERT' : isLowFloatAlert ? 'LOW FLOAT' : 'CLOSING'}
+                badgeColor={isSafeDropAlert ? 'amber' : isLowFloatAlert ? 'amber' : 'emerald'}
                 icon={TrendingUp}
                 onClick={() => setActivePage('treasury')}
               />
@@ -873,120 +861,9 @@ export const DashboardPage: React.FC = () => {
           <LogsBarChart metrics={metrics} vouchers={filteredVouchers} selectedMode={selectedMode} />
         </div>
 
-        {/* 4. Main Visual 2: Department Allocation & Category Spend Flow */}
+        {/* 4. Main Visual 2: Real Expense Categories & Day-by-Day Cash Reconciliation Flow */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Department Allocation Breakdown */}
-          <div className="lg:col-span-6 p-4 sm:p-5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] rounded-[12px] space-y-4 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#242424]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-[6px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-slate-600 dark:text-[#A1A1A1] flex items-center justify-center shrink-0">
-                  <Layers className="w-4 h-4 text-[#3ecf8e]" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium tracking-tight text-slate-900 dark:text-white font-sans">
-                    Department Expenses {selectedMode === 'Physical_Cash' ? '(Cash)' : selectedMode === 'Online_UPI' ? '(UPI)' : ''}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-[#A1A1A1]">
-                    Expenses by floor team & department
-                  </p>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] font-mono text-xs font-semibold text-slate-900 dark:text-white tabular-nums shrink-0">
-                Total: {formatINR(selectedMode === 'Physical_Cash' ? metrics.cashSpend : selectedMode === 'Online_UPI' ? metrics.upiSpend : metrics.totalSpend)}
-              </span>
-            </div>
-
-            {/* Continuous Multi-Segment Bar */}
-            {departmentStats.length > 0 && metrics.totalSpend > 0 && (
-              <div className="space-y-1 pt-0.5">
-                <div className="w-full h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-[#1f1f1f] flex border border-slate-200 dark:border-[#2e2e2e]">
-                  {departmentStats.map((item, idx) => (
-                    <div
-                      key={idx}
-                      style={{ width: `${Math.max(item.percentage, 2)}%`, backgroundColor: item.color }}
-                      className="h-full transition-all duration-300 first:rounded-l-full last:rounded-r-full"
-                      title={`${item.name}: ${formatINR(item.amount)} (${item.percentage}%)`}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Department Breakdown List */}
-            <div className="space-y-2">
-              {departmentStats.length === 0 ? (
-                <div className="py-8 text-center text-slate-500 dark:text-[#737373] text-xs font-sans">
-                  No department expense records in selected period.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-[#242424]">
-                  {departmentStats.slice(0, 5).map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="py-2.5 px-2 flex flex-col gap-1.5 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors group"
-                    >
-                      <div className="flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="font-medium font-sans text-slate-900 dark:text-white truncate">
-                            {item.name}
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] text-[10px] font-mono text-slate-600 dark:text-[#A1A1A1] font-medium shrink-0">
-                            {item.count} {item.count === 1 ? 'bill' : 'bills'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <span className="font-mono text-xs font-semibold tabular-nums text-slate-900 dark:text-white">
-                            {formatINR(item.amount)}
-                          </span>
-                          <span className="w-12 text-right px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono font-medium text-slate-600 dark:text-[#A1A1A1] tabular-nums">
-                            {item.percentage}%
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="w-full h-1 bg-slate-100 dark:bg-[#1f1f1f] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {departmentStats.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setActivePage('expenses');
-                  }}
-                  className="w-full mt-2 py-2 px-3 rounded-[6px] bg-slate-50 hover:bg-slate-100 dark:bg-[#1a1a1a] dark:hover:bg-[#222222] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs"
-                >
-                  <span>View all {departmentStats.length} departments in Expenses</span>
-                  <span className="px-1.5 py-0.2 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono font-semibold">F3</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform group-hover:translate-x-0.5" />
-                </button>
-              )}
-            </div>
-
-            {departmentStats.length > 0 && (
-              <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span>Showing Top 5 of {departmentStats.length} Departments</span>
-                <span className="truncate ml-2 text-right">
-                  Top: <strong className="text-slate-900 dark:text-white">{departmentStats[0]?.name}</strong> ({departmentStats[0]?.percentage}%)
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Category Spend Distribution */}
+          {/* Left Column: Real Expense Categories (from Supabase) */}
           <div className="lg:col-span-6 p-4 sm:p-5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] rounded-[12px] space-y-4 shadow-sm">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#242424]">
               <div className="flex items-center gap-2.5">
@@ -995,10 +872,10 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-medium tracking-tight text-slate-900 dark:text-white font-sans">
-                    Where Was Money Spent? {selectedMode === 'Physical_Cash' ? '(Cash Only)' : selectedMode === 'Online_UPI' ? '(UPI Only)' : ''}
+                    Where Did Real Money Go? (Expense Heads)
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-[#A1A1A1]">
-                    Expenses by category
+                    Operational expense categories directly from Supabase
                   </p>
                 </div>
               </div>
@@ -1031,7 +908,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-[#242424]">
-                  {categoryStats.slice(0, 5).map((item, idx) => (
+                  {categoryStats.slice(0, 6).map((item, idx) => (
                     <div
                       key={idx}
                       className="py-2.5 px-2 flex flex-col gap-1.5 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors group"
@@ -1071,30 +948,99 @@ export const DashboardPage: React.FC = () => {
                 </div>
               )}
 
-              {categoryStats.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setActivePage('expenses');
-                  }}
-                  className="w-full mt-2 py-2 px-3 rounded-[6px] bg-slate-50 hover:bg-slate-100 dark:bg-[#1a1a1a] dark:hover:bg-[#222222] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs"
-                >
-                  <span>View all {categoryStats.length} categories in Expenses</span>
-                  <span className="px-1.5 py-0.2 rounded-[4px] bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e] text-[10px] font-mono font-semibold">F3</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform group-hover:translate-x-0.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  setActivePage('reports');
+                }}
+                className="w-full mt-2 py-2 px-3 rounded-[6px] bg-slate-50 hover:bg-slate-100 dark:bg-[#1a1a1a] dark:hover:bg-[#222222] border border-slate-200 dark:border-[#282828] text-xs font-sans text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs"
+              >
+                <span>View all {categoryStats.length} categories in Reports Hub</span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Day-by-Day Cash Reconciliation Statement */}
+          <div className="lg:col-span-6 p-4 sm:p-5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] rounded-[12px] space-y-4 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#242424]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-[6px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-slate-600 dark:text-[#A1A1A1] flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4 text-[#3ecf8e]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium tracking-tight text-slate-900 dark:text-white font-sans">
+                    Daily Cash Drawer Statement (Day-by-Day)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-[#A1A1A1]">
+                    Opening &amp; closing balances to spot any cash variances
+                  </p>
+                </div>
+              </div>
+
+              <span className="px-2.5 py-1 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 text-[#3ecf8e] font-mono text-xs font-semibold tabular-nums shrink-0">
+                Till: {formatINR(dailyCashSummary.currentWalletCash)}
+              </span>
             </div>
 
-            {categoryStats.length > 0 && (
-              <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#A1A1A1] pt-2.5 border-t border-slate-100 dark:border-[#242424]">
-                <span>Showing Top 5 of {categoryStats.length} Categories</span>
-                <span className="truncate ml-2 text-right">
-                  Top: <strong className="text-slate-900 dark:text-white">{categoryStats[0]?.name}</strong> ({categoryStats[0]?.percentage}%)
-                </span>
-              </div>
-            )}
+            {/* Day by Day List */}
+            <div className="space-y-2">
+              {dailyCashSummary.days.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 dark:text-[#737373] text-xs font-sans">
+                  No cash transactions found for the selected time period.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-[#242424]">
+                  {dailyCashSummary.days.slice(0, 6).map((day) => (
+                    <div
+                      key={day.date}
+                      className="py-2.5 px-2 flex flex-col gap-1 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono font-medium text-slate-900 dark:text-white">
+                          {day.displayDate}
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums text-slate-900 dark:text-white">
+                          Closing: {formatINR(day.closing)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#888888]">
+                        <span>Open: {formatINR(day.opening)}</span>
+                        <div className="flex items-center gap-2">
+                          {day.inflow > 0 && (
+                            <span className="text-emerald-600 dark:text-[#3ecf8e]">
+                              +{formatINR(day.inflow)}
+                            </span>
+                          )}
+                          {day.outflow > 0 && (
+                            <span className="text-rose-600 dark:text-rose-400">
+                              -{formatINR(day.outflow)}
+                            </span>
+                          )}
+                          {day.inflow === 0 && day.outflow === 0 && (
+                            <span className="text-slate-400">₹0 net flow</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  setActivePage('treasury');
+                }}
+                className="w-full mt-2 py-2 px-3 rounded-[6px] bg-[#3ecf8e]/10 hover:bg-[#3ecf8e]/20 border border-[#3ecf8e]/30 text-xs font-sans text-emerald-800 dark:text-[#3ecf8e] flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs font-medium"
+              >
+                <span>Open Full Bank Passbook &amp; Ledger (F4)</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#3ecf8e] transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </div>
           </div>
         </div>
 

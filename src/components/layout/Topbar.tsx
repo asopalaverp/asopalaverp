@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useOfflineQueue } from '@/lib/offlineQueue';
+import { supabase } from '@/lib/supabase';
 import { erpService } from '@/lib/erpService';
-import { cn } from '@/lib/utils';
+import { calculateDailyCashBalances } from '@/lib/dailyCashBalance';
+import { cn, normalizeBranchCode } from '@/lib/utils';
 import {
   Menu,
   Search,
@@ -50,17 +52,31 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
     isSidebarCollapsed,
   } = useUIStore();
   const { user, lockScreen, logout, can } = useAuthStore();
-  const { getActiveBranch, selectedBranchId } = useBranchStore();
+  const { getActiveBranch, selectedBranchId, wallets, fetchBranchesAndWallets } = useBranchStore();
   const { mutations, isOnline, isSyncing, processSyncQueue } = useOfflineQueue();
   const { getUnreadCount } = useNotificationStore();
   const { isCeilingExceededAllowed } = useOverrideStore();
 
-  const [cashBalance, setCashBalance] = useState(0);
-  const [upiBalance, setUpiBalance] = useState(0);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
+  const [isCashDrawerPopoverOpen, setIsCashDrawerPopoverOpen] = useState(false);
+  const cashPopoverRef = useRef<HTMLDivElement | null>(null);
+  const [todayCashSummary, setTodayCashSummary] = useState<{
+    opening: number;
+    inflow: number;
+    outflow: number;
+    closing: number;
+  } | null>(null);
+
   const activeBranch = getActiveBranch();
+  const branchTarget = activeBranch?.branch_id || selectedBranchId || 'Aellp-ASI';
+  const targetWallet = wallets[branchTarget] || wallets[normalizeBranchCode(branchTarget)] || wallets['Aellp-ASI'];
+
+  // Live reactive wallet balances from central Zustand store
+  const cashBalance = targetWallet ? Number(targetWallet.cash_balance) : 100000;
+  const upiBalance = targetWallet ? Number(targetWallet.upi_balance) : 208569;
+
   const maxCashCeiling = activeBranch?.max_cash_ceiling || 25000;
   const isSafeDropAlert = cashBalance > maxCashCeiling && !isCeilingExceededAllowed();
 
@@ -75,17 +91,32 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
       ? `${user.first_name[0]}${user.last_name ? user.last_name[0] : ''}`.toUpperCase()
       : 'AD');
 
-  // Close user dropdown on outside click or ESC
+  // Load today's cash drawer opening, inflows, and outflows
+  const loadTodayCashFlow = useCallback(async () => {
+    try {
+      const branchToQuery = selectedBranchId === 'ALL' ? undefined : selectedBranchId;
+      const ledger = await erpService.getWalletLedger(branchToQuery);
+      const summary = calculateDailyCashBalances(ledger, cashBalance);
+      setTodayCashSummary(summary.today);
+    } catch (err) {
+      console.warn('Error loading today cash flow for topbar:', err);
+    }
+  }, [selectedBranchId, cashBalance]);
+
+  // Close user dropdown or cash drawer popover on outside click or ESC
   useEffect(() => {
-    if (!isUserMenuOpen) return;
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setIsUserMenuOpen(false);
+      }
+      if (cashPopoverRef.current && !cashPopoverRef.current.contains(e.target as Node)) {
+        setIsCashDrawerPopoverOpen(false);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsUserMenuOpen(false);
+        setIsCashDrawerPopoverOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -96,32 +127,56 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isUserMenuOpen]);
+  }, []);
 
-  // Live Wallet Balances
-  const refreshWallet = async () => {
-    if (!activeBranch?.branch_id) return;
+  // Live Wallet Balances Sync
+  const refreshWallet = useCallback(async () => {
     try {
-      const w = await erpService.getBranchWallet(activeBranch.branch_id);
-      setCashBalance(w.cash_balance);
-      setUpiBalance(w.upi_balance);
+      await fetchBranchesAndWallets(true);
     } catch {
       // Handled gracefully
     }
-  };
+  }, [fetchBranchesAndWallets]);
 
   useEffect(() => {
     refreshWallet();
+    loadTodayCashFlow();
     const handleWalletUpdated = () => {
       refreshWallet();
+      loadTodayCashFlow();
     };
     window.addEventListener('asopalav:wallet-updated', handleWalletUpdated);
     window.addEventListener('asopalav:ledger-updated', handleWalletUpdated);
+    window.addEventListener('focus', handleWalletUpdated);
+
+    // Supabase Realtime multi-device sync for Topbar Navbar wallet balances
+    const channel = supabase
+      .channel('topbar-wallet-realtime-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'branch_wallets' },
+        () => {
+          refreshWallet();
+          loadTodayCashFlow();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'wallet_ledger' },
+        () => {
+          refreshWallet();
+          loadTodayCashFlow();
+        }
+      )
+      .subscribe();
+
     return () => {
       window.removeEventListener('asopalav:wallet-updated', handleWalletUpdated);
       window.removeEventListener('asopalav:ledger-updated', handleWalletUpdated);
+      window.removeEventListener('focus', handleWalletUpdated);
+      supabase.removeChannel(channel);
     };
-  }, [activeBranch?.branch_id, selectedBranchId]);
+  }, [refreshWallet]);
 
   const pageTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -129,6 +184,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
     expenses: 'All Expenses',
     treasury: 'Cash Box & Bank',
     advances: 'Staff Advances (Beta)',
+    reports: 'Financial & Audit Reports',
     staff: 'Staff Directory',
     settings: 'Shop Settings',
     audit: 'Activity History',
@@ -217,25 +273,113 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
           {/* 2A & 2B. Cash Box & Bank UPI Balance Pills (Restricted to Authorized Roles) */}
           {can('can_inject_float') && (
             <>
-              {/* 2A. Cash Box Balance Pill (lg+) */}
-              <button
-                type="button"
-                onClick={() => setActivePage('treasury')}
-                aria-label={`Cash Box Balance: ₹${cashBalance.toLocaleString('en-IN')}`}
-                className={cn(
-                  'hidden lg:flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none shrink-0',
-                  isSafeDropAlert
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
-                    : 'border-slate-200/80 dark:border-[#242424] bg-slate-50/50 dark:bg-[#181818] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020]'
+              {/* 2A. Cash Box Balance Pill with Today's Opening & Closing Statement Popover */}
+              <div className="relative" ref={cashPopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsCashDrawerPopoverOpen((prev) => !prev)}
+                  aria-label={`Cash Box Balance: ₹${cashBalance.toLocaleString('en-IN')}`}
+                  className={cn(
+                    'hidden lg:flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none shrink-0',
+                    isCashDrawerPopoverOpen
+                      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e]'
+                      : isSafeDropAlert
+                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
+                      : 'border-slate-200/80 dark:border-[#242424] bg-slate-50/50 dark:bg-[#181818] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020]'
+                  )}
+                  title="Today's Cash Drawer Balance (Click to view Opening/Closing sheet)"
+                >
+                  <Wallet className="w-4 h-4 text-slate-400 dark:text-[#707070] shrink-0 stroke-[1.8]" />
+                  <span className="text-[11px] uppercase font-mono tracking-wider text-slate-400 dark:text-[#707070]">Cash:</span>
+                  <strong className="font-semibold tabular-nums text-xs text-emerald-600 dark:text-[#3ecf8e]">
+                    <AnimatedCounter value={cashBalance} isCurrency />
+                  </strong>
+                  {todayCashSummary && (
+                    <span className="hidden 2xl:inline-flex items-center gap-1 text-[10px] text-slate-400 dark:text-[#707070] font-mono border-l border-slate-200 dark:border-[#333333] pl-2 ml-0.5">
+                      <span>Open: ₹{Math.round(todayCashSummary.opening).toLocaleString('en-IN')}</span>
+                    </span>
+                  )}
+                  <ChevronDown
+                    className={cn(
+                      'w-3 h-3 text-slate-400 transition-transform duration-150',
+                      isCashDrawerPopoverOpen && 'rotate-180 text-emerald-600 dark:text-[#3ecf8e]'
+                    )}
+                  />
+                </button>
+
+                {/* Today's Cash Drawer Reconciliation Popover */}
+                {isCashDrawerPopoverOpen && (
+                  <div className="absolute left-0 mt-1.5 w-80 rounded-[10px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl z-[100] p-3 font-sans animate-in fade-in zoom-in-95 duration-100">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#242424]">
+                      <div className="flex items-center gap-1.5">
+                        <Wallet className="w-4 h-4 text-[#3ecf8e]" />
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
+                          Today's Cash Reconciliation
+                        </span>
+                      </div>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium">
+                        Live Till
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs font-mono">
+                      <div className="flex items-center justify-between py-1 px-1.5 rounded bg-slate-50 dark:bg-[#141414]">
+                        <span className="text-slate-500 dark:text-[#888888]">1. Morning Opening Cash:</span>
+                        <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                          ₹{todayCashSummary ? Math.round(todayCashSummary.opening).toLocaleString('en-IN') : cashBalance.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 px-1.5 rounded bg-slate-50 dark:bg-[#141414]">
+                        <span className="text-emerald-600 dark:text-[#3ecf8e]">2. Cash Inflows (+) Float:</span>
+                        <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                          +₹{todayCashSummary ? Math.round(todayCashSummary.inflow).toLocaleString('en-IN') : '0'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 px-1.5 rounded bg-slate-50 dark:bg-[#141414]">
+                        <span className="text-rose-600 dark:text-rose-400">3. Cash Outflows (-) Vouchers:</span>
+                        <span className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                          -₹{todayCashSummary ? Math.round(todayCashSummary.outflow).toLocaleString('en-IN') : '0'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1.5 px-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                        <span className="font-semibold text-emerald-800 dark:text-[#3ecf8e] font-sans">
+                          4. Current Cash in Till:
+                        </span>
+                        <span className="font-bold text-emerald-700 dark:text-[#3ecf8e] tabular-nums text-sm">
+                          ₹{cashBalance.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-[#242424] flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCashDrawerPopoverOpen(false);
+                          setActivePage('treasury');
+                        }}
+                        className="flex-1 py-1.5 px-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Bank Passbook (F4)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCashDrawerPopoverOpen(false);
+                          setActivePage('reports');
+                        }}
+                        className="py-1.5 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#282828] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] text-xs font-sans transition-colors cursor-pointer"
+                      >
+                        <span>Reports</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
-                title="Cash currently in shop cash drawer (Click to manage)"
-              >
-                <Wallet className="w-4 h-4 text-slate-400 dark:text-[#707070] shrink-0 stroke-[1.8]" />
-                <span className="text-[11px] uppercase font-mono tracking-wider text-slate-400 dark:text-[#707070]">Cash:</span>
-                <strong className="font-semibold tabular-nums text-xs text-emerald-600 dark:text-[#3ecf8e]">
-                  <AnimatedCounter value={cashBalance} isCurrency />
-                </strong>
-              </button>
+              </div>
 
               {/* 2B. Bank UPI Balance Pill (xl+) */}
               <button

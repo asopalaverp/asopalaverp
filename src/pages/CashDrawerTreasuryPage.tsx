@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { format as formatDateFns } from 'date-fns';
+import { format as formatDateFns, startOfWeek, startOfMonth, startOfQuarter, subDays, subMonths } from 'date-fns';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVoucherStore } from '@/store/voucherStore';
 import { supabase } from '@/lib/supabase';
 import { erpService } from '@/lib/erpService';
+import { calculateDailyCashBalances, DayCashRecord, PeriodCashSummary } from '@/lib/dailyCashBalance';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { formatINR, formatCompactINR, numberToWordsINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatCompactINR, numberToWordsINR, formatDate, formatVoucherNumber, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
 import { useOverrideStore } from '@/store/overrideStore';
 import { confirmDialog } from '@/store/dialogStore';
 import { SafeDropDrawer } from '@/components/treasury/SafeDropDrawer';
+import { ForensicAuditSection } from '@/components/treasury/ForensicAuditSection';
+import { TreasuryPassbookTable } from '@/components/treasury/TreasuryPassbookTable';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -21,6 +24,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  TrendingUp,
+  TrendingDown,
+  CalendarDays,
+  Receipt,
   Lock,
   History,
   Check,
@@ -151,6 +158,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [entryDate, setEntryDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
   const [walletType, setWalletType] = useState<'Cash' | 'UPI'>('Cash');
   const [amount, setAmount] = useState<number | ''>('');
+  const [handledByName, setHandledByName] = useState('Hardik Shah');
   const [transferMode, setTransferMode] = useState('');
   const [referenceNotes, setReferenceNotes] = useState('');
 
@@ -166,6 +174,10 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL');
   const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
   const [customDate, setCustomDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [selectedDayFilter, setSelectedDayFilter] = useState<string | null>(null);
+  const [isStatementOpen, setIsStatementOpen] = useState(true);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI' | 'Float_Topup'>('ALL');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -234,6 +246,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       const [wallet, ledger] = await Promise.all([
         erpService.getBranchWallet(selectedBranch),
         erpService.getWalletLedger(selectedBranch),
+        useVoucherStore.getState().fetchVouchers(selectedBranch),
       ]);
       setCurrentCashBalance(wallet?.cash_balance ?? 0);
       setCurrentUpiBalance(wallet?.upi_balance ?? 0);
@@ -247,25 +260,118 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
   useEffect(() => {
     loadTreasuryData();
+    let timeoutId: any = null;
     const handleUpdates = () => {
-      loadTreasuryData();
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadTreasuryData();
+      }, 300);
     };
     window.addEventListener('asopalav:wallet-updated', handleUpdates);
     window.addEventListener('asopalav:ledger-updated', handleUpdates);
+
     return () => {
+      if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('asopalav:wallet-updated', handleUpdates);
       window.removeEventListener('asopalav:ledger-updated', handleUpdates);
     };
-  }, [loadTreasuryData]);
+  }, [loadTreasuryData, selectedBranch]);
 
-  // Dynamically compute running balance for each transaction chronologically
+  // Fast map of voucher details for ledger narration & category breakdown
+  const voucherMap = useMemo(() => {
+    const vStore = useVoucherStore.getState();
+    const allCached = Object.values(vStore.vouchers).flat();
+    const map = new Map<string, { category_name: string; recipient_name: string; total_amount: number; payment_method: string }>();
+    allCached.forEach((v) => {
+      if (v?.voucher_number) {
+        map.set(v.voucher_number, {
+          category_name: v.category_name,
+          recipient_name: v.recipient_name,
+          total_amount: Number(v.total_amount) || 0,
+          payment_method: v.payment_method,
+        });
+      }
+    });
+    return map;
+  }, [allLedgerEntries]);
+
+  // Active statement date range bounds & label
+  const dateBounds = useMemo(() => {
+    const now = new Date();
+    const todayStr = formatDateFns(now, 'yyyy-MM-dd');
+
+    if (selectedDayFilter) {
+      let label = selectedDayFilter;
+      try {
+        label = formatDateFns(new Date(`${selectedDayFilter}T12:00:00`), 'dd MMM yyyy, EEE');
+      } catch {}
+      return { start: selectedDayFilter, end: selectedDayFilter, label };
+    }
+
+    switch (dateFilter) {
+      case 'today':
+        return { start: todayStr, end: todayStr, label: 'Today' };
+      case 'yesterday': {
+        const yest = formatDateFns(subDays(now, 1), 'yyyy-MM-dd');
+        return { start: yest, end: yest, label: 'Yesterday' };
+      }
+      case 'week': {
+        const startOfWeekStr = formatDateFns(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        return { start: startOfWeekStr, end: todayStr, label: 'Last 7 Days' };
+      }
+      case 'this_month': {
+        const startOfMonthStr = formatDateFns(startOfMonth(now), 'yyyy-MM-dd');
+        return { start: startOfMonthStr, end: todayStr, label: 'This Month' };
+      }
+      case 'custom': {
+        const s = customStartDate || customDate || undefined;
+        const e = customEndDate || customDate || undefined;
+        let label = 'Custom Range';
+        if (s && e) {
+          if (s === e) {
+            try {
+              label = formatDateFns(new Date(`${s}T12:00:00`), 'dd MMM yyyy');
+            } catch {}
+          } else {
+            try {
+              label = `${formatDateFns(new Date(`${s}T12:00:00`), 'dd MMM')} – ${formatDateFns(new Date(`${e}T12:00:00`), 'dd MMM yyyy')}`;
+            } catch {}
+          }
+        }
+        return { start: s, end: e, label };
+      }
+      case 'all':
+      default:
+        return { start: undefined, end: undefined, label: 'All Time' };
+    }
+  }, [dateFilter, customDate, customStartDate, customEndDate, selectedDayFilter]);
+
+  // Mathematical Day-by-Day Cash Balance Engine
+  const dailyCashSummary = useMemo(() => {
+    return calculateDailyCashBalances(
+      allLedgerEntries,
+      currentCashBalance,
+      dateBounds.start,
+      dateBounds.end
+    );
+  }, [allLedgerEntries, currentCashBalance, dateBounds.start, dateBounds.end]);
+
+  // Dynamically compute running balance anchored backwards from the verified drawer balance
   const entriesWithRunningBalance = useMemo(() => {
     const chronological = [...allLedgerEntries].sort(
       (a, b) => new Date(a?.created_at || 0).getTime() - new Date(b?.created_at || 0).getTime()
     );
 
-    let runningCash = 0;
-    let runningUpi = 0;
+    const totalCashNet = chronological
+      .filter((e) => e?.wallet_type === 'Cash' || !e?.wallet_type)
+      .reduce((sum, e) => sum + ((Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0)), 0);
+
+    const totalUpiNet = chronological
+      .filter((e) => e?.wallet_type === 'UPI')
+      .reduce((sum, e) => sum + ((Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0)), 0);
+
+    let runningCash = currentCashBalance - totalCashNet;
+    let runningUpi = currentUpiBalance - totalUpiNet;
     const balanceMap = new Map<string, { runningCash: number; runningUpi: number; runningCombined: number }>();
 
     chronological.forEach((entry) => {
@@ -289,7 +395,41 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     });
 
     return balanceMap;
-  }, [allLedgerEntries]);
+  }, [allLedgerEntries, currentCashBalance, currentUpiBalance]);
+
+  // Cross-reference vouchers against ledger to detect any cash check discrepancies
+  const voucherMismatches = useMemo(() => {
+    const vStore = useVoucherStore.getState();
+    const allCached = Object.values(vStore.vouchers).flat();
+    const branchCode = normalizeBranchCode(selectedBranch);
+    const branchVouchers = allCached.filter(
+      (v) => v.branch_id === selectedBranch || normalizeBranchCode(v.branch_id) === branchCode || v.branch_code === branchCode
+    );
+
+    const ledgerMap = new Map<string, number>();
+    allLedgerEntries.forEach((l) => {
+      if (l.reference_number && l.wallet_type === 'Cash' && l.transaction_type === 'Expense_Voucher') {
+        ledgerMap.set(l.reference_number, Number(l.debit_amount) || 0);
+      }
+    });
+
+    const mismatches: Array<{ voucherNumber: string; voucherAmount: number; ledgerDebit: number; diff: number }> = [];
+    branchVouchers.forEach((v) => {
+      if (v.payment_method === 'Physical_Cash' && v.status === 'Approved') {
+        const ledgerDebit = ledgerMap.get(v.voucher_number);
+        if (ledgerDebit !== undefined && Math.abs(ledgerDebit - Number(v.total_amount)) > 0.01) {
+          mismatches.push({
+            voucherNumber: v.voucher_number,
+            voucherAmount: Number(v.total_amount),
+            ledgerDebit,
+            diff: ledgerDebit - Number(v.total_amount),
+          });
+        }
+      }
+    });
+
+    return mismatches;
+  }, [allLedgerEntries, selectedBranch]);
 
   // Filtered allocations for Pro Enterprise Timeline / Feed & Full Table
   const filteredAllocations = useMemo(() => {
@@ -311,28 +451,15 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       );
     }
 
-    const now = new Date();
-    if (dateFilter === 'this_month') {
-      const monthStr = formatDateFns(now, 'yyyy-MM');
-      list = list.filter((l) => (l.created_at || '').slice(0, 7) === monthStr);
-    } else if (dateFilter === 'today') {
-      const todayStr = formatDateFns(now, 'yyyy-MM-dd');
-      list = list.filter((l) => (l.created_at || '').slice(0, 10) === todayStr);
-    } else if (dateFilter === 'yesterday') {
-      const y = new Date();
-      y.setDate(y.getDate() - 1);
-      const yesterdayStr = formatDateFns(y, 'yyyy-MM-dd');
-      list = list.filter((l) => (l.created_at || '').slice(0, 10) === yesterdayStr);
-    } else if (dateFilter === 'week') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      list = list.filter((l) => {
-        if (!l.created_at) return false;
-        const entryDate = new Date(l.created_at);
-        return entryDate >= sevenDaysAgo && entryDate <= now;
-      });
-    } else if (dateFilter === 'custom' && customDate) {
-      list = list.filter((l) => (l.created_at || '').slice(0, 10) === customDate);
+    if (selectedDayFilter) {
+      list = list.filter((l) => (l.created_at || '').slice(0, 10) === selectedDayFilter);
+    } else {
+      if (dateBounds.start) {
+        list = list.filter((l) => (l.created_at || '').slice(0, 10) >= dateBounds.start!);
+      }
+      if (dateBounds.end) {
+        list = list.filter((l) => (l.created_at || '').slice(0, 10) <= dateBounds.end!);
+      }
     }
 
     if (ledgerSearch.trim()) {
@@ -369,7 +496,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     });
 
     return sorted;
-  }, [allLedgerEntries, scopeFilter, ledgerWalletFilter, dateFilter, customDate, ledgerSearch, sortBy]);
+  }, [allLedgerEntries, scopeFilter, ledgerWalletFilter, dateBounds, selectedDayFilter, ledgerSearch, sortBy]);
 
   // Comprehensive Treasury Flow Summary (Top-ups, Inflow, Outflow, Net Position)
   const treasurySummary = useMemo(() => {
@@ -660,6 +787,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const handleResetForm = () => {
     triggerHaptic('light');
     setAmount('');
+    setHandledByName('Hardik Shah');
     setReferenceNotes('');
     setTransferMode('');
     setEntryDate(formatDateFns(new Date(), 'yyyy-MM-dd'));
@@ -694,8 +822,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       const modeTag = transferMode ? ` [Transfer Mode: ${transferMode}]` : '';
       const fullRemarks = `${noteContent}${modeTag}${dateTag}`.trim();
 
-      const userName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
-      const authName = `${user?.first_name || 'Store'} ${user?.last_name || 'Manager'}`.trim();
+      const staffName = handledByName.trim() || `${user?.first_name || 'Hardik'} ${user?.last_name || 'Shah'}`.trim();
       const matchedBranch = branches.find((b) => b.branch_id === selectedBranch);
       const branchCode = matchedBranch?.branch_code || selectedBranch.replace(/^Aellp-/, '') || activeBranch.branch_code;
 
@@ -705,8 +832,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         walletType,
         amount: amountToAdd,
         referenceNotes: fullRemarks,
-        receivedByName: userName,
-        authorizedByName: authName,
+        receivedByName: staffName,
+        authorizedByName: staffName,
         createdAt: isHistorical ? new Date(`${entryDate}T12:00:00`).toISOString() : undefined,
       });
 
@@ -885,10 +1012,11 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                   { value: 'yesterday', label: 'Yesterday' },
                   { value: 'week', label: 'Last 7 Days' },
                   { value: 'all', label: 'All Time' },
-                  { value: 'custom', label: 'Specific Date...' },
+                  { value: 'custom', label: 'Custom Range...' },
                 ]}
                 value={dateFilter}
                 onChange={(val) => {
+                  setSelectedDayFilter(null);
                   setDateFilter(val as DateFilter);
                 }}
                 placeholder="Date range"
@@ -897,16 +1025,49 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               />
             </div>
 
-            {/* Direct DatePicker for Specific Date selection */}
+            {/* Direct DatePickers for Custom Date Range selection */}
             {dateFilter === 'custom' && (
-              <div className="w-40 animate-in fade-in">
-                <DatePicker
-                  value={customDate}
-                  onChange={(val) => setCustomDate(val)}
-                  allowPastDatesOverride={true}
-                  placeholder="Pick date..."
-                  size="sm"
-                />
+              <div className="flex items-center gap-1.5 animate-in fade-in flex-wrap">
+                <div className="w-36">
+                  <DatePicker
+                    value={customStartDate || customDate}
+                    onChange={(val) => {
+                      setSelectedDayFilter(null);
+                      setCustomStartDate(val);
+                    }}
+                    allowPastDatesOverride={true}
+                    placeholder="From Date..."
+                    size="sm"
+                  />
+                </div>
+                <span className="text-xs text-slate-400 font-mono">→</span>
+                <div className="w-36">
+                  <DatePicker
+                    value={customEndDate || customDate}
+                    onChange={(val) => {
+                      setSelectedDayFilter(null);
+                      setCustomEndDate(val);
+                    }}
+                    allowPastDatesOverride={true}
+                    placeholder="To Date..."
+                    size="sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Active Day Filter Indicator */}
+            {selectedDayFilter && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-[#3ecf8e] text-xs font-mono font-medium animate-in fade-in">
+                <span>Filter Day: {dateBounds.label}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayFilter(null)}
+                  className="hover:opacity-75 cursor-pointer ml-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  title="Clear day filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
@@ -954,52 +1115,71 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+      {/* 2. Cash & UPI Balances Telemetry Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* KPI 1: Cash Drawer Till */}
         <MetricCard
-          label="Cash in Box"
+          label="Cash Drawer Till"
           value={
             <>
               <span className="sm:hidden">{formatCompactINR(currentCashBalance)}</span>
               <span className="hidden sm:inline">{formatINR(currentCashBalance)}</span>
             </>
           }
-          subValue="Cash notes in till"
-          statusDotColor="#3ecf8e"
-          icon={Wallet}
+          subValue="Verified Physical Drawer Cash"
+          badge="CASH TILL"
+          badgeColor="emerald"
+          icon={Coins}
         />
 
+        {/* KPI 2: Bank UPI Float */}
         <MetricCard
-          label="Bank UPI Balance"
+          label="Bank UPI Float"
           value={
             <>
               <span className="sm:hidden">{formatCompactINR(currentUpiBalance)}</span>
               <span className="hidden sm:inline">{formatINR(currentUpiBalance)}</span>
             </>
           }
-          subValue="Shop UPI balance"
-          statusDotColor="#38bdf8"
+          subValue="Verified Bank Account Float"
+          badge="BANK UPI"
+          badgeColor="blue"
           icon={Building2}
         />
 
+        {/* KPI 3: Cash Inflows (+ Credit) */}
         <MetricCard
-          label="Total Available"
+          label="Cash Inflows (Credits)"
           value={
             <>
-              <span className="sm:hidden">{formatCompactINR(currentCashBalance + currentUpiBalance)}</span>
-              <span className="hidden sm:inline">{formatINR(currentCashBalance + currentUpiBalance)}</span>
+              <span className="sm:hidden">+{formatCompactINR(dailyCashSummary.periodInflows)}</span>
+              <span className="hidden sm:inline">+{formatINR(dailyCashSummary.periodInflows)}</span>
             </>
           }
-          subValue="Cash + UPI combined"
+          subValue={`${treasurySummary.cashTopupCount} cash additions in period`}
           statusDotColor="#3ecf8e"
-          badge="READY"
+          badge="FLOAT IN"
           badgeColor="emerald"
-          icon={Coins}
+          icon={TrendingUp}
+        />
+
+        {/* KPI 4: Cash Outflows (- Debit) */}
+        <MetricCard
+          label="Cash Outflows (Debits)"
+          value={
+            <>
+              <span className="sm:hidden">-{formatCompactINR(dailyCashSummary.periodOutflows)}</span>
+              <span className="hidden sm:inline">-{formatINR(dailyCashSummary.periodOutflows)}</span>
+            </>
+          }
+          subValue={`${treasurySummary.cashExpenseCount} cash expense vouchers`}
+          badge="SPENT"
+          badgeColor="neutral"
+          icon={Receipt}
         />
       </div>
 
-      {/* 3. Main Dual Column Content */}
-      {/* 3. Add Cash / UPI Inflow Card */}
+      {/* 3. Top Action: Add Cash / UPI Inflow Card */}
       <div className="space-y-4">
         <form onSubmit={handleOpenPreview} className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#242424] space-y-3.5 shadow-xs">
           <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 dark:border-[#242424] gap-2">
@@ -1048,8 +1228,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Form Fields in 3-Column Responsive Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {/* Form Fields in 4-Column Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {/* Amount Input */}
             <div className="space-y-1 font-sans">
               <div className="flex items-center justify-between">
@@ -1097,8 +1277,22 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               />
             </div>
 
+            {/* Added / Handled By Input */}
+            <div className="space-y-1 font-sans">
+              <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
+                Added / Handled By
+              </label>
+              <input
+                type="text"
+                value={handledByName}
+                onChange={(e) => setHandledByName(e.target.value)}
+                placeholder="e.g. Hardik Shah"
+                className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
+              />
+            </div>
+
             {/* Reference Remarks */}
-            <div className="space-y-1 font-sans sm:col-span-2 lg:col-span-1">
+            <div className="space-y-1 font-sans">
               <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
                 Reason / Note
               </label>
@@ -1106,7 +1300,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 type="text"
                 value={referenceNotes}
                 onChange={(e) => setReferenceNotes(e.target.value)}
-                placeholder="e.g. Morning cash from safe / Owner topup"
+                placeholder="e.g. Morning cash / Owner topup"
                 className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
               />
             </div>
@@ -1162,502 +1356,28 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         </form>
       </div>
 
-      {/* 4. Full Advanced Treasury Ledger & Accounting Audit Register Table */}
-      <div className="stagger-card p-4 rounded-[12px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-4 shadow-xs">
-        {/* Table Header with Filters & Scope Selector */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-white/10">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-[#3ecf8e]" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white font-sans">
-                Full Treasury Ledger &amp; Cash / Bank Flow Audit Register
-              </h2>
-            </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-[#3ecf8e]/20">
-              {filteredAllocations.length} of {allLedgerEntries.length} records
-            </span>
-          </div>
+      {/* 4. Verified Day-by-Day Cash Statement */}
+      <ForensicAuditSection
+        ledgerEntries={allLedgerEntries}
+        currentCashBalance={currentCashBalance}
+        currentUpiBalance={currentUpiBalance}
+        selectedBranchId={selectedBranch}
+        onSelectDate={setSelectedDayFilter}
+        selectedDate={selectedDayFilter}
+        defaultExpanded={true}
+        contextTitle="Cash Drawer & Bank Treasury Day-by-Day Statement"
+      />
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Scope / Direction Filter Segmented Control */}
-            <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-black/30 border border-slate-200/80 dark:border-white/10 text-xs overflow-x-auto max-w-full">
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('ALL');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'ALL'
-                    ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                All Flows ({allLedgerEntries.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('INFLOW');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'INFLOW'
-                    ? 'bg-white dark:bg-[#282828] text-emerald-600 dark:text-[#3ecf8e] font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                + Inflows ({treasurySummary.creditCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('OUTFLOW');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'OUTFLOW'
-                    ? 'bg-white dark:bg-[#282828] text-rose-600 dark:text-rose-400 font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                - Outflows ({treasurySummary.debitCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('Float_Topup');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'Float_Topup'
-                    ? 'bg-white dark:bg-[#282828] text-emerald-600 dark:text-[#3ecf8e] font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                Top-ups ({treasurySummary.topupCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('Safe_Drop');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'Safe_Drop'
-                    ? 'bg-white dark:bg-[#282828] text-amber-600 dark:text-amber-400 font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                Safe Drops ({treasurySummary.safeDropCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('selection');
-                  setScopeFilter('Expense_Voucher');
-                  setCurrentPage(1);
-                }}
-                className={cn(
-                  'px-2 py-1 rounded-[4px] text-[11px] font-sans transition-all cursor-pointer whitespace-nowrap',
-                  scopeFilter === 'Expense_Voucher'
-                    ? 'bg-white dark:bg-[#282828] text-rose-600 dark:text-rose-400 font-medium shadow-xs'
-                    : 'text-slate-500 dark:text-[#888] hover:text-slate-900 dark:hover:text-white'
-                )}
-              >
-                Expenses ({treasurySummary.expenseCount})
-              </button>
-            </div>
-
-            {/* Sort Order Selector */}
-            <div className="w-36">
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value as SortOption);
-                  setCurrentPage(1);
-                }}
-                aria-label="Sort Order"
-                className="w-full h-8 bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-2 text-xs text-slate-700 dark:text-zinc-300 font-sans focus:outline-none focus:border-[#3ecf8e] cursor-pointer"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="highest_amount">Highest Amount</option>
-                <option value="lowest_amount">Lowest Amount</option>
-              </select>
-            </div>
-
-            {/* Page Size Selector */}
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              aria-label="Rows per page"
-              className="h-8 bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-2 text-xs text-slate-700 dark:text-zinc-300 font-mono focus:outline-none focus:border-[#3ecf8e] cursor-pointer"
-            >
-              <option value={15}>15 rows</option>
-              <option value={25}>25 rows</option>
-              <option value={50}>50 rows</option>
-              <option value={100}>100 rows</option>
-              <option value={250}>250 rows</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 6-KPI Diagnostic Matrix Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-mono">
-          <div className="p-2.5 rounded-[10px] bg-emerald-500/5 border border-emerald-500/20">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Total Inflow (Credits):</span>
-            <span className="text-emerald-600 dark:text-[#3ecf8e] font-semibold text-xs tabular-nums block mt-0.5">
-              +{formatINR(treasurySummary.totalMoneyIn)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              Cash: {formatINR(treasurySummary.totalCashIn)} ({treasurySummary.cashTopupCount}) | UPI: {formatINR(treasurySummary.totalUpiIn)} ({treasurySummary.upiTopupCount})
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-rose-500/5 border border-rose-500/20">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Total Outflow (Debits):</span>
-            <span className="text-rose-600 dark:text-rose-400 font-semibold text-xs tabular-nums block mt-0.5">
-              -{formatINR(treasurySummary.totalMoneyOut)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              Cash: -{formatINR(treasurySummary.totalCashOut)} | UPI: -{formatINR(treasurySummary.totalUpiOut)}
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-emerald-500/5 border border-emerald-500/25">
-            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-sans font-medium">Net Cash in Box:</span>
-            <span className={cn(
-              "font-semibold text-xs tabular-nums block mt-0.5",
-              treasurySummary.netCash >= 0 ? "text-emerald-600 dark:text-[#3ecf8e]" : "text-rose-600 dark:text-rose-400"
-            )}>
-              {treasurySummary.netCash >= 0 ? '+' : ''}{formatINR(treasurySummary.netCash)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              In {formatINR(treasurySummary.totalCashIn)} − Out {formatINR(treasurySummary.totalCashOut)}
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-sky-500/5 border border-sky-500/25">
-            <span className="text-[10px] text-sky-700 dark:text-sky-400 block font-sans font-medium">Net Bank UPI:</span>
-            <span className={cn(
-              "font-semibold text-xs tabular-nums block mt-0.5",
-              treasurySummary.netUpi >= 0 ? "text-sky-600 dark:text-sky-400" : "text-rose-600 dark:text-rose-400"
-            )}>
-              {treasurySummary.netUpi >= 0 ? '+' : ''}{formatINR(treasurySummary.netUpi)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              In {formatINR(treasurySummary.totalUpiIn)} − Out {formatINR(treasurySummary.totalUpiOut)}
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-slate-50/80 dark:bg-black/20 border border-slate-200/80 dark:border-white/10">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Float Top-ups:</span>
-            <span className="text-slate-800 dark:text-[#EDEDED] font-semibold text-xs tabular-nums block mt-0.5">
-              +{formatINR(treasurySummary.totalFloatTopups)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.cashTopupCount} Cash + {treasurySummary.upiTopupCount} UPI additions
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-[10px] bg-purple-500/5 border border-purple-500/20">
-            <span className="text-[10px] text-slate-500 dark:text-[#A1A1A1] block font-sans">Expense Vouchers:</span>
-            <span className="text-purple-600 dark:text-purple-400 font-semibold text-xs tabular-nums block mt-0.5">
-              -{formatINR(treasurySummary.totalExpenses)}
-            </span>
-            <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-sans block mt-0.5">
-              {treasurySummary.expenseCount} vouchers ({treasurySummary.cashExpenseCount} Cash, {treasurySummary.upiExpenseCount} UPI)
-            </span>
-          </div>
-        </div>
-
-        {/* Full High-Density Accounting Audit Table */}
-        <div className="border border-slate-200 dark:border-[#242424] rounded-[8px] overflow-hidden bg-white dark:bg-[#171717]">
-          <div className="max-h-[620px] overflow-x-auto overflow-y-auto">
-            <table className="w-full border-collapse text-left text-xs font-mono">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#141414] text-[11px] text-slate-500 dark:text-[#A1A1A1]">
-                  <th className="py-2.5 px-3">#</th>
-                  <th className="py-2.5 px-3">Date &amp; Time</th>
-                  <th className="py-2.5 px-3">Flow &amp; Scope</th>
-                  <th className="py-2.5 px-3">Wallet Channel</th>
-                  <th className="py-2.5 px-3 text-right">Inflow (+ Credit)</th>
-                  <th className="py-2.5 px-3 text-right">Outflow (- Debit)</th>
-                  <th className="py-2.5 px-3 text-right">Running Balance (₹)</th>
-                  <th className="py-2.5 px-3">Particulars, Mode &amp; Denominations</th>
-                  <th className="py-2.5 px-3">Cashier &amp; Approver</th>
-                  <th className="py-2.5 px-3">Slip / Voucher #</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-[#242424]">
-                {filteredAllocations.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="py-12 px-4 text-center">
-                      <EmptyState
-                        icon={History}
-                        title="No treasury ledger records found"
-                        description="No float top-ups, safe drops, or wallet transactions match the selected filter criteria."
-                        actionLabel="Reset Search & Filters"
-                        onAction={() => {
-                          setLedgerSearch('');
-                          setScopeFilter('ALL');
-                          setLedgerWalletFilter('ALL');
-                          setDateFilter('this_month');
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedAllocations.map((entry, idx) => {
-                    const credit = Number(entry.credit_amount) || 0;
-                    const debit = Number(entry.debit_amount) || 0;
-                    const parsed = parseLedgerNotes(entry.remarks);
-                    const isUpi = entry.wallet_type === 'UPI';
-                    const isCredit = credit > 0;
-                    const isSafeDrop = entry.transaction_type === 'Safe_Drop';
-                    const isExpense = entry.transaction_type === 'Expense_Voucher';
-                    const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
-                    const runningBal = entriesWithRunningBalance.get(entryKey)?.runningCombined;
-                    const rowSeq = (currentPage - 1) * pageSize + idx + 1;
-                    const refCode = entry.reference_number || (entry.id ? String(entry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO');
-
-                    return (
-                      <tr
-                        key={entryKey}
-                        className="hover:bg-slate-50/80 dark:hover:bg-[#1a1a1a] transition-colors group"
-                      >
-                        {/* 1. Sequence Number */}
-                        <td className="py-2.5 px-3 text-slate-400 dark:text-zinc-500 font-mono text-[11px] whitespace-nowrap">
-                          #{rowSeq}
-                        </td>
-
-                        {/* 2. Date & Time */}
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[11px] text-slate-800 dark:text-zinc-200 font-mono font-semibold">
-                              {formatDate(entry.created_at, 'dd MMM yyyy')}
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">
-                              {formatDate(entry.created_at, 'HH:mm:ss')} ({formatDate(entry.created_at, 'EEE')})
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 3. Flow Direction & Scope Badge */}
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="flex flex-col gap-1">
-                            {isCredit ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-sans font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-200 dark:border-emerald-500/20 w-fit">
-                                <ArrowDownLeft className="w-2.5 h-2.5 stroke-[2.5]" />
-                                INFLOW (+)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-sans font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 w-fit">
-                                <ArrowUpRight className="w-2.5 h-2.5 stroke-[2.5]" />
-                                OUTFLOW (-)
-                              </span>
-                            )}
-
-                            <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans">
-                              {isSafeDrop
-                                ? 'Safe Vault Deposit'
-                                : isExpense
-                                ? 'Expense Voucher'
-                                : entry.transaction_type === 'Float_Topup'
-                                ? 'Cash Float Top-up'
-                                : entry.transaction_type || 'Adjustment'}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 4. Wallet Channel */}
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className={cn(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono border font-medium',
-                            isUpi
-                              ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/20'
-                              : 'bg-emerald-50 dark:bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] border-emerald-200 dark:border-[#3ecf8e]/20'
-                          )}>
-                            {isUpi ? <Building2 className="w-2.5 h-2.5" /> : <Coins className="w-2.5 h-2.5" />}
-                            {entry.wallet_type === 'UPI' ? 'Bank UPI' : 'Cash Drawer Till'}
-                          </span>
-                        </td>
-
-                        {/* 5. Inflow Credit (+) */}
-                        <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
-                          {credit > 0 ? (
-                            <span className="text-emerald-600 dark:text-[#3ecf8e] font-mono font-bold text-xs">
-                              +{formatINR(credit)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 dark:text-zinc-600 font-mono text-xs">—</span>
-                          )}
-                        </td>
-
-                        {/* 6. Outflow Debit (-) */}
-                        <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
-                          {debit > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400 font-mono font-bold text-xs">
-                              -{formatINR(debit)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 dark:text-zinc-600 font-mono text-xs">—</span>
-                          )}
-                        </td>
-
-                        {/* 7. Progressive Running Balance */}
-                        <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">
-                          <span className="font-mono text-xs text-slate-900 dark:text-white font-bold bg-slate-50 dark:bg-black/30 px-2 py-0.5 rounded border border-slate-200/60 dark:border-white/5">
-                            {formatINR(runningBal !== undefined ? runningBal : (Number(entry.running_balance) || 0))}
-                          </span>
-                        </td>
-
-                        {/* 8. Particulars, Mode & Denominations */}
-                        <td className="py-2.5 px-3 max-w-[280px]">
-                          <div className="space-y-1">
-                            <span className="block truncate font-sans text-slate-900 dark:text-zinc-100 text-xs font-medium" title={parsed.title}>
-                              {parsed.title}
-                            </span>
-                            <div className="flex flex-wrap items-center gap-1">
-                              {parsed.modeDetails && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-[9px] font-mono text-sky-700 dark:text-sky-300">
-                                  {parsed.modeDetails}
-                                </span>
-                              )}
-                              {parsed.chips.map((chip, cIdx) => (
-                                <span
-                                  key={cIdx}
-                                  className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-[#222222] border border-slate-200 dark:border-[#333333] text-[9px] font-mono text-slate-700 dark:text-[#A1A1A1] tabular-nums"
-                                >
-                                  {chip}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 9. Cashier & Approver */}
-                        <td className="py-2.5 px-3">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1 font-sans text-xs text-slate-900 dark:text-white font-medium">
-                              <User className="w-2.5 h-2.5 text-slate-400" />
-                              <span className="truncate">{entry.cashier_name || 'Cashier'}</span>
-                            </div>
-                            {entry.authorized_by_name && (
-                              <span className="block text-[10px] text-slate-400 dark:text-zinc-500 font-sans truncate">
-                                Auth: <strong className="font-medium text-slate-600 dark:text-zinc-400">{entry.authorized_by_name}</strong>
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 10. Slip / Voucher # */}
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1">
-                            <span className="font-mono text-[11px] text-slate-600 dark:text-zinc-400 bg-slate-50 dark:bg-black/30 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-white/5 font-semibold">
-                              {refCode}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyRef(refCode)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
-                              title="Copy slip reference"
-                            >
-                              {copiedRef === refCode ? (
-                                <CheckCheck className="w-3 h-3 text-[#3ecf8e]" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* 11. Action */}
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleViewSlip(entry)}
-                              className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-zinc-300 text-xs font-sans inline-flex items-center gap-1 transition-all cursor-pointer"
-                              title="View slip details"
-                            >
-                              <Eye className="w-3 h-3 text-slate-400" />
-                              <span>Slip</span>
-                            </button>
-
-                            {(isDeveloper || user?.role_code === 'Super_Admin' || user?.role_code === 'Store_Manager') && (
-                              <button
-                                type="button"
-                                disabled={purgingId === (entry.id || entry.reference_number)}
-                                onClick={() => handlePurgeEntry(entry)}
-                                className="p-1 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs transition-all cursor-pointer disabled:opacity-40"
-                                title="Delete / Purge errant ledger entry"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Treasury Table Pagination Footer */}
-        <div className="p-3 bg-slate-50 dark:bg-[#171717] border border-slate-200 dark:border-[#242424] rounded-[8px] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
-          <div className="flex items-center gap-2 text-slate-600 dark:text-[#A1A1A1]">
-            <span>
-              Showing{' '}
-              <strong className="text-slate-900 dark:text-white font-mono">
-                {filteredAllocations.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
-              </strong>{' '}
-              to{' '}
-              <strong className="text-slate-900 dark:text-white font-mono">
-                {Math.min(currentPage * pageSize, filteredAllocations.length)}
-              </strong>{' '}
-              of <strong className="text-slate-900 dark:text-white font-mono">{filteredAllocations.length}</strong> entries (Page {currentPage} of {totalPages})
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-700 dark:text-[#EDEDED] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-[#222222] text-xs font-sans transition-colors cursor-pointer"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* 5. Full Bank Passbook Register & Advance Table */}
+      <TreasuryPassbookTable
+        entries={allLedgerEntries}
+        currentCashBalance={currentCashBalance}
+        currentUpiBalance={currentUpiBalance}
+        selectedBranchId={selectedBranch}
+        selectedDayFilter={selectedDayFilter}
+        onClearDayFilter={() => setSelectedDayFilter(null)}
+        voucherMap={voucherMap}
+      />
 
       {/* 5. Safe Drop Slide-Over Drawer */}
       <SafeDropDrawer
@@ -1693,7 +1413,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Voucher / Ref #</span>
                 <span className="font-semibold text-slate-900 dark:text-white font-mono">
-                  {viewLedgerEntry.reference_number || (viewLedgerEntry.id ? String(viewLedgerEntry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO')}
+                  {formatVoucherNumber(viewLedgerEntry.reference_number || (viewLedgerEntry.id ? String(viewLedgerEntry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO'))}
                 </span>
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
@@ -1757,7 +1477,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
-                onClick={() => handleCopyRef(viewLedgerEntry.reference_number || String(viewLedgerEntry.id || ''))}
+                onClick={() => handleCopyRef(formatVoucherNumber(viewLedgerEntry.reference_number || String(viewLedgerEntry.id || '')))}
                 className="px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] text-slate-700 dark:text-zinc-300 text-xs font-sans inline-flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#202020]"
               >
                 <Copy className="w-3.5 h-3.5" />

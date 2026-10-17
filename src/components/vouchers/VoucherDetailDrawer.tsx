@@ -3,7 +3,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { erpService } from '@/lib/erpService';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
-import { formatINR, formatDate, numberToWordsINR, triggerHaptic } from '@/lib/utils';
+import { formatINR, formatDate, formatVoucherNumber, numberToWordsINR, triggerHaptic } from '@/lib/utils';
 import { useVouchers } from '@/hooks/useVouchers';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { StaffSplitTable, SplitItem } from '@/components/vouchers/StaffSplitTable';
@@ -325,12 +325,12 @@ export const VoucherDetailDrawer: React.FC = () => {
       setIsEditing(false);
       setFeedback({
         type: 'success',
-        message: `Expense Bill #${v.voucher_number} updated successfully.`,
+        message: `Expense Bill #${formatVoucherNumber(v.voucher_number)} updated successfully.`,
       });
       showToast({
         type: 'success',
         title: 'Bill Updated',
-        message: `Voucher #${v.voucher_number} updated in database.`,
+        message: `Voucher #${formatVoucherNumber(v.voucher_number)} updated in database.`,
       });
       refresh(true);
     } catch (err: any) {
@@ -393,11 +393,11 @@ export const VoucherDetailDrawer: React.FC = () => {
       showToast({
         type: 'success',
         title: 'Voucher Voided',
-        message: `Voucher #${v.voucher_number} voided. Funds refunded to ${v.payment_method.replace('_', ' ')}.`,
+        message: `Voucher #${formatVoucherNumber(v.voucher_number)} voided. Funds refunded to ${v.payment_method.replace('_', ' ')}.`,
       });
       setFeedback({
         type: 'success',
-        message: `Voucher ${v.voucher_number} voided and ₹${v.total_amount} refunded to ${v.payment_method}.`,
+        message: `Voucher ${formatVoucherNumber(v.voucher_number)} voided and ₹${v.total_amount} refunded to ${v.payment_method}.`,
       });
       setTimeout(() => {
         closeDrawer();
@@ -428,11 +428,11 @@ export const VoucherDetailDrawer: React.FC = () => {
       showToast({
         type: 'success',
         title: 'Voucher Deleted',
-        message: `Voucher #${v.voucher_number} permanently purged from system.`,
+        message: `Voucher #${formatVoucherNumber(v.voucher_number)} permanently purged from system.`,
       });
       setFeedback({
         type: 'success',
-        message: `Voucher ${v.voucher_number} permanently deleted by Super Admin.`,
+        message: `Voucher ${formatVoucherNumber(v.voucher_number)} permanently deleted by Super Admin.`,
       });
       setTimeout(() => {
         closeDrawer();
@@ -540,7 +540,7 @@ export const VoucherDetailDrawer: React.FC = () => {
     <SlideOverDrawer
       isOpen={Boolean(activeDrawerVoucher)}
       onClose={closeDrawer}
-      title={isEditing ? `Edit Bill #${v.voucher_number}` : `Expense Bill #${v.voucher_number}`}
+      title={isEditing ? `Edit Bill #${formatVoucherNumber(v.voucher_number)}` : `Expense Bill #${formatVoucherNumber(v.voucher_number)}`}
       subtitle={`Recorded ${formatDate(v.payment_date)} • ${v.branch_code} • ${v.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}`}
       badge={statusBadge}
       size="full"
@@ -554,7 +554,7 @@ export const VoucherDetailDrawer: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e]" />
                 <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">
-                  Editing Expense Voucher #{v.voucher_number}
+                  Editing Expense Voucher #{formatVoucherNumber(v.voucher_number)}
                 </span>
               </div>
               <span className="text-[11px] font-mono text-emerald-700 dark:text-[#3ecf8e]">
