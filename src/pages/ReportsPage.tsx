@@ -6,7 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
 import { calculateDailyCashBalances, DayCashRecord } from '@/lib/dailyCashBalance';
-import { StaffAdvance, ExpenseVoucher, WalletLedger } from '@/types/database';
+import { WalletLedger } from '@/types/database';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
@@ -16,25 +16,20 @@ import {
   Download,
   Search,
   CheckCircle2,
-  AlertTriangle,
-  HandCoins,
-  ShieldCheck,
   Wallet,
-  PieChart,
   RefreshCw,
   Copy,
   Calendar,
   Building2,
   Receipt,
-  Layers,
-  ArrowUpRight,
-  TrendingDown,
   Check,
   CalendarDays,
   Coins,
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
 
-type ReportTab = 'daily_cash' | 'categories' | 'tally' | 'advances' | 'tax_audit';
+type ReportTab = 'daily_cash' | 'tally';
 type TimeRangePreset =
   | 'today'
   | 'yesterday'
@@ -75,7 +70,6 @@ export const ReportsPage: React.FC = () => {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(selectedBranchId || 'ALL');
 
   // Supplementary data states
-  const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<WalletLedger[]>([]);
   const [loadingExtras, setLoadingExtras] = useState(false);
   const [copiedTally, setCopiedTally] = useState(false);
@@ -94,19 +88,15 @@ export const ReportsPage: React.FC = () => {
     return w ? Number(w.cash_balance) || 100000 : 100000;
   }, [wallets, selectedBranchFilter]);
 
-  // Load staff advances and wallet ledger
+  // Load wallet ledger
   const loadExtras = useCallback(async () => {
     setLoadingExtras(true);
     try {
       const branchToQuery = selectedBranchFilter === 'ALL' ? undefined : selectedBranchFilter;
-      const [advancesData, ledgerData] = await Promise.all([
-        erpService.getStaffAdvances(branchToQuery),
-        erpService.getWalletLedger(branchToQuery),
-      ]);
-      setAdvances(advancesData);
+      const ledgerData = await erpService.getWalletLedger(branchToQuery);
       setLedgerEntries(ledgerData);
     } catch (err) {
-      console.warn('Error loading supplementary report data:', err);
+      console.warn('Error loading ledger data:', err);
     } finally {
       setLoadingExtras(false);
     }
@@ -114,14 +104,9 @@ export const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     loadExtras();
-
-    const handleAdvancesUpdate = () => loadExtras();
     const handleWalletUpdate = () => loadExtras();
-
-    window.addEventListener('asopalav:advances-updated', handleAdvancesUpdate);
     window.addEventListener('asopalav:wallet-updated', handleWalletUpdate);
     return () => {
-      window.removeEventListener('asopalav:advances-updated', handleAdvancesUpdate);
       window.removeEventListener('asopalav:wallet-updated', handleWalletUpdate);
     };
   }, [loadExtras]);
@@ -237,118 +222,6 @@ export const ReportsPage: React.FC = () => {
     return filteredVouchers.filter((v) => v.status !== 'Voided');
   }, [filteredVouchers]);
 
-  // Financial Metrics
-  const metrics = useMemo(() => {
-    const totalExpenditure = approvedVouchers.reduce(
-      (sum, v) => sum + (Number(v.total_amount) || 0),
-      0
-    );
-    const cashDisbursed = approvedVouchers
-      .filter((v) => v.payment_method === 'Physical_Cash')
-      .reduce((sum, v) => sum + (Number(v.total_amount) || 0), 0);
-    const upiDisbursed = approvedVouchers
-      .filter((v) => v.payment_method === 'Online_UPI')
-      .reduce((sum, v) => sum + (Number(v.total_amount) || 0), 0);
-
-    const activeAdvances = advances.filter(
-      (a) =>
-        a.status === 'Active_Unsettled' ||
-        a.status === 'Flagged_Salary_Deduction' ||
-        (Number(a.unsettled_balance) || 0) > 0
-    );
-    const totalUnsettledAdvances = activeAdvances.reduce(
-      (sum, a) => sum + (Number(a.unsettled_balance) || 0),
-      0
-    );
-    const totalAdvancesGiven = advances.reduce(
-      (sum, a) => sum + (Number(a.advance_amount) || 0),
-      0
-    );
-    const totalAdvancesSettled = advances.reduce(
-      (sum, a) =>
-        sum +
-        (Number(a.bills_submitted_amount) || 0) +
-        (Number(a.cash_returned_amount) || 0),
-      0
-    );
-
-    // Section 40A(3) Audits
-    const singleBreaches = approvedVouchers.filter((v) => {
-      if (v.payment_method !== 'Physical_Cash') return false;
-      const amt = Number(v.total_amount) || 0;
-      const limit = v.payment_type === 'Courier' ? 35000 : 10000;
-      return amt > limit;
-    });
-
-    const vendorDailyCashMap: Record<string, { total: number; vouchers: ExpenseVoucher[] }> = {};
-    approvedVouchers
-      .filter((v) => v.payment_method === 'Physical_Cash')
-      .forEach((v) => {
-        const key = `${v.payment_date.slice(0, 10)}_${(v.recipient_name || '').trim().toLowerCase()}`;
-        if (!vendorDailyCashMap[key]) {
-          vendorDailyCashMap[key] = { total: 0, vouchers: [] };
-        }
-        vendorDailyCashMap[key].total += Number(v.total_amount) || 0;
-        vendorDailyCashMap[key].vouchers.push(v);
-      });
-
-    const aggregateBreaches = Object.entries(vendorDailyCashMap).filter(
-      ([_, val]) => val.total > 10000 && val.vouchers.length > 1
-    );
-
-    const total40A3Exposure = singleBreaches.reduce((sum, v) => {
-      const limit = v.payment_type === 'Courier' ? 35000 : 10000;
-      return sum + Math.max(0, (Number(v.total_amount) || 0) - limit);
-    }, 0);
-
-    return {
-      totalExpenditure,
-      cashDisbursed,
-      upiDisbursed,
-      voucherCount: approvedVouchers.length,
-      cashCount: approvedVouchers.filter((v) => v.payment_method === 'Physical_Cash').length,
-      upiCount: approvedVouchers.filter((v) => v.payment_method === 'Online_UPI').length,
-      totalAdvancesGiven,
-      totalAdvancesSettled,
-      totalUnsettledAdvances,
-      unsettledAdvancesCount: activeAdvances.length,
-      sec40A3SingleBreachesCount: singleBreaches.length,
-      sec40A3AggregateBreachesCount: aggregateBreaches.length,
-      total40A3Exposure,
-      singleBreaches,
-      aggregateBreaches,
-    };
-  }, [approvedVouchers, advances]);
-
-  // Real Supabase Expense Categories Breakdown (No hardcoded prefixes, no dummy data)
-  const categoryBreakdown = useMemo(() => {
-    const catMap: Record<string, { total: number; count: number; cash: number; upi: number }> = {};
-    const totalExp = metrics.totalExpenditure || 1;
-
-    approvedVouchers.forEach((v) => {
-      const cat = (v.category_name || 'Other Expenses').trim();
-      const amt = Number(v.total_amount) || 0;
-
-      if (!catMap[cat]) catMap[cat] = { total: 0, count: 0, cash: 0, upi: 0 };
-      catMap[cat].total += amt;
-      catMap[cat].count += 1;
-      if (v.payment_method === 'Physical_Cash') catMap[cat].cash += amt;
-      else catMap[cat].upi += amt;
-    });
-
-    return Object.entries(catMap)
-      .map(([name, data]) => ({
-        name,
-        total: data.total,
-        count: data.count,
-        cash: data.cash,
-        upi: data.upi,
-        percentage: ((data.total / totalExp) * 100).toFixed(1),
-        avgTicket: Math.round(data.total / (data.count || 1)),
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [approvedVouchers, metrics.totalExpenditure]);
-
   // --------------------------------------------------------------------------
   // EXPORT GENERATORS
   // --------------------------------------------------------------------------
@@ -357,15 +230,15 @@ export const ReportsPage: React.FC = () => {
   const handleExportDailyCashStatement = () => {
     triggerHaptic();
     const headers = [
-      'Date (YYYY-MM-DD)',
+      'Date',
       'Calendar Day',
-      'Opening Cash Balance (INR)',
+      'Opening Cash (INR)',
       'Cash Inflows (+) Float (INR)',
-      'Cash Outflows (-) Vouchers & Safe Drops (INR)',
-      'Net Cash Movement (INR)',
-      'Closing Cash Balance (INR)',
-      'Transactions Count',
-      'Audit Status',
+      'Cash Outflows (-) Expenses (INR)',
+      'Net Movement (INR)',
+      'Closing Cash (INR)',
+      'Transaction Count',
+      'Status',
     ];
 
     const rows = dailyCashFlow.days.map((d) => [
@@ -377,321 +250,230 @@ export const ReportsPage: React.FC = () => {
       Number(d.net) || 0,
       Number(d.closing) || 0,
       d.count,
-      `"Reconciled"`,
+      `"Balanced"`,
     ]);
 
     const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     downloadBlob(
-      `Asopalav_Daily_Cash_Statement_${dateBounds.start}_to_${dateBounds.end}.csv`,
+      `Daily_Cash_Statement_${selectedBranchFilter}_${dateBounds.start}_to_${dateBounds.end}.csv`,
       csv
     );
     showToast({
       type: 'success',
-      title: 'Daily Cash Statement Exported',
-      message: `Exported ${dailyCashFlow.days.length} day-by-day cash reconciliation records.`,
+      title: 'Cash Statement Exported',
+      message: 'Downloaded verified daily opening and closing cash statement.',
     });
   };
 
-  // 2. Real Expense Category Analysis CSV Export
-  const handleExportCategorySchedule = () => {
-    triggerHaptic();
-    const headers = [
-      'Expense Category (Head)',
-      'Total Spent (INR)',
-      'Share of Expenditure (%)',
-      'Bills Count',
-      'Cash Outflow (INR)',
-      'Online UPI Outflow (INR)',
-      'Average Bill Ticket (INR)',
-    ];
-
-    const rows = categoryBreakdown.map((c) => [
-      `"${c.name.replace(/"/g, '""')}"`,
-      c.total,
-      `"${c.percentage}%"`,
-      c.count,
-      c.cash,
-      c.upi,
-      c.avgTicket,
-    ]);
-
-    const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(
-      `Asopalav_Expense_Category_Analysis_${format(new Date(), 'yyyy-MM-dd')}.csv`,
-      csv
-    );
-    showToast({
-      type: 'success',
-      title: 'Category Analysis Exported',
-      message: `Exported ${categoryBreakdown.length} real expense categories.`,
-    });
-  };
-
-  // 3. Tally Prime Master CSV Export
+  // 2. Tally Prime Master CSV Export
   const handleExportTally = () => {
     triggerHaptic();
-    if (approvedVouchers.length === 0) {
-      showToast({
-        type: 'warning',
-        title: 'No Vouchers Selected',
-        message: 'No approved expense vouchers found matching current filters.',
-      });
-      return;
-    }
-
-    const csvContent = erpService.generateTallyExportCSV(approvedVouchers);
-    const dateTag = `${dateBounds.start}_to_${dateBounds.end}`;
-    const branchTag = selectedBranchFilter === 'ALL' ? 'ALL_SHOWROOMS' : selectedBranchFilter;
-    downloadBlob(
-      `Asopalav_Tally_Prime_Ledger_${branchTag}_${dateTag}.csv`,
-      csvContent,
-      'text/csv;charset=utf-8;'
-    );
-
-    showToast({
-      type: 'success',
-      title: 'Tally Prime Export Complete',
-      message: `Exported ${approvedVouchers.length} vouchers with compound debit ledgers.`,
-    });
-  };
-
-  // Copy Tally CSV to Clipboard
-  const handleCopyTallyToClipboard = async () => {
-    triggerHaptic();
-    const csvContent = erpService.generateTallyExportCSV(approvedVouchers);
-    try {
-      await navigator.clipboard.writeText(csvContent);
-      setCopiedTally(true);
-      showToast({
-        type: 'success',
-        title: 'Copied to Clipboard',
-        message: 'Tally Prime journal CSV lines copied successfully.',
-      });
-      setTimeout(() => setCopiedTally(false), 2500);
-    } catch {
-      showToast({
-        type: 'error',
-        title: 'Clipboard Error',
-        message: 'Unable to write to clipboard. Please use CSV Download.',
-      });
-    }
-  };
-
-  // 4. Staff Advances Register CSV
-  const handleExportAdvancesRegister = () => {
-    triggerHaptic();
     const headers = [
-      'Staff Code',
-      'Staff Member Name',
-      'Designation',
-      'Branch',
-      'Receipt #',
-      'Advance Date',
-      'Advance Given (INR)',
-      'Bills Settled (INR)',
-      'Cash Returned (INR)',
-      'Remaining Balance Due (INR)',
-      'Status',
-      'Purpose / Remarks',
-    ];
-
-    const rows = advances.map((a) => [
-      `"${a.staff_code || ''}"`,
-      `"${(a.staff_name || '').replace(/"/g, '""')}"`,
-      `"${(a.designation || '').replace(/"/g, '""')}"`,
-      `"${a.branch_code || ''}"`,
-      `"${a.receipt_number || ''}"`,
-      `"${a.advance_date || ''}"`,
-      Number(a.advance_amount) || 0,
-      Number(a.bills_submitted_amount) || 0,
-      Number(a.cash_returned_amount) || 0,
-      Number(a.unsettled_balance) || 0,
-      `"${a.status}"`,
-      `"${(a.purpose || '').replace(/"/g, '""')}"`,
-    ]);
-
-    const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(
-      `Asopalav_Staff_Advances_Register_${format(new Date(), 'yyyy-MM-dd')}.csv`,
-      csv
-    );
-    showToast({
-      type: 'success',
-      title: 'Advances Register Exported',
-      message: `Exported ${advances.length} staff advance records.`,
-    });
-  };
-
-  // 5. HR Payroll Deduction Schedule CSV
-  const handleExportPayrollSchedule = () => {
-    triggerHaptic();
-    const flagged = advances.filter(
-      (a) => a.status === 'Flagged_Salary_Deduction' || (Number(a.unsettled_balance) || 0) > 0
-    );
-
-    if (flagged.length === 0) {
-      showToast({
-        type: 'info',
-        title: 'No Pending Payroll Deductions',
-        message: 'There are no outstanding staff advances requiring salary deduction.',
-      });
-      return;
-    }
-
-    const headers = [
-      'Staff Code',
-      'Staff Employee Name',
-      'Branch Code',
-      'Designation',
-      'Advance Receipt Reference',
-      'Disbursal Date',
-      'Deduction Target Month',
-      'Outstanding Advance Due (INR)',
-      'Proposed Salary Deduction (INR)',
-      'Cashier / Authorizer Remarks',
-    ];
-
-    const rows = flagged.map((a) => [
-      `"${a.staff_code || ''}"`,
-      `"${(a.staff_name || '').replace(/"/g, '""')}"`,
-      `"${a.branch_code || ''}"`,
-      `"${(a.designation || '').replace(/"/g, '""')}"`,
-      `"${a.receipt_number || ''}"`,
-      `"${a.advance_date || ''}"`,
-      `"${a.salary_deduction_month || format(new Date(), 'MMMM yyyy')}"`,
-      Number(a.unsettled_balance) || 0,
-      Number(a.unsettled_balance) || 0,
-      `"Automatic payroll recovery for unsettled staff advance #${a.receipt_number}"`,
-    ]);
-
-    const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(
-      `Asopalav_HR_Payroll_Deduction_Schedule_${format(new Date(), 'yyyy-MM-dd')}.csv`,
-      csv
-    );
-    showToast({
-      type: 'success',
-      title: 'HR Payroll Schedule Exported',
-      message: `Exported ${flagged.length} staff deductions for payroll processing.`,
-    });
-  };
-
-  // 6. Section 40A(3) CA Tax Compliance Pack CSV
-  const handleExportTaxAuditPack = () => {
-    triggerHaptic();
-    const headers = [
-      'Audit Flag Type',
-      'Voucher Date',
+      'Vch Date (YYYY-MM-DD)',
+      'Voucher Type',
       'Voucher Number',
-      'Branch',
-      'Vendor / Payee Name',
-      'Expense Head (Category)',
+      'Reference / Bill No',
+      'Cost Centre (Branch)',
+      'Department',
+      'Debit Ledger (Expense Account)',
+      'Debit Amount (INR)',
+      'Credit Ledger (Cash / UPI Account)',
+      'Credit Amount (INR)',
+      'Beneficiary / Payee Name',
       'Payment Mode',
-      'Voucher Amount (INR)',
-      'Statutory Limit (INR)',
-      'Disallowed Amount u/s 40A(3)',
-      'Estimated Tax Liability @ 30% (INR)',
-      'Bill Reference',
-      'Narration / Audit Remarks',
+      'Narration / Purpose',
     ];
 
-    const rows: string[] = [];
+    const exportRows = approvedVouchers.filter((v) => v.payment_type !== 'Advance_Settlement');
 
-    metrics.singleBreaches.forEach((v) => {
-      const limit = v.payment_type === 'Courier' ? 35000 : 10000;
-      const disallowed = Math.max(0, (Number(v.total_amount) || 0) - limit);
-      const taxLiab = Math.round(disallowed * 0.3);
-      rows.push(
-        [
-          `"Single Cash Voucher Breach (>INR ${limit.toLocaleString('en-IN')})"`,
-          `"${v.payment_date || ''}"`,
-          `"${v.voucher_number || ''}"`,
-          `"${v.branch_code || ''}"`,
-          `"${(v.recipient_name || '').replace(/"/g, '""')}"`,
-          `"${(v.category_name || '').replace(/"/g, '""')}"`,
-          `"Physical Cash"`,
-          Number(v.total_amount) || 0,
-          limit,
-          disallowed,
-          taxLiab,
-          `"${v.bill_number || ''}"`,
-          `"${(v.remarks || '').replace(/"/g, '""')}"`,
-        ].join(',')
+    const rows = exportRows.map((v) => {
+      const vDate = v.payment_date ? v.payment_date.slice(0, 10) : '';
+      const vType = 'Payment';
+      const vNum = v.voucher_number || '';
+      const refBill = v.bill_number ? `Bill: ${v.bill_number}` : 'Cash Voucher';
+      const branchCode = v.branch_code || (v.branch_id ? v.branch_id.replace(/^Aellp-/, '') : 'ASI');
+      const costCentre = `Showroom ${branchCode}`;
+      const department = v.department_name || 'General Operations';
+      const debitLedger = `${v.category_name || 'General Store Expense'} A/c`;
+      const amount = Number(v.total_amount) || 0;
+      const creditLedger =
+        v.payment_method === 'Physical_Cash'
+          ? `Cash on Hand - ${branchCode} A/c`
+          : `UPI Current A/c - ${branchCode}`;
+      const payee = (v.recipient_name || 'Counter Expense').replace(/"/g, '""');
+      const mode = v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI';
+      const narration = (v.remarks || `Expense disbursement for ${v.category_name || 'Store Operations'}`).replace(
+        /"/g,
+        '""'
       );
+
+      return [
+        `"${vDate}"`,
+        `"${vType}"`,
+        `"${vNum}"`,
+        `"${refBill}"`,
+        `"${costCentre}"`,
+        `"${department}"`,
+        `"${debitLedger}"`,
+        amount,
+        `"${creditLedger}"`,
+        amount,
+        `"${payee}"`,
+        `"${mode}"`,
+        `"${narration}"`,
+      ].join(',');
     });
-
-    metrics.aggregateBreaches.forEach(([key, agg]) => {
-      const parts = key.split('_');
-      const date = parts[0];
-      const vendor = parts.slice(1).join(' ');
-      const disallowed = Math.max(0, agg.total - 10000);
-      const taxLiab = Math.round(disallowed * 0.3);
-
-      agg.vouchers.forEach((v) => {
-        rows.push(
-          [
-            `"Daily Aggregate Vendor Breach (Day Total: INR ${agg.total.toLocaleString('en-IN')})"`,
-            `"${date}"`,
-            `"${v.voucher_number || ''}"`,
-            `"${v.branch_code || ''}"`,
-            `"${vendor.toUpperCase()}"`,
-            `"${(v.category_name || '').replace(/"/g, '""')}"`,
-            `"Physical Cash"`,
-            Number(v.total_amount) || 0,
-            10000,
-            disallowed,
-            taxLiab,
-            `"${v.bill_number || ''}"`,
-            `"Aggregated vendor daily payment exceeds statutory ceiling u/s 40A(3)"`,
-          ].join(',')
-        );
-      });
-    });
-
-    if (rows.length === 0) {
-      rows.push(
-        [
-          `"100% Tax Compliant"`,
-          `"${format(new Date(), 'yyyy-MM-dd')}"`,
-          `"ALL_VOUCHERS"`,
-          `"${selectedBranchFilter}"`,
-          `"All Vendors"`,
-          `"General Operations"`,
-          `"All Modes"`,
-          metrics.totalExpenditure,
-          10000,
-          0,
-          0,
-          `"Clean Audit"`,
-          `"Zero Section 40A(3) cash disallowance breaches identified during selected period."`,
-        ].join(',')
-      );
-    }
 
     const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     downloadBlob(
-      `Asopalav_CA_Section40A3_Audit_Schedule_${format(new Date(), 'yyyy-MM-dd')}.csv`,
+      `Asopalav_Tally_Prime_Export_${selectedBranchFilter}_${dateBounds.start}_to_${dateBounds.end}.csv`,
       csv
     );
     showToast({
       type: 'success',
-      title: 'Tax Compliance Audit Pack Exported',
-      message: 'Generated Section 40A(3) Income Tax schedule for CA audit filing.',
+      title: 'Tally Prime Export Ready',
+      message: `Exported ${exportRows.length} vouchers for accounting entry.`,
     });
   };
 
-  // --------------------------------------------------------------------------
-  // LIVE JOURNAL PREVIEW ROWS (For Tally Prime Tab)
-  // --------------------------------------------------------------------------
+  // 2B. Official Tally Prime XML Export (Native Tally Ingestion)
+  const handleExportTallyXML = () => {
+    triggerHaptic();
+    const exportRows = approvedVouchers.filter((v) => v.payment_type !== 'Advance_Settlement');
+
+    const escapeXml = (str: string) =>
+      str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+    const voucherXmls = exportRows
+      .map((v) => {
+        const vDateStr = v.payment_date ? v.payment_date.slice(0, 10).replace(/-/g, '') : '20261019';
+        const branchCode = v.branch_code || (v.branch_id ? v.branch_id.replace(/^Aellp-/, '') : 'ASI');
+        const debitLedger = `${v.category_name || 'General Store Expense'} A/c`;
+        const creditLedger =
+          v.payment_method === 'Physical_Cash'
+            ? `Cash on Hand - ${branchCode} A/c`
+            : `UPI Current A/c - ${branchCode}`;
+        const amount = Number(v.total_amount) || 0;
+        const narration = escapeXml(
+          v.remarks ||
+            `Expense disbursement for ${v.category_name || 'Store Operations'} to ${v.recipient_name || 'Vendor'}`
+        );
+
+        return `      <TALLYMESSAGE xmlns:UDF="TallyUDF">
+        <VOUCHER VCHTYPE="Payment" ACTION="Create">
+          <DATE>${vDateStr}</DATE>
+          <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
+          <VOUCHERNUMBER>${escapeXml(v.voucher_number || '')}</VOUCHERNUMBER>
+          <REFERENCE>${escapeXml(v.bill_number || '')}</REFERENCE>
+          <PARTYLEDGERNAME>${escapeXml(creditLedger)}</PARTYLEDGERNAME>
+          <NARRATION>${narration}</NARRATION>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>${escapeXml(debitLedger)}</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <AMOUNT>-${amount.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>${escapeXml(creditLedger)}</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>${amount.toFixed(2)}</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+        </VOUCHER>
+      </TALLYMESSAGE>`;
+      })
+      .join('\n');
+
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>All Masters</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+${voucherXmls}
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>`;
+
+    downloadBlob(
+      `Asopalav_Tally_Prime_Import_${selectedBranchFilter}_${dateBounds.start}_to_${dateBounds.end}.xml`,
+      xml,
+      'application/xml;charset=utf-8;'
+    );
+
+    showToast({
+      type: 'success',
+      title: 'Tally Prime XML Exported',
+      message: `Exported ${exportRows.length} vouchers in native Tally Prime XML format.`,
+    });
+  };
+
+  // 3. Copy Tally Data to Clipboard
+  const handleCopyTallyToClipboard = () => {
+    triggerHaptic();
+    const headers = [
+      'Date',
+      'Voucher #',
+      'Expense Ledger',
+      'Debit (₹)',
+      'Credit Ledger',
+      'Credit (₹)',
+      'Branch',
+      'Payee',
+      'Mode',
+      'Narration',
+    ];
+
+    const exportRows = approvedVouchers.filter((v) => v.payment_type !== 'Advance_Settlement');
+
+    const lines = exportRows.map((v) => {
+      const vDate = v.payment_date ? v.payment_date.slice(0, 10) : '';
+      const vNum = v.voucher_number || '';
+      const branchCode = v.branch_code || (v.branch_id ? v.branch_id.replace(/^Aellp-/, '') : 'ASI');
+      const debitLedger = `${v.category_name || 'Expense'} A/c`;
+      const amount = Number(v.total_amount) || 0;
+      const creditLedger =
+        v.payment_method === 'Physical_Cash'
+          ? `Cash on Hand - ${branchCode}`
+          : `UPI Current - ${branchCode}`;
+      const payee = v.recipient_name || '';
+      const mode = v.payment_method === 'Physical_Cash' ? 'Cash' : 'UPI';
+      const narration = v.remarks || '';
+
+      return [vDate, vNum, debitLedger, amount, creditLedger, amount, branchCode, payee, mode, narration].join('\t');
+    });
+
+    const tsv = [headers.join('\t'), ...lines].join('\n');
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopiedTally(true);
+      setTimeout(() => setCopiedTally(false), 2500);
+      showToast({
+        type: 'success',
+        title: 'Copied to Clipboard',
+        message: 'Paste directly into Excel or Tally import sheets.',
+      });
+    });
+  };
+
+  // Tally preview rows
   const tallyPreviewRows = useMemo(() => {
     return approvedVouchers
       .filter((v) => v.payment_type !== 'Advance_Settlement')
-      .slice(0, 50)
+      .slice(0, 100)
       .map((v) => {
         const creditLedger =
           v.payment_method === 'Physical_Cash'
             ? `Cash on Hand - ${v.branch_code || 'ASI'} A/c`
-            : `HDFC Bank Current A/c - ${v.branch_code || 'ASI'}`;
+            : `UPI Current A/c - ${v.branch_code || 'ASI'}`;
         const debitLedger = `${v.category_name || 'Expense'} A/c`;
         const costCenter = `Showroom ${v.branch_code || 'ASI'}`;
         const dept = v.department_name || 'General';
@@ -706,7 +488,7 @@ export const ReportsPage: React.FC = () => {
           costCenter,
           department: dept,
           payee: v.recipient_name,
-          paymentMode: v.payment_method === 'Physical_Cash' ? 'Physical Cash' : 'Online UPI',
+          paymentMode: v.payment_method === 'Physical_Cash' ? 'Cash' : 'UPI',
           billNumber: v.bill_number || 'N/A',
           narration: v.remarks || `Expense disbursement for ${v.category_name}`,
         };
@@ -723,28 +505,25 @@ export const ReportsPage: React.FC = () => {
     <div className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
       {/* 1. Header Toolbar */}
       <div className="px-4 lg:px-6 py-4 border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left Title & Status */}
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-[#3ecf8e]" />
-                <span>Financial &amp; Audit Reports</span>
+                <span>Financial Reports</span>
               </h1>
               <span className="px-2.5 py-0.5 rounded-[4px] text-[11px] font-mono tabular-nums bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 whitespace-nowrap inline-flex items-center gap-1 font-medium">
                 <Building2 className="w-3 h-3" />
                 {currentBranchLabel}
               </span>
-              <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono uppercase bg-slate-100 dark:bg-[#1f1f1f] text-slate-600 dark:text-[#A1A1A1] border border-slate-200 dark:border-[#2e2e2e] inline-flex items-center">
-                Double-Entry Ledger v2.4
-              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-              Passbook reconciliation, daily opening &amp; closing balances, expense categories, staff advances, and CA tax schedules.
+              Daily cash passbook statement and Tally Prime accounting export.
             </p>
           </div>
 
-          {/* Right Action Bar with Single Signature Emerald CTA */}
+          {/* Right Action Bar */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button
               type="button"
@@ -754,7 +533,7 @@ export const ReportsPage: React.FC = () => {
               }}
               disabled={vouchersLoading || loadingExtras}
               className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] hover:bg-slate-100 dark:hover:bg-[#242428] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-              title="Refresh Report Data"
+              title="Refresh Data"
             >
               <RefreshCw
                 className={cn('w-3.5 h-3.5 text-[#3ecf8e]', (vouchersLoading || loadingExtras) && 'animate-spin')}
@@ -762,17 +541,38 @@ export const ReportsPage: React.FC = () => {
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
-            {/* Signature Emerald CTA: Download Tally Prime Master CSV */}
-            {can('can_export_tally') && (
+            {/* Primary Action Button */}
+            {activeTab === 'daily_cash' ? (
               <button
                 type="button"
-                onClick={handleExportTally}
+                onClick={handleExportDailyCashStatement}
                 className="h-9 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
-                title="Download Tally Prime Compound Multi-Debit Ledger CSV"
               >
                 <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                <span>Export Tally CSV</span>
+                <span>Export Cash Statement (CSV)</span>
               </button>
+            ) : (
+              can('can_export_tally') && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportTallyXML}
+                    className="h-9 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-800 dark:text-white hover:border-[#3ecf8e] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title="Export in native Tally Prime XML schema for direct import"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                    <span>Tally XML</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportTally}
+                    className="h-9 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
+                  >
+                    <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                    <span>Export Tally CSV</span>
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -904,18 +704,18 @@ export const ReportsPage: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter vouchers, categories, staff..."
+                placeholder="Search vouchers, payees, notes..."
                 className="w-full h-8 pl-8 pr-2.5 rounded-[6px] text-xs bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#2e2e2e] text-slate-800 dark:text-[#EDEDED] placeholder:text-slate-400 dark:placeholder:text-[#606060] font-sans focus:outline-none focus:border-[#3ecf8e] transition-colors"
               />
             </div>
           </div>
         </div>
 
-        {/* 3. Opening & Closing Cash Diagnostic Matrix (5-Up Metric Cards) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* 3. Opening & Closing Cash Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Card 1: Opening Balance */}
           <MetricCard
-            label="1. Opening Cash Balance"
+            label="Opening Cash Balance"
             value={
               <span className="font-mono tabular-nums text-lg sm:text-xl font-medium text-slate-800 dark:text-white">
                 {formatINR(dailyCashFlow.periodOpening)}
@@ -929,27 +729,27 @@ export const ReportsPage: React.FC = () => {
 
           {/* Card 2: Cash Inflows (+) */}
           <MetricCard
-            label="2. Cash Inflows (+) Float"
+            label="Cash Added (Inflows)"
             value={
               <span className="font-mono tabular-nums text-lg sm:text-xl font-medium text-emerald-600 dark:text-[#3ecf8e]">
                 +{formatINR(dailyCashFlow.periodInflows)}
               </span>
             }
-            subValue="Cash top-ups & advance returns"
+            subValue="Cash top-ups and cash box deposits"
             badge="INFLOWS"
             badgeColor="emerald"
-            icon={TrendingDown}
+            icon={TrendingUp}
           />
 
           {/* Card 3: Total Outflows (-) */}
           <MetricCard
-            label="3. Cash Outflows (-) Spent"
+            label="Expenses Paid (Outflows)"
             value={
               <span className="font-mono tabular-nums text-lg sm:text-xl font-medium text-rose-600 dark:text-rose-400">
                 -{formatINR(dailyCashFlow.periodOutflows)}
               </span>
             }
-            subValue={`${metrics.cashCount} cash expenses & safe drops`}
+            subValue="Cash vouchers and expenses paid"
             badge="OUTFLOWS"
             badgeColor="rose"
             icon={Receipt}
@@ -957,139 +757,96 @@ export const ReportsPage: React.FC = () => {
 
           {/* Card 4: Closing Balance */}
           <MetricCard
-            label="4. Closing Cash Balance"
+            label="Closing Cash Balance"
             value={
               <span className="font-mono tabular-nums text-lg sm:text-xl font-semibold text-emerald-600 dark:text-[#3ecf8e]">
                 {formatINR(dailyCashFlow.periodClosing)}
               </span>
             }
-            subValue={`End of period balance (Till: ${formatINR(dailyCashFlow.currentWalletCash)})`}
+            subValue={`Current cash in drawer (Till: ${formatINR(dailyCashFlow.currentWalletCash)})`}
             badge="CLOSING"
             badgeColor="emerald"
             icon={Wallet}
           />
-
-          {/* Card 5: Sec 40A(3) Status */}
-          <MetricCard
-            label="5. Sec 40A(3) Compliance"
-            value={
-              metrics.sec40A3SingleBreachesCount === 0 && metrics.sec40A3AggregateBreachesCount === 0 ? (
-                <span className="font-mono tabular-nums text-lg sm:text-xl font-medium text-emerald-600 dark:text-[#3ecf8e] flex items-center gap-1.5">
-                  <CheckCircle2 className="w-5 h-5 text-[#3ecf8e]" />
-                  <span>100% Clean</span>
-                </span>
-              ) : (
-                <span className="font-mono tabular-nums text-lg sm:text-xl font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-                  <AlertTriangle className="w-5 h-5 text-rose-500" />
-                  <span>{metrics.sec40A3SingleBreachesCount + metrics.sec40A3AggregateBreachesCount} Alerts</span>
-                </span>
-              )
-            }
-            subValue={
-              metrics.total40A3Exposure > 0
-                ? `Disallowance: ${formatINR(metrics.total40A3Exposure)}`
-                : 'Zero cash breaches detected'
-            }
-            badge={metrics.total40A3Exposure > 0 ? 'Tax Alert' : 'Compliant'}
-            badgeColor={metrics.total40A3Exposure > 0 ? 'rose' : 'emerald'}
-            icon={ShieldCheck}
-            onClick={() => setActiveTab('tax_audit')}
-          />
         </div>
 
-        {/* 4. Tab Navigation (5 Financial Dimensions) */}
+        {/* 4. Tab Navigation (Simple & Clear) */}
         <div className="border-b border-slate-200 dark:border-[#282828] flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {(
-            [
-              {
-                id: 'daily_cash',
-                label: 'Daily Cash Statement (Day-by-Day)',
-                icon: CalendarDays,
-                badge: `${dailyCashFlow.days.length} Days`,
-                role: 'Cashier / Manager / CA',
-              },
-              {
-                id: 'categories',
-                label: 'Expense Categories (Real Money)',
-                icon: PieChart,
-                badge: `${categoryBreakdown.length} Heads`,
-                role: 'Accountant / Manager',
-              },
-              {
-                id: 'tally',
-                label: 'Tally Prime Ledger',
-                icon: FileSpreadsheet,
-                badge: `${approvedVouchers.length} Bills`,
-                role: 'Accountant / CA',
-              },
-              {
-                id: 'advances',
-                label: 'Staff Advances (Simplified)',
-                icon: HandCoins,
-                badge: `${metrics.unsettledAdvancesCount} Open`,
-                role: 'Manager / HR',
-              },
-              {
-                id: 'tax_audit',
-                label: 'CA Tax & Sec 40A(3)',
-                icon: ShieldCheck,
-                badge:
-                  metrics.sec40A3SingleBreachesCount > 0
-                    ? `${metrics.sec40A3SingleBreachesCount} Alerts`
-                    : 'Clean',
-                role: 'Auditor / CA',
-              },
-            ] as const
-          ).map((tab) => {
-            const IconComponent = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  triggerHaptic();
-                  setActiveTab(tab.id);
-                }}
-                className={cn(
-                  'px-3.5 py-2.5 text-xs font-medium font-sans flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer select-none',
-                  isActive
-                    ? 'border-[#3ecf8e] text-slate-900 dark:text-[#EDEDED] font-semibold'
-                    : 'border-transparent text-slate-500 dark:text-[#A1A1A1] hover:text-slate-800 dark:hover:text-[#EDEDED] hover:border-slate-300 dark:hover:border-[#383838]'
-                )}
-              >
-                <IconComponent className={cn('w-4 h-4', isActive ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]')} />
-                <span>{tab.label}</span>
-                <span
-                  className={cn(
-                    'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono tabular-nums',
-                    isActive
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20'
-                      : 'bg-slate-100 dark:bg-[#1f1f1f] text-slate-500 dark:text-[#707070]'
-                  )}
-                >
-                  {tab.badge}
-                </span>
-              </button>
-            );
-          })}
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic();
+              setActiveTab('daily_cash');
+            }}
+            className={cn(
+              'px-4 py-2.5 text-xs font-medium font-sans flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer select-none',
+              activeTab === 'daily_cash'
+                ? 'border-[#3ecf8e] text-slate-900 dark:text-[#EDEDED] font-semibold'
+                : 'border-transparent text-slate-500 dark:text-[#A1A1A1] hover:text-slate-800 dark:hover:text-[#EDEDED] hover:border-slate-300 dark:hover:border-[#383838]'
+            )}
+          >
+            <CalendarDays
+              className={cn(
+                'w-4 h-4',
+                activeTab === 'daily_cash' ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]'
+              )}
+            />
+            <span>Daily Cash Statement</span>
+            <span
+              className={cn(
+                'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono tabular-nums ml-1',
+                activeTab === 'daily_cash'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20'
+                  : 'bg-slate-100 dark:bg-[#1f1f1f] text-slate-500 dark:text-[#707070]'
+              )}
+            >
+              {dailyCashFlow.days.length} Days
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic();
+              setActiveTab('tally');
+            }}
+            className={cn(
+              'px-4 py-2.5 text-xs font-medium font-sans flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer select-none',
+              activeTab === 'tally'
+                ? 'border-[#3ecf8e] text-slate-900 dark:text-[#EDEDED] font-semibold'
+                : 'border-transparent text-slate-500 dark:text-[#A1A1A1] hover:text-slate-800 dark:hover:text-[#EDEDED] hover:border-slate-300 dark:hover:border-[#383838]'
+            )}
+          >
+            <FileSpreadsheet
+              className={cn(
+                'w-4 h-4',
+                activeTab === 'tally' ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]'
+              )}
+            />
+            <span>Tally Prime Export</span>
+            <span
+              className={cn(
+                'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono tabular-nums ml-1',
+                activeTab === 'tally'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20'
+                  : 'bg-slate-100 dark:bg-[#1f1f1f] text-slate-500 dark:text-[#707070]'
+              )}
+            >
+              {approvedVouchers.length} Vouchers
+            </span>
+          </button>
         </div>
 
-        {/* 5. TAB 1: DAILY CASH STATEMENT (DAY-BY-DAY) */}
+        {/* 5. TAB 1: DAILY CASH STATEMENT */}
         {activeTab === 'daily_cash' && (
           <div className="space-y-4">
             <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
-                    Day-by-Day Cash Drawer Opening &amp; Closing Statement
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
-                    Exact Passbook Math
-                  </span>
-                </div>
+                <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
+                  Daily Cash Drawer Statement
+                </h2>
                 <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-                  Inspect cash opening, float additions (+), expense disbursements (-), net movement, and closing balance for every single day. Easily locate any discrepancies down to the rupee.
+                  Opening cash, cash additions, expenses paid, net change, and closing cash for each day.
                 </p>
               </div>
 
@@ -1100,7 +857,7 @@ export const ReportsPage: React.FC = () => {
                   className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
                 >
                   <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>Export Daily Statement (CSV)</span>
+                  <span>Download Statement (CSV)</span>
                 </button>
               </div>
             </div>
@@ -1111,14 +868,14 @@ export const ReportsPage: React.FC = () => {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
-                      <th className="py-2.5 px-3 font-semibold">Calendar Date</th>
+                      <th className="py-2.5 px-3 font-semibold">Date</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Opening Cash (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Cash Inflows (+) Float (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Cash Outflows (-) Vouchers (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Net Movement (₹)</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Cash Added (+) (₹)</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Cash Spent (-) (₹)</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Net Change (₹)</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Closing Cash (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-center">Transactions</th>
-                      <th className="py-2.5 px-3 font-semibold text-center">Reconciliation</th>
+                      <th className="py-2.5 px-3 font-semibold text-center">Entries</th>
+                      <th className="py-2.5 px-3 font-semibold text-center">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
@@ -1147,7 +904,15 @@ export const ReportsPage: React.FC = () => {
                             {d.outflow > 0 ? `-${formatINR(d.outflow)}` : '-'}
                           </td>
                           <td className="py-2 px-3 font-mono tabular-nums text-right font-medium whitespace-nowrap">
-                            <span className={d.net > 0 ? 'text-emerald-600 dark:text-[#3ecf8e]' : d.net < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}>
+                            <span
+                              className={
+                                d.net > 0
+                                  ? 'text-emerald-600 dark:text-[#3ecf8e]'
+                                  : d.net < 0
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : 'text-slate-400'
+                              }
+                            >
                               {d.net > 0 ? `+${formatINR(d.net)}` : d.net < 0 ? formatINR(d.net) : '₹0'}
                             </span>
                           </td>
@@ -1155,11 +920,11 @@ export const ReportsPage: React.FC = () => {
                             {formatINR(d.closing)}
                           </td>
                           <td className="py-2 px-3 font-mono text-center text-slate-500 whitespace-nowrap">
-                            {d.count} {d.count === 1 ? 'log' : 'logs'}
+                            {d.count}
                           </td>
                           <td className="py-2 px-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
-                              Reconciled
+                              Balanced
                             </span>
                           </td>
                         </tr>
@@ -1172,115 +937,16 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
 
-        {/* 6. TAB 2: EXPENSE CATEGORIES (REAL SUPABASE CATEGORIES) */}
-        {activeTab === 'categories' && (
-          <div className="space-y-4">
-            <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
-                  Real Expense Category Breakdown (Where Did Real Money Go?)
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-                  Actual expenditure categorized by operational expense heads directly from Supabase. No dummy data, no hardcoded prefixes.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleExportCategorySchedule}
-                  className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
-                >
-                  <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>Export Category Breakdown (CSV)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Category Table */}
-            <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
-                      <th className="py-2.5 px-3 font-semibold">Expense Category Head</th>
-                      <th className="py-2.5 px-3 font-semibold">Share of Outflows (%)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Bills Count</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Cash Outflow (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Online UPI (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Total Spent (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Avg Bill (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
-                    {categoryBreakdown.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400 dark:text-[#707070]">
-                          No category expense records found for the selected filter criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      categoryBreakdown.map((c) => (
-                        <tr
-                          key={c.name}
-                          className="hover:bg-slate-50/60 dark:hover:bg-[#1c1c1f] transition-colors"
-                        >
-                          <td className="py-2 px-3 font-medium text-slate-800 dark:text-white whitespace-nowrap">
-                            {c.name}
-                          </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="w-24 h-2 rounded-full bg-slate-100 dark:bg-[#252525] overflow-hidden">
-                                <div
-                                  className="h-full bg-[#3ecf8e]"
-                                  style={{ width: `${Math.min(100, Math.max(2, Number(c.percentage)))}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[11px] tabular-nums text-slate-600 dark:text-[#A1A1A1]">
-                                {c.percentage}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 font-mono tabular-nums text-right text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
-                            {c.count}
-                          </td>
-                          <td className="py-2 px-3 font-mono tabular-nums text-right text-amber-600 dark:text-amber-400 whitespace-nowrap">
-                            {formatINR(c.cash)}
-                          </td>
-                          <td className="py-2 px-3 font-mono tabular-nums text-right text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                            {formatINR(c.upi)}
-                          </td>
-                          <td className="py-2 px-3 font-mono tabular-nums text-right font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                            {formatINR(c.total)}
-                          </td>
-                          <td className="py-2 px-3 font-mono tabular-nums text-right text-slate-500 whitespace-nowrap">
-                            {formatINR(c.avgTicket)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 7. TAB 3: TALLY PRIME MASTER LEDGER */}
+        {/* 6. TAB 2: TALLY PRIME EXPORT */}
         {activeTab === 'tally' && (
           <div className="space-y-4">
             <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
-                    Tally Prime Compound Journal Integration
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20">
-                    Live Double-Entry Ready
-                  </span>
-                </div>
+                <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
+                  Tally Prime Accounting Ledger
+                </h2>
                 <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-                  Pre-configured ledger mapping with automatic multi-debit split support. Advance settlements are excluded to avoid double-counting in Tally Prime.
+                  Pre-configured vouchers mapped with Debit and Credit accounts, ready for your showroom accountant.
                 </p>
               </div>
 
@@ -1289,19 +955,29 @@ export const ReportsPage: React.FC = () => {
                   type="button"
                   onClick={handleCopyTallyToClipboard}
                   className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Copy CSV to clipboard for quick paste"
+                  title="Copy to clipboard"
                 >
                   {copiedTally ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                      <span>Copied!</span>
+                      <span>Copied</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Copy CSV</span>
+                      <span>Copy Rows</span>
                     </>
                   )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportTallyXML}
+                  className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] text-slate-800 dark:text-white hover:border-[#3ecf8e] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  title="Direct Tally Prime XML import file"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                  <span>Download Tally XML</span>
                 </button>
 
                 <button
@@ -1315,43 +991,29 @@ export const ReportsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Live Journal Preview Table */}
+            {/* Tally Vouchers Table */}
             <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-[#242424] bg-slate-50/50 dark:bg-[#18181a] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-800 dark:text-[#EDEDED] font-sans">
-                    Journal Preview
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-400 dark:text-[#707070]">
-                    (Showing {tallyPreviewRows.length} of {approvedVouchers.length} vouchers)
-                  </span>
-                </div>
-                <div className="text-xs font-mono tabular-nums text-slate-600 dark:text-[#A1A1A1]">
-                  Total Value: <span className="text-slate-900 dark:text-white font-medium">{formatINR(metrics.totalExpenditure)}</span>
-                </div>
-              </div>
-
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
                       <th className="py-2.5 px-3 font-semibold">Date</th>
                       <th className="py-2.5 px-3 font-semibold">Voucher #</th>
-                      <th className="py-2.5 px-3 font-semibold">Debit Ledger (Expense Head)</th>
+                      <th className="py-2.5 px-3 font-semibold">Debit Ledger (Expense)</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Debit (₹)</th>
                       <th className="py-2.5 px-3 font-semibold">Credit Ledger (Source)</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Credit (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold">Cost Centre</th>
-                      <th className="py-2.5 px-3 font-semibold">Department</th>
-                      <th className="py-2.5 px-3 font-semibold">Beneficiary (Payee)</th>
+                      <th className="py-2.5 px-3 font-semibold">Branch</th>
+                      <th className="py-2.5 px-3 font-semibold">Payee</th>
                       <th className="py-2.5 px-3 font-semibold">Mode</th>
+                      <th className="py-2.5 px-3 font-semibold">Narration</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
                     {tallyPreviewRows.length === 0 ? (
                       <tr>
                         <td colSpan={10} className="py-8 text-center text-slate-400 dark:text-[#707070]">
-                          No vouchers available for Tally export in the selected filter period.
+                          No vouchers found for the selected filter period.
                         </td>
                       </tr>
                     ) : (
@@ -1381,9 +1043,6 @@ export const ReportsPage: React.FC = () => {
                           <td className="py-2 px-3 font-mono text-[11px] text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
                             {r.costCenter}
                           </td>
-                          <td className="py-2 px-3 text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
-                            {r.department}
-                          </td>
                           <td className="py-2 px-3 text-slate-800 dark:text-[#EDEDED] whitespace-nowrap">
                             {r.payee}
                           </td>
@@ -1391,7 +1050,7 @@ export const ReportsPage: React.FC = () => {
                             <span
                               className={cn(
                                 'px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono',
-                                r.paymentMode === 'Physical Cash'
+                                r.paymentMode === 'Cash'
                                   ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
                                   : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
                               )}
@@ -1399,282 +1058,11 @@ export const ReportsPage: React.FC = () => {
                               {r.paymentMode}
                             </span>
                           </td>
+                          <td className="py-2 px-3 text-slate-500 dark:text-[#888888] max-w-xs truncate">
+                            {r.narration}
+                          </td>
                         </tr>
                       ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 8. TAB 4: STAFF ADVANCES (SIMPLIFIED & INTUITIVE) */}
-        {activeTab === 'advances' && (
-          <div className="space-y-4">
-            {/* Header & Export Actions */}
-            <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
-                  Staff Advances &amp; Loans Summary
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-                  Simple, real employee ledger showing who took advances, how much was settled by bills or cash, and what remains due.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleExportAdvancesRegister}
-                  className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Export Register (CSV)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExportPayrollSchedule}
-                  className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
-                >
-                  <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>HR Payroll Deduction (CSV)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Simplified Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-[10px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#282828]">
-                <div className="text-[11px] font-mono uppercase text-slate-500 dark:text-[#888888]">Total Advance Given</div>
-                <div className="text-lg font-semibold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
-                  {formatINR(metrics.totalAdvancesGiven)}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-[10px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#282828]">
-                <div className="text-[11px] font-mono uppercase text-emerald-600 dark:text-[#3ecf8e]">Total Settled (Bills/Cash)</div>
-                <div className="text-lg font-semibold font-mono tabular-nums text-emerald-600 dark:text-[#3ecf8e] mt-1">
-                  {formatINR(metrics.totalAdvancesSettled)}
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-[10px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#282828]">
-                <div className="text-[11px] font-mono uppercase text-rose-600 dark:text-rose-400">Total Remaining Due</div>
-                <div className="text-lg font-semibold font-mono tabular-nums text-rose-600 dark:text-rose-400 mt-1">
-                  {formatINR(metrics.totalUnsettledAdvances)}
-                </div>
-              </div>
-            </div>
-
-            {/* Advances Table */}
-            <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
-                      <th className="py-2.5 px-3 font-semibold">Staff Member</th>
-                      <th className="py-2.5 px-3 font-semibold">Staff Code</th>
-                      <th className="py-2.5 px-3 font-semibold">Receipt #</th>
-                      <th className="py-2.5 px-3 font-semibold">Issue Date</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Advance Given (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Settled (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Remaining Due (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
-                    {advances.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400 dark:text-[#707070]">
-                          No staff advances found for this branch.
-                        </td>
-                      </tr>
-                    ) : (
-                      advances.map((a) => {
-                        const due = Number(a.unsettled_balance) || 0;
-                        const settled = (Number(a.bills_submitted_amount) || 0) + (Number(a.cash_returned_amount) || 0);
-                        return (
-                          <tr
-                            key={a.id}
-                            className="hover:bg-slate-50/60 dark:hover:bg-[#1c1c1f] transition-colors"
-                          >
-                            <td className="py-2 px-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                              {a.staff_name}
-                            </td>
-                            <td className="py-2 px-3 font-mono text-[11px] text-slate-500 dark:text-[#A1A1A1] whitespace-nowrap">
-                              {a.staff_code}
-                            </td>
-                            <td className="py-2 px-3 font-mono font-medium text-slate-700 dark:text-zinc-300 whitespace-nowrap">
-                              {a.receipt_number}
-                            </td>
-                            <td className="py-2 px-3 font-mono text-[11px] text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
-                              {a.advance_date}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                              {formatINR(Number(a.advance_amount) || 0)}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right text-emerald-600 dark:text-[#3ecf8e] whitespace-nowrap">
-                              {formatINR(settled)}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right font-semibold whitespace-nowrap">
-                              <span className={due > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}>
-                                {formatINR(due)}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 whitespace-nowrap">
-                              <span
-                                className={cn(
-                                  'px-2 py-0.5 rounded-[4px] text-[10px] font-mono font-medium',
-                                  due === 0
-                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20'
-                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
-                                )}
-                              >
-                                {due === 0 ? 'Fully Settled' : 'Unsettled'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 9. TAB 5: CA TAX & SECTION 40A(3) COMPLIANCE */}
-        {activeTab === 'tax_audit' && (
-          <div className="space-y-4">
-            <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans">
-                    Income Tax Act Section 40A(3) &amp; 40A(3A) Compliance Audit
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
-                    Statutory Tax Audit u/s 44AB
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-                  Flags physical cash payments to a single vendor exceeding ₹10,000 in a day (₹35,000 for freight/GTA) disallowed as business deductions.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleExportTaxAuditPack}
-                  className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
-                >
-                  <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
-                  <span>Download CA Audit Schedule</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Compliance Summary Notice */}
-            {metrics.sec40A3SingleBreachesCount === 0 && metrics.sec40A3AggregateBreachesCount === 0 ? (
-              <div className="rounded-[12px] p-4 bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-[#3ecf8e] shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-xs font-semibold text-emerald-800 dark:text-[#3ecf8e] font-sans">
-                    100% Section 40A(3) Compliant
-                  </h3>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5 font-sans">
-                    No cash payments over ₹10,000 or single-day vendor cash aggregations over statutory limits were detected in the selected filter period. Zero tax disallowance exposure.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-[12px] p-4 bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-xs font-semibold text-rose-800 dark:text-rose-400 font-sans">
-                    Potential Tax Disallowance Alert u/s 40A(3)
-                  </h3>
-                  <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5 font-sans">
-                    Found {metrics.sec40A3SingleBreachesCount} single-voucher cash payment(s) and {metrics.sec40A3AggregateBreachesCount} daily single-vendor cash aggregation(s) above statutory thresholds. Estimated tax exposure @ 30%: <span className="font-mono font-bold text-rose-900 dark:text-white">{formatINR(Math.round(metrics.total40A3Exposure * 0.3))}</span>.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Flagged Transactions Table */}
-            <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-[#242424] bg-slate-50/50 dark:bg-[#18181a]">
-                <span className="text-xs font-medium text-slate-800 dark:text-[#EDEDED] font-sans">
-                  Audited Cash Transactions Exceeding Statutory Ceilings
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
-                      <th className="py-2.5 px-3 font-semibold">Voucher Date</th>
-                      <th className="py-2.5 px-3 font-semibold">Voucher #</th>
-                      <th className="py-2.5 px-3 font-semibold">Payee / Beneficiary</th>
-                      <th className="py-2.5 px-3 font-semibold">Expense Head</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Cash Paid (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Limit (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Excess Amount (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Tax Exposure (₹)</th>
-                      <th className="py-2.5 px-3 font-semibold">Audit Disposition</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
-                    {metrics.singleBreaches.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-8 text-center text-slate-400 dark:text-[#707070]">
-                          Zero cash vouchers exceeded the ₹10,000 threshold.
-                        </td>
-                      </tr>
-                    ) : (
-                      metrics.singleBreaches.map((v) => {
-                        const limit = v.payment_type === 'Courier' ? 35000 : 10000;
-                        const excess = Math.max(0, (Number(v.total_amount) || 0) - limit);
-                        const taxLiab = Math.round(excess * 0.3);
-                        return (
-                          <tr
-                            key={v.id}
-                            className="hover:bg-rose-50/40 dark:hover:bg-rose-950/10 transition-colors"
-                          >
-                            <td className="py-2 px-3 font-mono text-[11px] text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
-                              {v.payment_date ? v.payment_date.slice(0, 10) : ''}
-                            </td>
-                            <td className="py-2 px-3 font-mono font-medium text-slate-900 dark:text-[#EDEDED] whitespace-nowrap">
-                              {v.voucher_number}
-                            </td>
-                            <td className="py-2 px-3 font-medium text-slate-800 dark:text-white whitespace-nowrap">
-                              {v.recipient_name}
-                            </td>
-                            <td className="py-2 px-3 text-slate-600 dark:text-[#A1A1A1] whitespace-nowrap">
-                              {v.category_name}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right font-medium text-rose-600 dark:text-rose-400 whitespace-nowrap">
-                              {formatINR(Number(v.total_amount) || 0)}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right text-slate-500 whitespace-nowrap">
-                              {formatINR(limit)}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right font-semibold text-rose-600 whitespace-nowrap">
-                              {formatINR(excess)}
-                            </td>
-                            <td className="py-2 px-3 font-mono tabular-nums text-right font-semibold text-amber-600 whitespace-nowrap">
-                              {formatINR(taxLiab)}
-                            </td>
-                            <td className="py-2 px-3 whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-medium">
-                                Disallowed u/s 40A(3)
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
                     )}
                   </tbody>
                 </table>
@@ -1686,3 +1074,5 @@ export const ReportsPage: React.FC = () => {
     </div>
   );
 };
+
+export default ReportsPage;

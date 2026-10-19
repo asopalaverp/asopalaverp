@@ -154,9 +154,9 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
 
       return [
         {
-          id: 'upi-bank',
-          serviceName: 'UPI & BANK SPENT',
-          subLabel: 'Online QR & Bank Transfers',
+          id: 'upi-online',
+          serviceName: 'UPI & ONLINE SPENT',
+          subLabel: 'Online QR & UPI Transfers',
           value: formatINR(metrics.upiPaid),
           warningCount: highUpiVouchers.length,
           errorCount: upiErrors,
@@ -166,8 +166,8 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
         },
         {
           id: 'upi-high-value',
-          serviceName: 'HIGH BANK VOUCHERS (>₹10K)',
-          subLabel: 'NEFT / RTGS / Bank Disbursals',
+          serviceName: 'HIGH VALUE VOUCHERS (>₹10K)',
+          subLabel: 'Digital UPI Disbursals',
           value: formatINR(highUpiTotal),
           warningCount: highUpiVouchers.length,
           errorCount: 0,
@@ -220,9 +220,9 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
         icon: Wallet,
       },
       {
-        id: 'upi-bank',
-        serviceName: 'UPI & BANK PAYMENTS',
-        subLabel: 'Online QR & Bank Transfers',
+        id: 'upi-online',
+        serviceName: 'UPI & ONLINE PAYMENTS',
+        subLabel: 'Online QR & UPI Transfers',
         value: formatINR(metrics.upiPaid),
         warningCount: vouchers.filter((v) => v.payment_method === 'Online_UPI' && Number(v.total_amount) > 10000).length,
         errorCount: vouchers.filter((v) => v.payment_method === 'Online_UPI' && v.status === 'Voided').length,

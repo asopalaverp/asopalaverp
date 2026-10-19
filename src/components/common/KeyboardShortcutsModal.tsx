@@ -89,7 +89,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
       items: [
         {
           label: 'F1 • Showroom Dashboard',
-          description: 'Money & daily shop telemetry',
+          description: 'Money & daily shop summary',
           keys: ['F1'],
           pageId: 'dashboard',
           allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier', 'Auditor'],
@@ -113,8 +113,8 @@ export const KeyboardShortcutsModal: React.FC = () => {
           action: () => handleAction('page', 'expenses'),
         },
         {
-          label: 'F4 • Cash Box & Bank (Treasury)',
-          description: 'Cash drawer balance & safe drops',
+          label: 'F4 • Cash Drawer & UPI',
+          description: 'Cash drawer till & passbook',
           keys: ['F4'],
           pageId: 'treasury',
           requiredPermission: 'can_inject_float',
@@ -145,23 +145,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
           allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier'],
           action: () => handleAction('page', 'advances'),
         },
-        {
-          label: 'F8 • Activity History & Audit',
-          description: 'Verified system security logs',
-          keys: ['F8'],
-          pageId: 'audit',
-          requiredPermission: 'can_view_audit_logs',
-          allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Auditor'],
-          action: () => handleAction('page', 'audit'),
-        },
-        {
-          label: 'F10 • Alerts & Broadcast Messages',
-          description: 'Store-wide announcements',
-          keys: ['F10'],
-          pageId: 'notifications',
-          allowedRoles: ['Super_Admin', 'Director', 'Store_Manager', 'Cashier', 'Auditor'],
-          action: () => handleAction('page', 'notifications'),
-        },
+
         {
           label: 'F11 • Shop Settings & Catalogues',
           description: 'Expense categories & system rules',

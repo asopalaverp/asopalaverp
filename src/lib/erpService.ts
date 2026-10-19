@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { logSecurityEvent } from '@/lib/audit';
+import { logSecurityEvent, getLocalAuditLogs } from '@/lib/audit';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useOfflineQueue } from '@/lib/offlineQueue';
 import { useVoucherStore } from '@/store/voucherStore';
@@ -24,6 +24,7 @@ import {
   RolePermissions,
   StaffMember,
   Department,
+  SecurityAuditLog,
 } from '@/types/database';
 
 export const isPrivilegedAdminRole = (role?: string | null): boolean => {
@@ -246,6 +247,23 @@ class ERPService {
     const periods = await this.getAccountingPeriods();
     const match = periods.find((p) => p.period_key === periodKey);
     return match ? match.is_locked : false;
+  }
+
+  async getSecurityAuditLogs(limit: number = 500): Promise<SecurityAuditLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from('security_audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as SecurityAuditLog[];
+      }
+      return getLocalAuditLogs();
+    } catch {
+      return getLocalAuditLogs();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -598,33 +616,45 @@ class ERPService {
         wallet.cash_balance = Math.max(0, wallet.cash_balance - credit + debit);
       }
       await this.updateBranchWallet(wallet);
-    }
 
-    // Remove from local storage
-    const updated = existing.filter((e) => e.id !== entryId && e.reference_number !== entryId);
-    localStorage.setItem(`asopalav_ledger_${branchId}`, JSON.stringify(updated.slice(0, 200)));
+      // Reversal Entry: Append offsetting reversal entry instead of hard-deleting
+      const refCode = target.reference_number || (target.id ? String(target.id).slice(0, 8).toUpperCase() : 'TRZ');
+      await this.appendLedgerEntry({
+        branch_id: target.branch_id || branchId,
+        branch_code: target.branch_code || normalizeBranchCode(branchId),
+        wallet_type: target.wallet_type || 'Cash',
+        transaction_type: 'Adjustment',
+        reference_number: `REV-${refCode}`,
+        debit_amount: credit,
+        credit_amount: debit,
+        running_balance: isUpi ? wallet.upi_balance : wallet.cash_balance,
+        remarks: `REVERSAL of ${refCode}: ${reason || 'Entry reversed by ' + userName}`,
+        cashier_name: userName,
+        authorized_by_name: userName,
+      });
 
-    // Remove from Supabase
-    if (target?.id) {
-      const { error } = await supabase.from('wallet_ledger').delete().eq('id', target.id);
-      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
-    } else if (target?.reference_number) {
-      const { error } = await supabase.from('wallet_ledger').delete().eq('reference_number', target.reference_number);
-      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
-    } else {
-      const { error } = await supabase.from('wallet_ledger').delete().or(`id.eq.${entryId},reference_number.eq.${entryId}`);
-      if (error) throw new Error(`Failed to delete ledger entry from Supabase: ${error.message}`);
+      // Mark the original row as reversed in remarks
+      try {
+        await supabase
+          .from('wallet_ledger')
+          .update({
+            remarks: `[REVERSED] ${target.remarks || ''}`.trim(),
+          })
+          .eq('id', target.id);
+      } catch (e) {
+        console.warn('Mark reversed fallback:', e);
+      }
     }
 
     // Audit Log
     await logSecurityEvent({
       userName,
       userRole,
-      actionType: 'Delete_Voucher' as any,
+      actionType: 'Update_Voucher' as any,
       targetEntity: 'wallet_ledger',
       targetIdentifier: target?.reference_number || entryId,
-      eventDescription: `Super Admin purged ledger entry ${target?.reference_number || entryId}${adjustWalletBalance ? ' and corrected wallet balance' : ''}`,
-      justification: reason || 'Audit duplicate / correction purge',
+      eventDescription: `Reversed ledger entry ${target?.reference_number || entryId}: ${reason || 'Audited correction'} (Reversal entry created, original retained)`,
+      justification: reason || 'Audit reversal workflow',
     });
 
     if (typeof window !== 'undefined') {
@@ -915,7 +945,7 @@ class ERPService {
       limit,
       exceeded,
       reason: exceeded
-        ? `Income Tax Section 40A(3) Notice: Cash payments above ₹${limit.toLocaleString('en-IN')} cannot be claimed as business expense. Switch to Online UPI / Bank QR.`
+        ? `Income Tax Section 40A(3) Notice: Cash payments above ₹${limit.toLocaleString('en-IN')} cannot be claimed as business expense. Switch to Online UPI QR.`
         : undefined,
     };
   }
@@ -1318,7 +1348,7 @@ class ERPService {
       if (method === 'Physical_Cash') {
         return `Cash on Hand - ${branchCode || 'ASI'} A/c`;
       }
-      return `HDFC Bank Current A/c - ${branchCode || 'ASI'}`;
+      return `UPI Current A/c - ${branchCode || 'ASI'}`;
     };
 
     const formatTallyDate = (dateStr?: string) => {
@@ -1831,7 +1861,7 @@ class ERPService {
     } else {
       if (currentWallet.upi_balance < voucher.total_amount && !allowNegative) {
         throw new Error(
-          `Insufficient Online/UPI Wallet Balance: Available bank balance is ₹${currentWallet.upi_balance.toLocaleString('en-IN')}, but voucher requires ₹${voucher.total_amount.toLocaleString('en-IN')}. Please top up account balance before disbursing.`
+          `Insufficient Online/UPI Wallet Balance: Available UPI balance is ₹${currentWallet.upi_balance.toLocaleString('en-IN')}, but voucher requires ₹${voucher.total_amount.toLocaleString('en-IN')}. Please top up account balance before disbursing.`
         );
       }
     }
@@ -2659,20 +2689,31 @@ class ERPService {
       });
     }
 
-    // 2. Delete from DB
+    // 2. Audit Rule: Instead of hard-deleting, mark as Voided/Reversed to preserve permanent audit proof
     try {
-      const { error } = await supabase.from('expense_vouchers').delete().eq('voucher_number', voucher.voucher_number);
+      const { error } = await supabase
+        .from('expense_vouchers')
+        .update({
+          status: 'Voided',
+          void_reason: `REVERSED: ${reason}`,
+          voided_by_name: userName,
+        })
+        .eq('voucher_number', voucher.voucher_number);
       if (error) throw error;
     } catch (e) {
-      console.warn('Voucher delete DB fallback to offline queue:', e);
+      console.warn('Voucher void fallback to offline queue:', e);
       useOfflineQueue.getState().enqueueMutation({
-        type: 'delete_voucher',
+        type: 'void_voucher',
         table: 'expense_vouchers',
-        action: 'delete',
-        payload: {},
+        action: 'update',
+        payload: {
+          status: 'Voided',
+          void_reason: `REVERSED: ${reason}`,
+          voided_by_name: userName,
+        },
         matchField: 'voucher_number',
         matchValue: voucher.voucher_number,
-        description: `Delete voucher ${voucher.voucher_number}`,
+        description: `Reverse voucher ${voucher.voucher_number}`,
       });
     }
 
@@ -2980,7 +3021,7 @@ class ERPService {
     } else {
       if (currentWallet.upi_balance < params.advance.advance_amount && !allowNegative) {
         throw new Error(
-          `Insufficient Online/UPI Wallet Balance: Available bank balance is ₹${currentWallet.upi_balance.toLocaleString('en-IN')}, but advance requires ₹${params.advance.advance_amount.toLocaleString('en-IN')}. Please top up account balance before issuing advance.`
+          `Insufficient Online/UPI Wallet Balance: Available UPI balance is ₹${currentWallet.upi_balance.toLocaleString('en-IN')}, but advance requires ₹${params.advance.advance_amount.toLocaleString('en-IN')}. Please top up account balance before issuing advance.`
         );
       }
       currentWallet.upi_balance = currentWallet.upi_balance - params.advance.advance_amount;

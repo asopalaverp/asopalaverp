@@ -16,7 +16,6 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui';
 import { formatINR, formatCompactINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
-import { useOverrideStore } from '@/store/overrideStore';
 import {
   Wallet,
   ArrowRight,
@@ -70,12 +69,8 @@ export const DashboardPage: React.FC = () => {
   const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
   const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
 
-  const { isCeilingExceededAllowed } = useOverrideStore();
-
   const activeBranch = getActiveBranch();
-  const maxCashCeiling = activeBranch?.max_cash_ceiling || 25000;
   const minCashThreshold = activeBranch?.min_cash_threshold || 3000;
-  const isSafeDropAlert = cashBalance > maxCashCeiling && !isCeilingExceededAllowed();
   const isLowFloatAlert = cashBalance < minCashThreshold;
 
   // Load branch wallet balances
@@ -415,7 +410,7 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
-              Live showroom liquidity, daily expenses, cash till telemetry, and staff advances in one place.
+              Live showroom liquidity, daily expenses, cash in drawer, and staff advances in one place.
             </p>
           </div>
 
@@ -474,25 +469,6 @@ export const DashboardPage: React.FC = () => {
               className="px-2.5 py-1 rounded-[6px] bg-amber-500/20 hover:bg-amber-500/30 font-medium text-[11px] shrink-0 transition-colors"
             >
               Manage Periods (F12)
-            </button>
-          </div>
-        )}
-
-        {/* Safe Drop Alert Banner */}
-        {isSafeDropAlert && (
-          <div className="p-3 rounded-[12px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300 text-xs font-sans">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-              <span>
-                <strong>Cash Ceiling Exceeded:</strong> Cash in box ({formatINR(cashBalance)}) exceeds branch threshold ({formatINR(maxCashCeiling)}). Please transfer surplus cash to the safe.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActivePage('treasury')}
-              className="px-2.5 py-1 rounded-[6px] bg-amber-500/20 hover:bg-amber-500/30 font-medium text-[11px] shrink-0 transition-colors"
-            >
-              Transfer to Safe
             </button>
           </div>
         )}
@@ -657,9 +633,9 @@ export const DashboardPage: React.FC = () => {
                     <span className="hidden sm:inline">Net: {dailyCashSummary.periodNet >= 0 ? '+' : ''}{formatINR(dailyCashSummary.periodNet)} · Box: {formatINR(dailyCashSummary.currentWalletCash)}</span>
                   </>
                 }
-                statusDotColor={isSafeDropAlert ? '#f59e0b' : isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
-                badge={isSafeDropAlert ? 'ALERT' : isLowFloatAlert ? 'LOW FLOAT' : 'CLOSING'}
-                badgeColor={isSafeDropAlert ? 'amber' : isLowFloatAlert ? 'amber' : 'emerald'}
+                statusDotColor={isLowFloatAlert ? '#ef4444' : '#3ecf8e'}
+                badge={isLowFloatAlert ? 'LOW FLOAT' : 'CLOSING'}
+                badgeColor={isLowFloatAlert ? 'amber' : 'emerald'}
                 icon={TrendingUp}
                 onClick={() => setActivePage('treasury')}
               />
@@ -687,16 +663,16 @@ export const DashboardPage: React.FC = () => {
                 onClick={() => setActivePage('expenses')}
               />
 
-              {/* UPI KPI 2: Live Bank Float */}
+              {/* UPI KPI 2: Live UPI Float */}
               <MetricCard
-                label="Bank UPI Balance"
+                label="UPI Balance"
                 value={
                   <>
                     <span className="sm:hidden">{formatCompactINR(upiBalance)}</span>
                     <span className="hidden sm:inline">{formatINR(upiBalance)}</span>
                   </>
                 }
-                statusText="Live Bank Float"
+                statusText="Live UPI Float"
                 statusDotColor="#3b82f6"
                 badge="ONLINE"
                 badgeColor="blue"
@@ -713,7 +689,7 @@ export const DashboardPage: React.FC = () => {
                     <span className="hidden sm:inline">+{formatINR(inflowMetrics.upiInflow)}</span>
                   </>
                 }
-                subValue={`${inflowMetrics.upiCount} bank credits in period`}
+                subValue={`${inflowMetrics.upiCount} UPI credits in period`}
                 statusDotColor="#3b82f6"
                 badge="TOP-UPS"
                 badgeColor="blue"
@@ -721,9 +697,9 @@ export const DashboardPage: React.FC = () => {
                 onClick={() => setActivePage('treasury')}
               />
 
-              {/* UPI KPI 4: Net Bank Flow */}
+              {/* UPI KPI 4: Net UPI Flow */}
               <MetricCard
-                label="Net Bank UPI Flow"
+                label="Net UPI Flow"
                 value={
                   <>
                     <span className="sm:hidden">{inflowMetrics.upiInflow - metrics.upiSpend >= 0 ? '+' : ''}{formatCompactINR(inflowMetrics.upiInflow - metrics.upiSpend)}</span>
@@ -770,17 +746,17 @@ export const DashboardPage: React.FC = () => {
                     <span className="hidden sm:inline">{formatINR(cashBalance)}</span>
                   </>
                 }
-                statusText={isSafeDropAlert ? 'Move Extra Cash to Safe' : 'Cash Box Normal'}
-                statusDotColor={isSafeDropAlert ? '#f59e0b' : '#3ecf8e'}
-                badge={isSafeDropAlert ? 'ALERT' : undefined}
-                badgeColor={isSafeDropAlert ? 'amber' : undefined}
+                statusText={isLowFloatAlert ? 'Low Cash Float' : 'Cash Box Normal'}
+                statusDotColor={isLowFloatAlert ? '#f59e0b' : '#3ecf8e'}
+                badge={isLowFloatAlert ? 'LOW' : undefined}
+                badgeColor={isLowFloatAlert ? 'amber' : undefined}
                 icon={Wallet}
                 onClick={() => setActivePage('treasury')}
               />
 
-              {/* KPI 3: Bank Account / UPI */}
+              {/* KPI 3: Online UPI */}
               <MetricCard
-                label="Bank UPI"
+                label="Online UPI"
                 value={
                   <>
                     <span className="sm:hidden">{formatCompactINR(upiBalance)}</span>
@@ -1037,7 +1013,7 @@ export const DashboardPage: React.FC = () => {
                 }}
                 className="w-full mt-2 py-2 px-3 rounded-[6px] bg-[#3ecf8e]/10 hover:bg-[#3ecf8e]/20 border border-[#3ecf8e]/30 text-xs font-sans text-emerald-800 dark:text-[#3ecf8e] flex items-center justify-center gap-1.5 transition-colors cursor-pointer group shadow-2xs font-medium"
               >
-                <span>Open Full Bank Passbook &amp; Ledger (F4)</span>
+                <span>Open Full Cash Passbook &amp; Ledger (F4)</span>
                 <ArrowRight className="w-3.5 h-3.5 text-[#3ecf8e] transition-transform group-hover:translate-x-0.5" />
               </button>
             </div>

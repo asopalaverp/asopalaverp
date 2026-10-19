@@ -33,7 +33,7 @@ interface QuickFloatDrawerProps {
 const SOURCE_OPTIONS = [
   'Main Showroom Safe',
   'Shop Owner / Partner',
-  'Bank Cash Withdrawal',
+  'Cash Withdrawal',
   'Transfer from Another Branch',
 ];
 
@@ -123,7 +123,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
       showToast({
         type: 'success',
         title: 'Money Added Successfully',
-        message: `${formatINR(numAmount)} added to ${walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'}.`,
+        message: `${formatINR(numAmount)} added to ${walletType === 'Cash' ? 'Cash Box' : 'Online UPI'}.`,
       });
 
       onSuccess();
@@ -184,7 +184,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
       onClose={onClose}
       size="full"
       title="Add Cash into Cash Box"
-      subtitle={`${activeBranch.branch_name} (${activeBranch.branch_code}) • Add Money to Cash Box or Bank`}
+      subtitle={`${activeBranch.branch_name} (${activeBranch.branch_code}) • Add Money to Cash Box or UPI`}
       badge={
         <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-mono font-medium badge-status-emerald">
           Add Cash
@@ -256,7 +256,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
               </div>
               <div className="min-w-0">
                 <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">
-                  Bank / UPI Float
+                  UPI Float
                 </span>
                 <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 block tabular-nums">
                   Live: {formatINR(currentUpiBalance)}
@@ -317,7 +317,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
         {numAmount > 0 && (
           <div className="p-3.5 rounded-[8px] bg-slate-50 dark:bg-[#181818] border border-slate-200 dark:border-[#282828] space-y-2 shadow-2xs">
             <span className="text-[11px] font-sans text-slate-500 dark:text-zinc-400 block font-medium">
-              New {walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'} Balance:
+              New {walletType === 'Cash' ? 'Cash Box' : 'Online UPI'} Balance:
             </span>
             <div className="flex items-center justify-between text-xs font-mono">
               <div className="text-slate-500 dark:text-zinc-400">
@@ -418,7 +418,7 @@ export const QuickFloatDrawer: React.FC<QuickFloatDrawerProps> = ({
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Where to Add</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Online UPI'}</span>
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Source</span>

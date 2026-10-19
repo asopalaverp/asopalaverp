@@ -12,7 +12,7 @@ import {
   Check,
   AlertCircle,
   Receipt,
-  Banknote,
+  Coins,
   CheckCircle2,
   FileCheck,
   ArrowRight,
@@ -360,7 +360,7 @@ export const SettleAdvanceDrawer: React.FC<SettleAdvanceDrawerProps> = ({ onSucc
             <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-[#262626]">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                  <Banknote className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  <Coins className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                   <span>Cash Returned (₹)</span>
                 </label>
                 {cashReturnAmount !== '' && (

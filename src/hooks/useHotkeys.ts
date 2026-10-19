@@ -230,7 +230,7 @@ export function useHotkeys() {
         return;
       }
 
-      // F4: Cash Box & Bank / Treasury Float
+      // F4: Cash Drawer & UPI / Treasury Float
       if (key === 'F4') {
         e.preventDefault();
         e.stopPropagation();

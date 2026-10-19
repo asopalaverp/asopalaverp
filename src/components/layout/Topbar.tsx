@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
-import { useNotificationStore } from '@/store/notificationStore';
 import { useOfflineQueue } from '@/lib/offlineQueue';
 import { supabase } from '@/lib/supabase';
 import { erpService } from '@/lib/erpService';
@@ -16,7 +15,6 @@ import {
   Wallet,
   CloudOff,
   RefreshCw,
-  Bell,
   Calculator,
   User,
   Lock,
@@ -31,7 +29,6 @@ import {
   AppSidebarExpandIcon,
 } from '@/components/icons/AppIcons';
 import { useBrandStore } from '@/store/brandStore';
-import { useOverrideStore } from '@/store/overrideStore';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
 interface TopbarProps {
@@ -54,8 +51,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
   const { user, lockScreen, logout, can } = useAuthStore();
   const { getActiveBranch, selectedBranchId, wallets, fetchBranchesAndWallets } = useBranchStore();
   const { mutations, isOnline, isSyncing, processSyncQueue } = useOfflineQueue();
-  const { getUnreadCount } = useNotificationStore();
-  const { isCeilingExceededAllowed } = useOverrideStore();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -77,12 +72,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
   const cashBalance = targetWallet ? Number(targetWallet.cash_balance) : 100000;
   const upiBalance = targetWallet ? Number(targetWallet.upi_balance) : 208569;
 
-  const maxCashCeiling = activeBranch?.max_cash_ceiling || 25000;
-  const isSafeDropAlert = cashBalance > maxCashCeiling && !isCeilingExceededAllowed();
-
   const username = user?.username || '';
   const userRole = user?.role_code || 'Super_Admin';
-  const unreadNotifs = getUnreadCount(username, userRole, selectedBranchId === 'ALL' ? undefined : selectedBranchId);
 
   const userFullName = `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim();
   const userInitials =
@@ -182,7 +173,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
     dashboard: 'Dashboard',
     'new-voucher': 'Add Expense',
     expenses: 'All Expenses',
-    treasury: 'Cash Box & Bank',
+    treasury: 'Cash Drawer & UPI',
     advances: 'Staff Advances (Beta)',
     reports: 'Financial & Audit Reports',
     staff: 'Staff Directory',
@@ -270,7 +261,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             <Kbd size="xs" className="hidden xl:inline-flex rounded-[4px]">Ctrl K</Kbd>
           </button>
 
-          {/* 2A & 2B. Cash Box & Bank UPI Balance Pills (Restricted to Authorized Roles) */}
+          {/* 2A & 2B. Cash Box & Online UPI Balance Pills (Restricted to Authorized Roles) */}
           {can('can_inject_float') && (
             <>
               {/* 2A. Cash Box Balance Pill with Today's Opening & Closing Statement Popover */}
@@ -283,8 +274,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                     'hidden lg:flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none shrink-0',
                     isCashDrawerPopoverOpen
                       ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e]'
-                      : isSafeDropAlert
-                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
                       : 'border-slate-200/80 dark:border-[#242424] bg-slate-50/50 dark:bg-[#181818] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020]'
                   )}
                   title="Today's Cash Drawer Balance (Click to view Opening/Closing sheet)"
@@ -363,7 +352,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                         }}
                         className="flex-1 py-1.5 px-2 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1 transition-colors cursor-pointer"
                       >
-                        <span>Bank Passbook (F4)</span>
+                        <span>Passbook Ledger (F4)</span>
                       </button>
 
                       <button
@@ -381,13 +370,13 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                 )}
               </div>
 
-              {/* 2B. Bank UPI Balance Pill (xl+) */}
+              {/* 2B. Online UPI Balance Pill (xl+) */}
               <button
                 type="button"
                 onClick={() => setActivePage('treasury')}
                 aria-label={`UPI Balance: ₹${upiBalance.toLocaleString('en-IN')}`}
                 className="hidden xl:flex items-center gap-2 h-9 px-3 rounded-[6px] border border-slate-200/80 dark:border-[#242424] bg-slate-50/50 dark:bg-[#181818] text-slate-800 dark:text-[#ededed] hover:border-slate-300 dark:hover:border-[#2e2e2e] hover:bg-slate-100 dark:hover:bg-[#202020] text-xs font-mono transition-colors shadow-2xs cursor-pointer select-none shrink-0"
-                title="Bank UPI account balance (Click to manage)"
+                title="UPI account balance (Click to manage)"
               >
                 <span className="text-[11px] uppercase font-mono tracking-wider text-slate-400 dark:text-[#707070]">UPI:</span>
                 <strong className="font-semibold tabular-nums text-xs text-sky-500 dark:text-sky-400">
@@ -408,58 +397,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
             <Calculator className="w-4 h-4 stroke-[1.8]" />
           </button>
 
-          {/* 4. Cloud Sync Status Pill — only shown when there's something to act on */}
-          {(!isOnline || isSyncing || mutations.length > 0) && (
-            <button
-              type="button"
-              onClick={() => {
-                if (mutations.length > 0 || !isOnline) {
-                  processSyncQueue();
-                }
-              }}
-              disabled={isSyncing}
-              aria-label={`Cloud Sync: ${!isOnline ? 'Offline' : isSyncing ? 'Syncing...' : `${mutations.length} Pending`}`}
-              className={cn(
-                'flex items-center gap-2 h-9 px-3 rounded-[6px] border text-xs font-mono transition-colors shadow-2xs select-none cursor-pointer',
-                !isOnline
-                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/15'
-                  : isSyncing
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-[#3ecf8e]'
-                  : 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 animate-pulse'
-              )}
-              title={
-                !isOnline
-                  ? `Offline: ${mutations.length} transactions queued locally. Click to retry connection.`
-                  : isSyncing
-                  ? 'Syncing offline mutations to cloud...'
-                  : `${mutations.length} offline transactions pending. Click to sync now.`
-              }
-            >
-              {!isOnline ? (
-                <>
-                  <CloudOff className="w-4 h-4 text-rose-500 stroke-[1.8] animate-pulse shrink-0" />
-                  <span className="hidden sm:inline text-xs font-medium text-rose-600 dark:text-rose-400">Offline</span>
-                  {mutations.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400">
-                      {mutations.length}
-                    </span>
-                  )}
-                </>
-              ) : isSyncing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 dark:text-[#3ecf8e] stroke-[1.8] shrink-0" />
-                  <span className="hidden sm:inline text-xs font-medium text-emerald-600 dark:text-[#3ecf8e]">Syncing</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 text-amber-500 stroke-[1.8] shrink-0" />
-                  <span className="hidden sm:inline text-xs font-medium text-amber-600 dark:text-amber-400">Sync</span>
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                    {mutations.length}
-                  </span>
-                </>
-              )}
-            </button>
+          {/* Offline Notice (Only shown if internet disconnects) */}
+          {!isOnline && (
+            <span className="flex items-center gap-1.5 h-9 px-2.5 rounded-[6px] text-xs font-medium text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50">
+              <CloudOff className="w-3.5 h-3.5" />
+              <span>Offline</span>
+            </span>
           )}
 
           {/* 5. User Profile Avatar & Menu */}
@@ -487,9 +430,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                   size={24}
                   className="border border-emerald-500/30 shrink-0 shadow-2xs"
                 />
-                {unreadNotifs > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#141414]" />
-                )}
               </div>
 
               <span className="hidden sm:inline-block text-xs font-semibold text-slate-800 dark:text-zinc-200 max-w-[95px] truncate font-sans">
@@ -560,38 +500,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenKeyboardHelp }) => {
                     </div>
                   </button>
 
-                  {/* System Notifications Center */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUserMenuOpen(false);
-                      setActivePage('notifications');
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[6px] text-left transition-colors cursor-pointer',
-                      activePage === 'notifications'
-                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] font-medium'
-                        : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222222] hover:text-slate-900 dark:hover:text-white'
-                    )}
-                  >
-                    <div className="relative shrink-0">
-                      <Bell className="w-4 h-4 text-slate-500 dark:text-[#a1a1a1] stroke-[1.8]" />
-                      {unreadNotifs > 0 && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-xs truncate flex items-center justify-between">
-                        <span>Notifications</span>
-                        {unreadNotifs > 0 && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold">
-                            {unreadNotifs > 9 ? '9+' : unreadNotifs} new
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-slate-400 dark:text-[#707070] truncate">Alerts, audit & system warnings</div>
-                    </div>
-                  </button>
 
                   {/* Shop Settings (Restricted to Authorized Admins) */}
                   {can('can_manage_periods') && (

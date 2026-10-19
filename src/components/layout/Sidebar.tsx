@@ -144,8 +144,8 @@ export const Sidebar: React.FC = () => {
         },
         {
           id: 'treasury',
-          label: 'Cash Box & Bank',
-          description: 'Cash drawer & safe drops',
+          label: 'Cash Drawer & UPI',
+          description: 'Cash drawer till & passbook',
           icon: Wallet,
           permission: 'can_inject_float',
         },
@@ -164,7 +164,7 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      title: 'MANAGEMENT & AUDIT',
+      title: 'MANAGEMENT',
       items: [
         {
           id: 'reports',
@@ -186,25 +186,6 @@ export const Sidebar: React.FC = () => {
           description: 'Categories & brand rules',
           icon: SlidersHorizontal,
           permission: 'can_manage_periods',
-        },
-        {
-          id: 'audit',
-          label: 'Activity History',
-          description: 'Verified security audit trail',
-          icon: ShieldAlert,
-          permission: 'can_view_audit_logs',
-        },
-        {
-          id: 'notifications',
-          label: 'Alerts & Messages',
-          description: 'Store-wide announcements',
-          icon: Bell,
-        },
-        {
-          id: 'profile',
-          label: 'My Profile',
-          description: 'Security & user avatar',
-          icon: ShieldCheck,
         },
       ],
     },

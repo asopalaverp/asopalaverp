@@ -32,9 +32,8 @@ import {
   Save,
   CheckCircle2,
 } from 'lucide-react';
-import { SuperAdminOverridesCard } from '@/components/settings/SuperAdminOverridesCard';
 
-type ProfileTabId = 'account' | 'security' | 'theme' | 'overrides';
+type ProfileTabId = 'account' | 'security' | 'theme';
 
 interface ProfileTabItem {
   id: ProfileTabId;
@@ -397,17 +396,6 @@ export const ProfileSecurityPage: React.FC = () => {
       icon: Sparkles,
       description: 'Showroom display mode, dark night theme, and studio canvas density',
     },
-    ...(isSuperAdminOrDev
-      ? ([
-          {
-            id: 'overrides',
-            name: 'Emergency Overrides',
-            group: 'ADMIN CONTROLS',
-            icon: ShieldAlert,
-            description: 'Master rule bypasses, Section 40A(3) override, and till overdraft switches',
-          },
-        ] as ProfileTabItem[])
-      : []),
   ];
 
   return (
@@ -938,12 +926,7 @@ export const ProfileSecurityPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: EMERGENCY SYSTEM OVERRIDES (Super Admin Only) */}
-          {activeTabId === 'overrides' && isSuperAdminOrDev && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <SuperAdminOverridesCard />
-            </div>
-          )}
+
         </div>
       </main>
 

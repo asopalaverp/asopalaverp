@@ -1335,8 +1335,8 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                             className="mt-0.5 rounded text-[#3ecf8e] focus:ring-0 cursor-pointer"
                           />
                           <div>
-                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Cash Box & Bank (F4)</span>
-                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Treasury drawer, safe drop & float</span>
+                            <span className="font-medium text-slate-900 dark:text-zinc-100 block">Cash Drawer & UPI (F4)</span>
+                            <span className="text-[11px] text-slate-500 dark:text-[#888]">Treasury drawer till & float entry</span>
                           </div>
                         </label>
 

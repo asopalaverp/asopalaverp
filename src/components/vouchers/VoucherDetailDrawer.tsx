@@ -35,6 +35,7 @@ import {
   UserCheck,
   Users,
   Loader2,
+  Printer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
@@ -463,6 +464,86 @@ export const VoucherDetailDrawer: React.FC = () => {
     setIsEditing(true);
   };
 
+  const handlePrintVoucher = () => {
+    triggerHaptic('light');
+    const printWin = window.open('', '_blank', 'width=700,height=800');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Expense Voucher - ${formatVoucherNumber(v.voucher_number)}</title>
+        <style>
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 28px; color: #111; max-width: 600px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
+          .brand { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+          .sub { font-size: 11px; color: #555; margin-top: 3px; }
+          .vnum { font-size: 13px; font-weight: 700; border: 1px solid #111; padding: 4px 8px; display: inline-block; margin-top: 8px; font-family: monospace; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin: 12px 0; font-family: monospace; }
+          .card { border: 1px solid #ddd; padding: 12px; margin: 14px 0; border-radius: 4px; }
+          .amount-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; font-family: monospace; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 8px 0; margin: 12px 0; }
+          .words { font-size: 11px; font-style: italic; color: #444; margin-top: -6px; margin-bottom: 12px; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; font-size: 11px; }
+          .sig-box { width: 30%; border-top: 1px solid #111; text-align: center; padding-top: 6px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">ASOPALAV ENDEAVOURS LLP</div>
+          <div class="sub">Showroom Expense Disbursement Voucher</div>
+          <div class="vnum">VOUCHER #${formatVoucherNumber(v.voucher_number)}</div>
+        </div>
+
+        <div class="grid">
+          <div><strong>Date:</strong> ${formatDate(v.payment_date)}</div>
+          <div><strong>Branch:</strong> ${v.branch_code || 'ASI'}</div>
+          <div><strong>Category:</strong> ${v.category_name || 'General Expense'}</div>
+          <div><strong>Department:</strong> ${v.department_name || 'Showroom'}</div>
+          <div><strong>Payment Mode:</strong> ${v.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Online UPI'}</div>
+          <div><strong>Bill/Ref #:</strong> ${v.bill_number || 'Cash Memo'}</div>
+          <div style="grid-column: span 2;"><strong>Paid To / Payee:</strong> ${v.recipient_name || 'Counter Expense'}</div>
+        </div>
+
+        <div class="amount-row">
+          <span>TOTAL AMOUNT PAID</span>
+          <span>₹${Number(v.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+        </div>
+        <div class="words">Amount in Words: ${numberToWordsINR(v.total_amount)}</div>
+
+        ${v.remarks ? `<div class="card"><strong style="font-size:11px;">Narration / Purpose:</strong><div style="font-size:12px; margin-top:4px;">${v.remarks}</div></div>` : ''}
+
+        <div class="signatures">
+          <div class="sig-box">
+            ${v.created_by_name || 'Counter Cashier'}<br/>
+            <span style="font-size:9px; color:#666;">Prepared By</span>
+          </div>
+          <div class="sig-box">
+            Store Manager<br/>
+            <span style="font-size:9px; color:#666;">Verified &amp; Approved</span>
+          </div>
+          <div class="sig-box">
+            ${v.recipient_name || 'Payee'}<br/>
+            <span style="font-size:9px; color:#666;">Received Signature</span>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+    }, 250);
+  };
+
   const drawerFooter = isEditing ? (
     <div className="w-full flex items-center justify-end gap-2.5">
       <button
@@ -486,43 +567,51 @@ export const VoucherDetailDrawer: React.FC = () => {
     </div>
   ) : (
     <div className="w-full flex flex-col gap-2.5">
-      {/* Row 1: Admin & Developer Exclusive Action Buttons */}
-      {(isPrivileged || canVoid) && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {isPrivileged && (
-            <button
-              type="button"
-              onClick={handleStartEdit}
-              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-              <span>Edit</span>
-            </button>
-          )}
+      {/* Row 1: Print & Admin Action Buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={handlePrintVoucher}
+          className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#ededed] text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+          title="Print Physical Voucher Slip"
+        >
+          <Printer className="w-3.5 h-3.5 text-slate-500" />
+          <span>Print Voucher</span>
+        </button>
 
-          {canVoid && v.status !== 'Voided' && (
-            <button
-              type="button"
-              onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
-              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
-            >
-              <XCircle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-              <span>Cancel Bill</span>
-            </button>
-          )}
+        {isPrivileged && (
+          <button
+            type="button"
+            onClick={handleStartEdit}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
+            <span>Edit</span>
+          </button>
+        )}
 
-          {isPrivileged && (
-            <button
-              type="button"
-              onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
-              className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
-            </button>
-          )}
-        </div>
-      )}
+        {canVoid && v.status !== 'Voided' && (
+          <button
+            type="button"
+            onClick={() => setActiveAction(activeAction === 'void' ? 'none' : 'void')}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+          >
+            <XCircle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+            <span>Cancel Bill</span>
+          </button>
+        )}
+
+        {isPrivileged && (
+          <button
+            type="button"
+            onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium font-sans transition-colors cursor-pointer shadow-2xs"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete</span>
+          </button>
+        )}
+      </div>
 
       {/* Row 2: Full-width Done Button for All Users */}
       <button
@@ -541,7 +630,7 @@ export const VoucherDetailDrawer: React.FC = () => {
       isOpen={Boolean(activeDrawerVoucher)}
       onClose={closeDrawer}
       title={isEditing ? `Edit Bill #${formatVoucherNumber(v.voucher_number)}` : `Expense Bill #${formatVoucherNumber(v.voucher_number)}`}
-      subtitle={`Recorded ${formatDate(v.payment_date)} • ${v.branch_code} • ${v.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Bank UPI'}`}
+      subtitle={`Recorded ${formatDate(v.payment_date)} • ${v.branch_code} • ${v.payment_method === 'Physical_Cash' ? 'Cash Box' : 'Online UPI'}`}
       badge={statusBadge}
       size="full"
       footer={drawerFooter}
@@ -795,7 +884,7 @@ export const VoucherDetailDrawer: React.FC = () => {
                     )}
                   >
                     <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Bank UPI</span>
+                    <span>Online UPI</span>
                   </button>
                 </div>
               </div>

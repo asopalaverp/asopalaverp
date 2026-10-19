@@ -13,14 +13,13 @@ import {
   Download,
   Plus,
   Receipt,
-  Banknote,
+  Wallet,
   Smartphone,
   Layers,
   RefreshCw,
   FileSpreadsheet,
 } from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { ForensicAuditSection } from '@/components/treasury/ForensicAuditSection';
 
 type DateFilterType = 'today' | 'week' | 'month' | 'all';
 
@@ -31,7 +30,6 @@ export const AllExpensesPage: React.FC = () => {
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
   const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
-  const [auditSelectedDate, setAuditSelectedDate] = useState<string | null>(null);
 
   const activeBranch = getActiveBranch();
   const showroomTitle = selectedBranchId === 'ALL' ? 'All Showrooms' : (activeBranch?.branch_name || 'Satellite Road Showroom');
@@ -48,16 +46,13 @@ export const AllExpensesPage: React.FC = () => {
 
     return vouchers.filter((v) => {
       const vDate = v.payment_date || (v.created_at ? v.created_at.slice(0, 10) : '');
-      if (auditSelectedDate && vDate !== auditSelectedDate) return false;
-      if (!auditSelectedDate) {
-        if (dateFilter === 'today' && vDate !== todayStr) return false;
-        if (dateFilter === 'week' && vDate < startOfWeekStr) return false;
-        if (dateFilter === 'month' && vDate < startOfMonthStr) return false;
-      }
+      if (dateFilter === 'today' && vDate !== todayStr) return false;
+      if (dateFilter === 'week' && vDate < startOfWeekStr) return false;
+      if (dateFilter === 'month' && vDate < startOfMonthStr) return false;
       if (selectedMode !== 'ALL' && v.payment_method !== selectedMode) return false;
       return true;
     });
-  }, [vouchers, dateFilter, selectedMode, auditSelectedDate]);
+  }, [vouchers, dateFilter, selectedMode]);
 
   // Totals calculations (approved real wallet outflows only — excludes Voided, Pending_Approval, and non-cash Advance_Settlement)
   const activeValidVouchers = useMemo(() => {
@@ -217,7 +212,7 @@ export const AllExpensesPage: React.FC = () => {
             }
             subValue={`${cashPercent}% of total`}
             statusDotColor="#f59e0b"
-            icon={Banknote}
+            icon={Wallet}
           />
 
           <MetricCard
@@ -244,15 +239,6 @@ export const AllExpensesPage: React.FC = () => {
           />
         </div>
 
-        {/* Forensic Audit & Day-by-Day Cash Statement */}
-        <ForensicAuditSection
-          vouchers={vouchers}
-          selectedBranchId={selectedBranchId}
-          onSelectDate={setAuditSelectedDate}
-          selectedDate={auditSelectedDate}
-          defaultExpanded={true}
-          contextTitle="Expenses & Cash Ledger Forensic Audit"
-        />
 
         {/* Voucher Data Grid */}
         <VoucherTable

@@ -136,7 +136,7 @@ function generateAdvanceSqlInsert(a: StaffAdvance): string {
 }
 
 export const StaffAdvancesPage: React.FC = () => {
-  const { setAdvanceModalOpen, setSettleTargetAdvance } = useUIStore();
+  const { setAdvanceModalOpen, setSettleTargetAdvance, setActivePage } = useUIStore();
   const { user, can } = useAuthStore();
   const isDeveloper = isPrivilegedAdminRole(user?.role_code);
   const { selectedBranchId } = useBranchStore();
@@ -176,12 +176,10 @@ export const StaffAdvancesPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Popovers & Feedback
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const exportRef = useRef<HTMLDivElement | null>(null);
   const columnPickerRef = useRef<HTMLDivElement | null>(null);
 
   const [actionModal, setActionModal] = useState<ActionModalState>({
@@ -295,9 +293,6 @@ export const StaffAdvancesPage: React.FC = () => {
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
       if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
         setIsColumnPickerOpen(false);
       }
@@ -579,117 +574,6 @@ export const StaffAdvancesPage: React.FC = () => {
       : filteredAdvances;
   };
 
-  const handleExportCSV = () => {
-    const list = getExportData();
-    const headers = [
-      'Receipt #',
-      'Advance Date (YYYY-MM-DD)',
-      'Days Elapsed',
-      'Ageing Bucket',
-      'Staff Code',
-      'Staff Name',
-      'Department',
-      'Branch Code',
-      'Payment Mode',
-      'Total Advance Given (INR)',
-      'Bills Submitted (INR)',
-      'Cash Returned (INR)',
-      'Unsettled Pending Balance (INR)',
-      'Recovery Rate (%)',
-      'Status',
-      'Salary Deduction Month',
-      'Purpose / Particulars',
-      'Settled By',
-      'Authorized By',
-      'Created At'
-    ];
-
-    const todayMs = new Date().setHours(0, 0, 0, 0);
-
-    const rows = list.map((a) => {
-      const advDateMs = new Date(a.advance_date).getTime();
-      const days = Math.max(0, Math.floor((todayMs - advDateMs) / (1000 * 60 * 60 * 24)));
-      let ageing = '0-7 days (On Track)';
-      if (a.unsettled_balance <= 0) ageing = 'Settled';
-      else if (days >= 15) ageing = '15+ days (Overdue)';
-      else if (days >= 8) ageing = '8-14 days (Due Soon)';
-
-      const totalGiven = Number(a.advance_amount) || 0;
-      const recovered = (Number(a.bills_submitted_amount) || 0) + (Number(a.cash_returned_amount) || 0);
-      const recoveryPct = totalGiven > 0 ? ((recovered / totalGiven) * 100).toFixed(1) + '%' : '0%';
-
-      return [
-        a.receipt_number || '',
-        a.advance_date || '',
-        days,
-        `"${ageing}"`,
-        a.staff_code || '',
-        `"${(a.staff_name || '').replace(/"/g, '""')}"`,
-        `"${(a.department_name || '').replace(/"/g, '""')}"`,
-        a.branch_code || selectedBranchId,
-        a.payment_method || 'Cash',
-        Number(a.advance_amount || 0).toFixed(2),
-        Number(a.bills_submitted_amount || 0).toFixed(2),
-        Number(a.cash_returned_amount || 0).toFixed(2),
-        Number(a.unsettled_balance || 0).toFixed(2),
-        `"${recoveryPct}"`,
-        a.status || '',
-        `"${(a.salary_deduction_month || '').replace(/"/g, '""')}"`,
-        `"${(a.purpose || '').replace(/"/g, '""')}"`,
-        `"${(a.disbursed_by_name || '').replace(/"/g, '""')}"`,
-        `"${(a.salary_deducted_by_name || '').replace(/"/g, '""')}"`,
-        a.created_at || ''
-      ];
-    });
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(
-      `Staff_Advances_Ledger_${new Date().toISOString().slice(0, 10)}.csv`,
-      csvContent,
-      'text/csv;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as CSV.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportJSON = () => {
-    const list = getExportData();
-    const jsonContent = JSON.stringify(list, null, 2);
-    downloadBlob(
-      `Staff_Advances_Dump_${new Date().toISOString().slice(0, 10)}.json`,
-      jsonContent,
-      'application/json;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as JSON.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportSQL = () => {
-    const list = getExportData();
-    const sqlContent =
-      `-- Asopalav Staff Advances SQL Dump\n-- Generated on ${new Date().toISOString()}\n\n` +
-      list.map(generateAdvanceSqlInsert).join('\n');
-    downloadBlob(
-      `Staff_Advances_${new Date().toISOString().slice(0, 10)}.sql`,
-      sqlContent,
-      'text/plain;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as SQL dump.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -704,7 +588,6 @@ export const StaffAdvancesPage: React.FC = () => {
       }
 
       if (e.key === 'Escape') {
-        if (isExportMenuOpen) setIsExportMenuOpen(false);
         if (isColumnPickerOpen) setIsColumnPickerOpen(false);
         if (activeRowDropdownId) setActiveRowDropdownId(null);
         if (search) setSearch('');
@@ -730,9 +613,6 @@ export const StaffAdvancesPage: React.FC = () => {
           if (target && target.unsettled_balance > 0) {
             setSettleTargetAdvance(target);
           }
-        } else if (e.key === 'e' || e.key === 'E') {
-          e.preventDefault();
-          setIsExportMenuOpen((prev) => !prev);
         }
       }
     };
@@ -740,7 +620,6 @@ export const StaffAdvancesPage: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    isExportMenuOpen,
     isColumnPickerOpen,
     activeRowDropdownId,
     search,
@@ -860,48 +739,19 @@ export const StaffAdvancesPage: React.FC = () => {
               size="sm"
             />
 
-            {/* Export Menu */}
-            <div className="relative" ref={exportRef}>
-              <button
-                type="button"
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export</span>
-                <ChevronDown className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
-              </button>
-
-              {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1 z-50 space-y-0.5 text-xs font-mono animate-in fade-in zoom-in-95 duration-100">
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                      <span>Export CSV</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 dark:text-[#707070]">.csv</span>
-                  </button>
-
-                  {isDeveloper && (
-                    <button
-                      type="button"
-                      onClick={handleExportJSON}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        <span>Export JSON</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 dark:text-[#707070]">.json</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Direct Link to Reports Hub (F5) Single Source of Truth */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setActivePage('reports');
+              }}
+              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Open Staff Advances & Financial Reports in Reports Hub (F5)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span className="hidden sm:inline">Reports Hub (F5)</span>
+            </button>
 
             {/* Primary Action Button */}
             <button
@@ -1134,14 +984,6 @@ export const StaffAdvancesPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 font-mono">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] text-xs text-slate-800 dark:text-white hover:border-[#3ecf8e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs font-medium"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span>Export CSV</span>
-              </button>
               <button
                 type="button"
                 onClick={handleClearSelection}

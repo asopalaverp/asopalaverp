@@ -9,9 +9,8 @@ import { erpService } from '@/lib/erpService';
 import { calculateDailyCashBalances, DayCashRecord, PeriodCashSummary } from '@/lib/dailyCashBalance';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatINR, formatCompactINR, numberToWordsINR, formatDate, formatVoucherNumber, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
-import { useOverrideStore } from '@/store/overrideStore';
 import { confirmDialog } from '@/store/dialogStore';
-import { SafeDropDrawer } from '@/components/treasury/SafeDropDrawer';
+import { DailyEodTillModal } from '@/components/treasury/DailyEodTillModal';
 import { ForensicAuditSection } from '@/components/treasury/ForensicAuditSection';
 import { TreasuryPassbookTable } from '@/components/treasury/TreasuryPassbookTable';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -21,6 +20,7 @@ import { AccessDeniedView } from '@/components/common/AccessDeniedView';
 import {
   Wallet,
   Coins,
+  Calculator,
   CheckCircle2,
   AlertCircle,
   Building2,
@@ -52,7 +52,6 @@ import {
   ArrowUpRight,
   Layers,
   LayoutList,
-  Banknote,
   QrCode,
   User,
   Sparkles,
@@ -158,7 +157,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [entryDate, setEntryDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
   const [walletType, setWalletType] = useState<'Cash' | 'UPI'>('Cash');
   const [amount, setAmount] = useState<number | ''>('');
-  const [handledByName, setHandledByName] = useState('Hardik Shah');
   const [transferMode, setTransferMode] = useState('');
   const [referenceNotes, setReferenceNotes] = useState('');
 
@@ -181,18 +179,15 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI' | 'Float_Topup'>('ALL');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [viewLedgerEntry, setViewLedgerEntry] = useState<any | null>(null);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
 
-  // Safe Drop Drawer State
-  const [isSafeDropOpen, setIsSafeDropOpen] = useState(false);
+  const [isEodModalOpen, setIsEodModalOpen] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const exportRef = useRef<HTMLDivElement | null>(null);
 
   const containerRef = useGsapContext(() => {
     animateStaggerCards(containerRef.current, '.stagger-card', 0.03);
@@ -215,7 +210,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       }
       if (e.key === 'Escape') {
         setActiveRowDropdownId(null);
-        setIsExportMenuOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -225,9 +219,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
       if (
         activeRowDropdownId &&
         !(e.target as HTMLElement).closest(`[data-dropdown-id="${activeRowDropdownId}"]`)
@@ -717,77 +708,9 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     return filteredAllocations.slice(start, start + pageSize);
   }, [filteredAllocations, currentPage, pageSize]);
 
-  const handleExportLedger = (format: 'csv' | 'json' | 'sql') => {
-    setIsExportMenuOpen(false);
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const esc = (val?: string | null) => (val ? `'${val.replace(/'/g, "''")}'` : 'NULL');
-
-    if (format === 'json') {
-      downloadBlob(`asopalav_treasury_ledger_${dateStr}.json`, JSON.stringify(filteredAllocations, null, 2), 'application/json');
-    } else if (format === 'csv') {
-      const headers = [
-        'Record ID',
-        'Reference #',
-        'Date (YYYY-MM-DD)',
-        'Time',
-        'Branch Code',
-        'Transaction Type',
-        'Wallet Channel',
-        'Inflow Credit (INR)',
-        'Outflow Debit (INR)',
-        'Net Flow (INR)',
-        'Running Balance (INR)',
-        'Cashier / Recorded By',
-        'Authorized By',
-        'Particulars & Remarks',
-        'Created At'
-      ];
-      const rows = filteredAllocations.map((l) => {
-        const credit = Number(l.credit_amount) || 0;
-        const debit = Number(l.debit_amount) || 0;
-        const netFlow = credit - debit;
-        const entryKey = l.id || `${l.created_at}-${l.credit_amount}-${l.debit_amount}`;
-        const runningBal = entriesWithRunningBalance.get(entryKey)?.runningCombined ?? '';
-        const createdDate = l.created_at ? new Date(l.created_at) : null;
-        const datePart = createdDate ? createdDate.toISOString().slice(0, 10) : '';
-        const timePart = createdDate ? createdDate.toTimeString().slice(0, 8) : '';
-        const refNo = l.reference_number || (l.id ? String(l.id).slice(0, 8).toUpperCase() : '');
-
-        return [
-          l.id || '',
-          refNo,
-          datePart,
-          timePart,
-          l.branch_id || selectedBranch,
-          l.transaction_type || (credit > 0 ? 'Float_Topup' : 'Expense_Voucher'),
-          l.wallet_type || 'Cash',
-          credit.toFixed(2),
-          debit.toFixed(2),
-          netFlow.toFixed(2),
-          typeof runningBal === 'number' ? runningBal.toFixed(2) : runningBal,
-          `"${(l.cashier_name || '').replace(/"/g, '""')}"`,
-          `"${(l.authorized_by_name || '').replace(/"/g, '""')}"`,
-          `"${(l.remarks || '').replace(/"/g, '""')}"`,
-          l.created_at || ''
-        ];
-      });
-      const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-      downloadBlob(`asopalav_treasury_ledger_${dateStr}.csv`, csv, 'text/csv;charset=utf-8;');
-    } else if (format === 'sql') {
-      const sql = filteredAllocations
-        .map(
-          (l) =>
-            `INSERT INTO wallet_ledger (id, branch_id, transaction_type, wallet_type, credit_amount, debit_amount, remarks, cashier_name, authorized_by_name, created_at) VALUES (${esc(l.id)}, ${esc(l.branch_id)}, '${l.transaction_type || (Number(l.credit_amount) > 0 ? 'Float_Topup' : 'Expense_Voucher')}', ${esc(l.wallet_type)}, ${Number(l.credit_amount) || 0}, ${Number(l.debit_amount) || 0}, ${esc(l.remarks)}, ${esc(l.cashier_name)}, ${esc(l.authorized_by_name)}, ${esc(l.created_at)});`
-        )
-        .join('\n');
-      downloadBlob(`asopalav_treasury_ledger_${dateStr}.sql`, sql, 'text/plain');
-    }
-  };
-
   const handleResetForm = () => {
     triggerHaptic('light');
     setAmount('');
-    setHandledByName('Hardik Shah');
     setReferenceNotes('');
     setTransferMode('');
     setEntryDate(formatDateFns(new Date(), 'yyyy-MM-dd'));
@@ -817,12 +740,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     try {
       const isHistorical = entryDate !== formatDateFns(new Date(), 'yyyy-MM-dd');
       const dateTag = isHistorical ? ` [Date: ${entryDate}]` : '';
-      const defaultNote = walletType === 'Cash' ? 'Cash Box Inflow' : 'Bank UPI Inflow';
+      const defaultNote = walletType === 'Cash' ? 'Cash Box Inflow' : 'UPI Float Inflow';
       const noteContent = referenceNotes.trim() || defaultNote;
       const modeTag = transferMode ? ` [Transfer Mode: ${transferMode}]` : '';
       const fullRemarks = `${noteContent}${modeTag}${dateTag}`.trim();
 
-      const staffName = handledByName.trim() || `${user?.first_name || 'Hardik'} ${user?.last_name || 'Shah'}`.trim();
+      const staffName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email?.split('@')[0] || 'Store Manager';
       const matchedBranch = branches.find((b) => b.branch_id === selectedBranch);
       const branchCode = matchedBranch?.branch_code || selectedBranch.replace(/^Aellp-/, '') || activeBranch.branch_code;
 
@@ -840,7 +763,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       triggerHaptic('heavy');
       setFeedback({
         type: 'success',
-        message: `Successfully added ${formatINR(amountToAdd)} ${walletType === 'Cash' ? 'Cash' : 'Bank UPI'}!`,
+        message: `Successfully added ${formatINR(amountToAdd)} ${walletType === 'Cash' ? 'Cash' : 'UPI'}!`,
       });
 
       setAmount('');
@@ -856,15 +779,12 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     }
   };
 
-  const { isCeilingExceededAllowed } = useOverrideStore();
-  const safeDropExceeded = currentCashBalance > 50000 && !isCeilingExceededAllowed();
-
   if (isCashier) {
     return (
       <AccessDeniedView
         title="Access Restricted"
         message="Cash Drawer & Treasury management is restricted to Store Managers and Super Admins."
-        pageName="Cash & Bank"
+        pageName="Cash Drawer & UPI"
         onGoBack={() => setActivePage('dashboard')}
       />
     );
@@ -872,7 +792,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
   return (
     <div ref={containerRef} className="min-h-full flex-1 flex flex-col bg-white dark:bg-[#141414] text-slate-900 dark:text-[#EDEDED] font-sans antialiased selection:bg-[#3ecf8e]/20 selection:text-[#3ecf8e] select-none">
-      {/* 1. Cash & Bank Header */}
+      {/* 1. Cash Drawer & UPI Header */}
       <div className="relative z-30 px-4 lg:px-6 py-3.5 border-b border-slate-200 dark:border-[#242424] bg-white dark:bg-[#141414]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Left Layer: Title, Status Badges & Subtitle */}
@@ -880,7 +800,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-[#3ecf8e]" />
-                <span>Cash & Bank</span>
+                <span>Cash Drawer & UPI</span>
               </h1>
               <span className="px-2 py-0.5 rounded-[4px] text-[10px] tabular-nums font-mono bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20 font-medium">
                 {filteredAllocations.length} records
@@ -893,20 +813,32 @@ export const CashDrawerTreasuryPage: React.FC = () => {
 
           {/* Right Layer: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Daily EOD Till Count & Lock (Beta) */}
             <button
               type="button"
               onClick={() => {
                 triggerHaptic('selection');
-                setIsSafeDropOpen(true);
+                setIsEodModalOpen(true);
               }}
-              className="h-8 px-3 py-1.5 rounded-[6px] border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              title="Move excess cash from box to showroom safe"
+              className="h-8 px-3 py-1.5 rounded-[6px] border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-[#3ecf8e] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Daily EOD physical notes count and reconciliation lock"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              <span>Move to Safe</span>
+              <Calculator className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span>Till Count Lock (Beta)</span>
             </button>
 
-
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('selection');
+                setActivePage('reports');
+              }}
+              className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="All Official Financial, Tally & CA Reports Hub (F5)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span>Reports Hub (F5)</span>
+            </button>
 
             <button
               type="button"
@@ -917,42 +849,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             >
               <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#3ecf8e]")} />
             </button>
-
-            {/* Export Menu */}
-            <div className="relative" ref={exportRef}>
-              <button
-                type="button"
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1c1c1f] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#242428] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export</span>
-                <ChevronDown className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
-              </button>
-
-              {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-44 bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] rounded-[6px] shadow-2xl p-1 z-50 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
-                  <button
-                    type="button"
-                    onClick={() => handleExportLedger('csv')}
-                    className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] rounded-[4px] flex items-center gap-2 cursor-pointer font-mono transition-colors"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                    <span>CSV format</span>
-                  </button>
-                  {isDeveloper && (
-                    <button
-                      type="button"
-                      onClick={() => handleExportLedger('json')}
-                      className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#222222] rounded-[4px] flex items-center gap-2 cursor-pointer font-mono transition-colors"
-                    >
-                      <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                      <span>JSON format</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -1086,34 +982,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               placeholder="Select branch..."
             />
           </div>
-        </div>
-
-      {/* Safe Deposit Alert Banner */}
-      {safeDropExceeded && (
-        <div className="p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-            <div>
-              <strong className="block font-medium text-amber-800 dark:text-amber-300">Move Cash to Safe (Cash is High)</strong>
-              <span className="text-[11px] text-amber-700 dark:text-amber-200/80">
-                Cash in box ({formatINR(currentCashBalance)}) is over ₹50,000. Please move extra cash to the safe.
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('selection');
-              setIsSafeDropOpen(true);
-            }}
-            className="h-8 px-3.5 py-1.5 rounded-[6px] bg-amber-500 hover:bg-amber-400 text-[#171717] font-medium text-xs font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-[#171717] stroke-[2.5]" />
-            <span>Move to Safe ({formatINR(Math.max(0, currentCashBalance - 40000))})</span>
-          </button>
-        </div>
-      )}
+      </div>
 
       {/* 2. Cash & UPI Balances Telemetry Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1132,17 +1001,17 @@ export const CashDrawerTreasuryPage: React.FC = () => {
           icon={Coins}
         />
 
-        {/* KPI 2: Bank UPI Float */}
+        {/* KPI 2: UPI Float */}
         <MetricCard
-          label="Bank UPI Float"
+          label="UPI Float"
           value={
             <>
               <span className="sm:hidden">{formatCompactINR(currentUpiBalance)}</span>
               <span className="hidden sm:inline">{formatINR(currentUpiBalance)}</span>
             </>
           }
-          subValue="Verified Bank Account Float"
-          badge="BANK UPI"
+          subValue="Verified Digital UPI Float"
+          badge="ONLINE UPI"
           badgeColor="blue"
           icon={Building2}
         />
@@ -1213,7 +1082,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                       : 'text-slate-500 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-white border border-transparent'
                   )}
                 >
-                  Bank UPI
+                  Online UPI
                 </button>
               </div>
 
@@ -1228,13 +1097,13 @@ export const CashDrawerTreasuryPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Form Fields in 4-Column Responsive Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Form Fields in 3-Column Responsive Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             {/* Amount Input */}
             <div className="space-y-1 font-sans">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
-                  {walletType === 'Cash' ? 'Cash Amount (₹) *' : 'Bank / UPI Amount (₹) *'}
+                  {walletType === 'Cash' ? 'Cash Amount (₹) *' : 'UPI Amount (₹) *'}
                 </label>
                 {Number(amount) > 0 && (
                   <span className="text-[11px] font-mono text-emerald-600 dark:text-[#3ecf8e]">
@@ -1274,20 +1143,6 @@ export const CashDrawerTreasuryPage: React.FC = () => {
                 onChange={(val) => setEntryDate(val)}
                 allowPastDatesOverride={isDeveloper || user?.role_code === 'Super_Admin' || user?.role_code === 'Store_Manager'}
                 placeholder="Select date..."
-              />
-            </div>
-
-            {/* Added / Handled By Input */}
-            <div className="space-y-1 font-sans">
-              <label className="block text-xs font-medium text-slate-800 dark:text-[#e0e0e0]">
-                Added / Handled By
-              </label>
-              <input
-                type="text"
-                value={handledByName}
-                onChange={(e) => setHandledByName(e.target.value)}
-                placeholder="e.g. Hardik Shah"
-                className="w-full h-10 min-h-[40px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] rounded-[6px] px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 shadow-2xs"
               />
             </div>
 
@@ -1365,10 +1220,10 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         onSelectDate={setSelectedDayFilter}
         selectedDate={selectedDayFilter}
         defaultExpanded={true}
-        contextTitle="Cash Drawer & Bank Treasury Day-by-Day Statement"
+        contextTitle="Cash Drawer & UPI Treasury Day-by-Day Statement"
       />
 
-      {/* 5. Full Bank Passbook Register & Advance Table */}
+      {/* 5. Full Cash Passbook Register & Advance Table */}
       <TreasuryPassbookTable
         entries={allLedgerEntries}
         currentCashBalance={currentCashBalance}
@@ -1379,12 +1234,13 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         voucherMap={voucherMap}
       />
 
-      {/* 5. Safe Drop Slide-Over Drawer */}
-      <SafeDropDrawer
-        isOpen={isSafeDropOpen}
-        onClose={() => setIsSafeDropOpen(false)}
+      {/* Daily EOD Till Lock & Denomination Counter Modal (Beta) */}
+      <DailyEodTillModal
+        isOpen={isEodModalOpen}
+        onClose={() => setIsEodModalOpen(false)}
         branchId={selectedBranch}
-        currentCashBalance={currentCashBalance}
+        branchCode={selectedBranch.replace(/^Aellp-/, '')}
+        systemCashBalance={currentCashBalance}
         onSuccess={loadTreasuryData}
       />
 
@@ -1425,7 +1281,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Wallet Account</span>
                 <span className="font-semibold text-slate-900 dark:text-white font-mono">
-                  {viewLedgerEntry.wallet_type === 'UPI' ? 'Bank UPI Account' : 'Cash Drawer Till Box'}
+                  {viewLedgerEntry.wallet_type === 'UPI' ? 'Online UPI Account' : 'Cash Drawer Till Box'}
                 </span>
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
@@ -1524,7 +1380,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Wallet</span>
-                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Bank UPI'}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{walletType === 'Cash' ? 'Cash Box' : 'Online UPI'}</span>
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Date</span>
@@ -1532,7 +1388,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
               </div>
               <div className="flex justify-between items-center text-slate-500 dark:text-zinc-400">
                 <span>Reason</span>
-                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{referenceNotes || (walletType === 'Cash' ? 'Cash Box Inflow' : 'Bank UPI Inflow')}</span>
+                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{referenceNotes || (walletType === 'Cash' ? 'Cash Box Inflow' : 'UPI Float Inflow')}</span>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-[#242424] flex justify-between items-baseline">
                 <span className="text-xs uppercase font-sans text-slate-500">Amount</span>

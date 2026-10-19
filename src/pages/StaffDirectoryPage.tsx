@@ -984,10 +984,9 @@ export const StaffDirectoryPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentDisplayedRecords, focusedIndex, activeTab]);
 
-  const handleExportData = (format: 'csv' | 'json' | 'sql') => {
+  const handleExportData = (format: 'csv' | 'json') => {
     setIsExportOpen(false);
     const dateStr = new Date().toISOString().slice(0, 10);
-    const esc = (val?: string | null) => (val ? `'${val.replace(/'/g, "''")}'` : 'NULL');
 
     if (activeTab === 'logins') {
       const recordsToExport = selectedIds.size > 0
@@ -1009,14 +1008,6 @@ export const StaffDirectoryPage: React.FC = () => {
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_users_${dateStr}.csv`, csv, 'text/csv');
-      } else if (format === 'sql') {
-        const sql = recordsToExport
-          .map(
-            (u) =>
-              `INSERT INTO app_users (id, username, first_name, last_name, role_code, email, is_active) VALUES (${esc(u.id)}, ${esc(u.username)}, ${esc(u.first_name)}, ${esc(u.last_name)}, ${esc(u.role_code)}, ${esc(u.email)}, ${u.is_active !== false});`
-          )
-          .join('\n');
-        downloadBlob(`asopalav_users_${dateStr}.sql`, sql, 'text/plain');
       }
     } else {
       const recordsToExport = selectedIds.size > 0
@@ -1039,14 +1030,6 @@ export const StaffDirectoryPage: React.FC = () => {
         ]);
         const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
         downloadBlob(`asopalav_staff_${dateStr}.csv`, csv, 'text/csv');
-      } else if (format === 'sql') {
-        const sql = recordsToExport
-          .map(
-            (s) =>
-              `INSERT INTO staff_members (staff_code, first_name, middle_name, last_name, mobile_number, department_name, designation, branch_id, branch_code, is_active) VALUES (${esc(s.staff_code)}, ${esc(s.first_name)}, ${esc(s.middle_name)}, ${esc(s.last_name)}, ${esc(s.mobile_number)}, ${esc(s.department_name)}, ${esc(s.designation)}, ${esc(s.branch_id)}, ${esc(s.branch_code)}, ${s.is_active !== false});`
-          )
-          .join('\n');
-        downloadBlob(`asopalav_staff_${dateStr}.sql`, sql, 'text/plain');
       }
     }
   };

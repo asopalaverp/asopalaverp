@@ -21,7 +21,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast, showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { SuperAdminOverridesCard } from '@/components/settings/SuperAdminOverridesCard';
+
 import {
   Building2,
   Tags,
@@ -60,7 +60,6 @@ import {
 
 export type SettingsTabId =
   | 'periods'
-  | 'overrides'
   | 'branches'
   | 'categories'
   | 'departments'
@@ -86,14 +85,6 @@ interface SettingsTabMeta {
 
 const SETTINGS_TABS: SettingsTabMeta[] = [
   // SHOWROOM MASTER DATA GROUP (ERP Master Catalogues)
-  {
-    id: 'overrides',
-    name: 'Super Admin Controls',
-    group: 'SHOWROOM MASTER DATA',
-    icon: ShieldAlert,
-    badge: 'SUPER',
-    description: 'Executive policy overrides, zero cash bypasses, and emergency administrative powers',
-  },
   {
     id: 'periods',
     name: 'Monthly Accounts Lock',
@@ -928,14 +919,6 @@ export const ShowroomSettingsPage: React.FC = () => {
 
           {/* Main Pane Body Container */}
           <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
-            {/* =================================================================== */}
-            {/* VIEW 0: SUPER ADMIN OVERRIDES & EXECUTIVE POLICIES                  */}
-            {/* =================================================================== */}
-            {activeTabId === 'overrides' && (
-              <div className="space-y-6 max-w-4xl animate-in fade-in">
-                <SuperAdminOverridesCard />
-              </div>
-            )}
 
             {/* =================================================================== */}
             {/* VIEW 1: GLOBAL BROADCAST COMPOSER                                   */}
@@ -1365,7 +1348,7 @@ export const ShowroomSettingsPage: React.FC = () => {
                                   </td>
                                   <td className={densityClasses}>{b.gstin || '—'}</td>
                                   <td className={densityClasses}>
-                                    Max Cash: {formatINR(b.max_cash_ceiling || 25000)} | Safe Drop: {formatINR(b.min_cash_threshold || 3000)}
+                                    Max Cash: {formatINR(b.max_cash_ceiling || 25000)} | Min Float: {formatINR(b.min_cash_threshold || 3000)}
                                   </td>
                                   <td className={densityClasses}>
                                     <span

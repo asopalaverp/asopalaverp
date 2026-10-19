@@ -521,7 +521,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
             >
               <div className="flex justify-between items-center w-full">
                 <span className="text-[10px] uppercase font-mono tracking-wider font-medium text-slate-500 dark:text-zinc-400">
-                  Bank / UPI
+                  Online UPI
                 </span>
                 {paymentMethod === 'Online_UPI' && (
                   <span className="w-4 h-4 rounded-full bg-[#3ecf8e] flex items-center justify-center text-[#171717]">
@@ -530,7 +530,7 @@ export const NewAdvanceDrawer: React.FC<NewAdvanceDrawerProps> = ({ onSuccess })
                 )}
               </div>
               <strong className="text-sm block mt-1 font-medium text-slate-900 dark:text-white">
-                Online QR / Bank Transfer
+                Online QR / UPI Transfer
               </strong>
               <span className="text-xs text-sky-700 dark:text-sky-400 font-mono font-medium tabular-nums mt-0.5">
                 {formatINR(upiBalance)} Available

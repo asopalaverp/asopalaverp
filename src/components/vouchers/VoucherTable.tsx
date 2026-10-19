@@ -22,7 +22,7 @@ import {
   X,
   Sparkles,
   Layers,
-  Banknote,
+  Coins,
   Smartphone,
   CreditCard,
   AlertCircle,
@@ -251,7 +251,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   const paymentModeSelectOptions = useMemo(() => [
     { value: 'ALL', label: 'All Payment Modes' },
     { value: 'Physical_Cash', label: 'Physical Cash' },
-    { value: 'Online_UPI', label: 'Bank / UPI' },
+    { value: 'Online_UPI', label: 'Online UPI' },
   ], []);
 
   const statusSelectOptions = useMemo(() => [
@@ -885,34 +885,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
               </div>
             </div>
 
-            {/* Sub-View Mode Switcher */}
-            <div className="inline-flex rounded-[8px] p-0.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08]">
-              {[
-                { id: 'grid', label: 'Ledger', icon: Layers },
-                { id: 'analytics_category', label: 'By Category', icon: BarChart3 },
-                { id: 'analytics_dept', label: 'By Dept', icon: Building2 },
-                { id: 'analytics_payee', label: 'Top Payees', icon: Users },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeSubTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveSubTab(tab.id as SubViewTab)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-sans transition-all cursor-pointer font-medium ios-press',
-                      isActive
-                        ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-semibold shadow-xs border border-slate-200/80 dark:border-[#383838]'
-                        : 'text-slate-500 dark:text-[#8e8e93] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                    )}
-                  >
-                    <Icon className={cn('w-3 h-3', isActive ? 'text-[#3ecf8e]' : 'opacity-70')} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Minimalist Cash vs UPI Split Ratio Bar */}
@@ -951,38 +923,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       {/* 3. ENTERPRISE ADVANCED TOOLBAR (Controls, Filters, Pro Dev Tools)           */}
       {/* ========================================================================= */}
       <div className="relative z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-[12px] bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#282828] shadow-xs">
-        {/* Left: Sub-View Mode Switcher */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-          <div className="inline-flex rounded-[8px] p-0.5 bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.06] dark:border-white/[0.08] shrink-0">
-            {[
-              { id: 'grid', label: 'Ledger', icon: Layers },
-              { id: 'analytics_category', label: 'By Category', icon: PieChart },
-              { id: 'analytics_dept', label: 'By Dept', icon: Building2 },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeSubTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveSubTab(tab.id as SubViewTab)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-sans transition-all cursor-pointer font-medium',
-                    isActive
-                      ? 'bg-white dark:bg-[#282828] text-slate-900 dark:text-white font-semibold shadow-xs border border-slate-200/80 dark:border-[#383838]'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white border border-transparent'
-                  )}
-                >
-                  <Icon
-                    className={cn('w-3 h-3', isActive ? 'text-primary' : 'opacity-70')}
-                  />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Right: Search, Multi-Filter, Column Picker, Pro Export Menu, Action CTA */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Search Box */}
@@ -1069,80 +1009,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Pro Developer & Data Export Menu (Click Triggered - All Viewports) */}
-          <div className="relative" ref={exportRef}>
-            <button
-              type="button"
-              onClick={handleToggleExport}
-              className="flex items-center gap-1.5 px-3 h-10 min-h-[40px] rounded-[6px] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-xs font-semibold text-slate-900 dark:text-white border border-slate-200 dark:border-[#282828] transition-colors cursor-pointer font-sans shadow-2xs"
-            >
-              <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
-              <span>Export</span>
-              <ChevronDown className="w-3 h-3 text-slate-400 dark:text-zinc-400" />
-            </button>
-
-            {isExportMenuOpen && (
-              <div className="absolute right-0 mt-1.5 w-72 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1.5 z-50 space-y-1 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-2.5 py-1 text-[10px] font-mono text-slate-400 dark:text-zinc-400 uppercase border-b border-slate-200 dark:border-[#282828] flex items-center justify-between">
-                  <span>Export Selection</span>
-                  <span className="text-[#3ecf8e] font-bold">
-                    {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${filteredVouchers.length} bills`}
-                  </span>
-                </div>
-
-                {/* Option 1: Full Master CSV */}
-                <button
-                  type="button"
-                  onClick={handleExportCSV}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-[#3ecf8e] shrink-0" />
-                    <div>
-                      <div className="font-medium text-xs">Master Voucher CSV</div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">All 28+ fields with split summary</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
-                </button>
-
-                {/* Option 2: Itemized Split Breakdown CSV */}
-                <button
-                  type="button"
-                  onClick={handleExportItemizedSplitsCSV}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                    <div>
-                      <div className="font-medium text-xs">Itemized Splits CSV</div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Line-by-line staff / vendor rows</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.csv</span>
-                </button>
-
-                {/* Option 4: JSON Dataset Dump */}
-                {isDeveloper && (
-                  <button
-                    type="button"
-                    onClick={handleExportJSON}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-[6px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-900 dark:text-white cursor-pointer transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Code className="w-4 h-4 text-sky-500 shrink-0" />
-                      <div>
-                        <div className="font-medium text-xs">JSON Raw Dataset</div>
-                        <div className="text-[10px] text-slate-500 dark:text-zinc-400">Complete JSON object structure</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-400">.json</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -1444,7 +1310,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                 {[
                   { id: 'ALL', label: 'All Modes' },
                   { id: 'Physical_Cash', label: 'Cash' },
-                  { id: 'Online_UPI', label: 'Bank / UPI' },
+                  { id: 'Online_UPI', label: 'Online UPI' },
                 ].map((m) => {
                   const isSel = selectedMode === m.id;
                   return (
@@ -1566,8 +1432,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       {/* ========================================================================= */}
       {/* 5. ACTIVE SUB-VIEW CONTENT (Grid vs Analytics Breakdowns)                */}
       {/* ========================================================================= */}
-      {activeSubTab === 'grid' && (
-        <div className="rounded-[8px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#161616] overflow-hidden shadow-2xs">
+              <div className="rounded-[8px] border border-slate-200/80 dark:border-[#242424] bg-white dark:bg-[#161616] overflow-hidden shadow-2xs">
           {/* Mobile Card Feed (< lg when mobileViewMode === 'cards') */}
           {mobileViewMode === 'cards' && (
             <div className="lg:hidden p-2 space-y-3">
@@ -1940,13 +1805,13 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                           <div className="flex items-center gap-1.5 font-medium">
                             {v.payment_method === 'Physical_Cash' ? (
                               <>
-                                <Banknote className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0" />
+                                <Coins className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0" />
                                 <span className="text-slate-800 dark:text-gray-300">Physical Cash</span>
                               </>
                             ) : (
                               <>
                                 <CreditCard className="w-3.5 h-3.5 text-sky-600 dark:text-sky-500 shrink-0" />
-                                <span className="text-slate-800 dark:text-gray-300">Bank / UPI</span>
+                                <span className="text-slate-800 dark:text-gray-300">Online UPI</span>
                               </>
                             )}
                           </div>
@@ -2095,310 +1960,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 7. GROUPED ANALYTICS BREAKDOWN: BY CATEGORY                              */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'analytics_category' && (
-        <div className="rounded-[12px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] overflow-hidden shadow-xs">
-          <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#2e2e2e] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                Expenses Aggregated by Category ({categoryAnalytics.length} categories)
-              </h3>
-            </div>
-            <span className="text-xs font-mono text-emerald-600 dark:text-primary font-bold">
-              Σ {formatINR(telemetry.totalAmount)}
-            </span>
-          </div>
-          {categoryAnalytics.length > 0 ? (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-[#141414] border-b border-slate-200 dark:border-[#2e2e2e] text-slate-700 dark:text-gray-400 font-mono text-[11px] font-semibold">
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e]">
-                    <div className="flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Category Name</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-center w-28">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Vouchers</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-right w-36">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Banknote className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Total Spend (₹)</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 text-left w-64">
-                    <div className="flex items-center gap-1.5">
-                      <BarChart3 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Spend Share (%)</span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-[#242424] font-mono">
-                {categoryAnalytics.map((item) => (
-                  <tr
-                    key={item.name}
-                    onClick={() => {
-                      setSelectedCategory(item.name);
-                      setActiveSubTab('grid');
-                    }}
-                    className="hover:bg-slate-50 dark:hover:bg-[#202020] cursor-pointer transition-colors"
-                    title="Click to filter by this category"
-                  >
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] font-sans font-semibold text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        <span>{item.name}</span>
-                        <CornerDownRight className="w-3 h-3 text-slate-400 opacity-50" />
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center text-slate-700 dark:text-gray-300 font-medium">
-                      {item.count}
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right font-bold text-emerald-700 dark:text-primary tabular-nums">
-                      {formatINR(item.total)}
-                    </td>
-                    <td className="py-2.5 px-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 dark:bg-[#141414] h-2 rounded-full overflow-hidden border border-slate-200 dark:border-[#2e2e2e]">
-                          <div
-                            className="bg-primary h-full rounded-full transition-all duration-300"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="w-10 text-right text-[11px] text-slate-600 dark:text-zinc-400 font-medium">
-                          {item.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <EmptyState
-              icon={BarChart3}
-              title="No category expenses found"
-              description="No expense vouchers recorded for any category in this branch yet."
-              actionLabel="Record Expense"
-              onAction={() => setActivePage('new-voucher')}
-              className="py-14"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 8. GROUPED ANALYTICS BREAKDOWN: BY DEPARTMENT                           */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'analytics_dept' && (
-        <div className="rounded-[12px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] overflow-hidden shadow-xs">
-          <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#2e2e2e] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                Expenses Aggregated by Department ({departmentAnalytics.length} departments)
-              </h3>
-            </div>
-            <span className="text-xs font-mono text-emerald-600 dark:text-primary font-bold">
-              Σ {formatINR(telemetry.totalAmount)}
-            </span>
-          </div>
-          {departmentAnalytics.length > 0 ? (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-[#141414] border-b border-slate-200 dark:border-[#2e2e2e] text-slate-700 dark:text-gray-400 font-mono text-[11px] font-semibold">
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e]">
-                    <div className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Department</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-center w-28">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Vouchers</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-right w-36">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Banknote className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Total Spend (₹)</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 text-left w-64">
-                    <div className="flex items-center gap-1.5">
-                      <BarChart3 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Spend Share (%)</span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-[#242424] font-mono">
-                {departmentAnalytics.map((item) => (
-                  <tr
-                    key={item.name}
-                    onClick={() => {
-                      setSelectedDept(item.name);
-                      setActiveSubTab('grid');
-                    }}
-                    className="hover:bg-slate-50 dark:hover:bg-[#202020] cursor-pointer transition-colors"
-                    title="Click to filter by this department"
-                  >
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] font-sans font-semibold text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        <span>{item.name}</span>
-                        <CornerDownRight className="w-3 h-3 text-slate-400 opacity-50" />
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center text-slate-700 dark:text-gray-300 font-medium">
-                      {item.count}
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right font-bold text-emerald-700 dark:text-primary tabular-nums">
-                      {formatINR(item.total)}
-                    </td>
-                    <td className="py-2.5 px-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 dark:bg-[#141414] h-2 rounded-full overflow-hidden border border-slate-200 dark:border-[#2e2e2e]">
-                          <div
-                            className="bg-primary h-full rounded-full transition-all duration-300"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="w-10 text-right text-[11px] text-slate-600 dark:text-zinc-400 font-medium">
-                          {item.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <EmptyState
-              icon={Building2}
-              title="No department expenses found"
-              description="No expense vouchers recorded for any department in this branch yet."
-              actionLabel="Record Expense"
-              onAction={() => setActivePage('new-voucher')}
-              className="py-14"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 9. GROUPED ANALYTICS BREAKDOWN: BY TOP PAYEES                           */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'analytics_payee' && (
-        <div className="rounded-[12px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1a1a1a] overflow-hidden shadow-xs">
-          <div className="p-3 bg-slate-50 dark:bg-[#171717] border-b border-slate-200 dark:border-[#2e2e2e] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-sans">
-                Top Vendors & People Paid (Top {payeeAnalytics.length})
-              </h3>
-            </div>
-            <span className="text-xs font-mono text-emerald-600 dark:text-primary font-bold">
-              Σ {formatINR(telemetry.totalAmount)}
-            </span>
-          </div>
-          {payeeAnalytics.length > 0 ? (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-[#141414] border-b border-slate-200 dark:border-[#2e2e2e] text-slate-700 dark:text-gray-400 font-mono text-[11px] font-semibold">
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e]">
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Recipient / Vendor Name</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] w-40">
-                    <div className="flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Primary Category</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-center w-28">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Vouchers</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#2e2e2e] text-right w-36">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Banknote className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Total Disbursed (₹)</span>
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3.5 text-left w-48">
-                    <div className="flex items-center gap-1.5">
-                      <BarChart3 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
-                      <span>Share (%)</span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-[#242424] font-mono">
-                {payeeAnalytics.map((item, idx) => (
-                  <tr
-                    key={item.name}
-                    onClick={() => {
-                      setSearch(item.name);
-                      setActiveSubTab('grid');
-                    }}
-                    className="hover:bg-slate-50 dark:hover:bg-[#202020] cursor-pointer transition-colors"
-                    title="Click to search all records for this payee"
-                  >
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] font-sans font-semibold text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-xs w-5 font-mono">#{idx + 1}</span>
-                        <span>{item.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-slate-600 dark:text-zinc-400 font-sans text-xs">
-                      {item.category}
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-center text-slate-700 dark:text-gray-300 font-medium">
-                      {item.count}
-                    </td>
-                    <td className="py-2.5 px-3.5 border-r border-slate-200 dark:border-[#242424] text-right font-bold text-emerald-700 dark:text-primary tabular-nums">
-                      {formatINR(item.total)}
-                    </td>
-                    <td className="py-2.5 px-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 dark:bg-[#141414] h-2 rounded-full overflow-hidden border border-slate-200 dark:border-[#2e2e2e]">
-                          <div
-                            className="bg-primary h-full rounded-full transition-all duration-300"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="w-10 text-right text-[11px] text-slate-600 dark:text-zinc-400 font-medium">
-                          {item.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <EmptyState
-              icon={Users}
-              title="No vendor records found"
-              description="No vendors or payees recorded in this branch yet."
-              actionLabel="Record Expense"
-              onAction={() => setActivePage('new-voucher')}
-              className="py-14"
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 };

@@ -10,7 +10,7 @@ import {
   CalendarDays,
   Download,
   ChevronDown,
-  Banknote,
+  Coins,
   Smartphone,
   CheckCircle2,
   Check,
@@ -98,7 +98,7 @@ export const ForensicAuditSection: React.FC<ForensicAuditSectionProps> = ({
 
     let csv = `ASOPALAV ENDEAVOURS LLP - DAILY CASH DRAWER STATEMENT\n`;
     csv += `Generated On: ${format(new Date(), 'dd-MMM-yyyy HH:mm:ss')}\n`;
-    csv += `Showroom: ${selectedBranchId} | Verified Cash: ${formatINR(currentCash)} | Bank UPI: ${formatINR(currentUpi)}\n\n`;
+    csv += `Showroom: ${selectedBranchId} | Verified Cash: ${formatINR(currentCash)} | Online UPI: ${formatINR(currentUpi)}\n\n`;
 
     csv += `Date,Opening Balance (INR),Inflows Top-ups (INR),Outflows Vouchers (INR),Day Net Flow (INR),Closing Balance (INR),Transaction Count\n`;
 
@@ -185,7 +185,7 @@ export const ForensicAuditSection: React.FC<ForensicAuditSectionProps> = ({
             <div className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#1f1f23] border border-slate-200/80 dark:border-[#2a2a30] flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[11px] text-slate-500 dark:text-[#8E8E93] font-medium flex items-center gap-1.5">
-                  <Banknote className="w-3.5 h-3.5 text-amber-500" />
+                  <Coins className="w-3.5 h-3.5 text-amber-500" />
                   Physical Cash Drawer
                 </span>
                 <p className="text-sm font-semibold font-mono text-slate-900 dark:text-white tabular-nums">
@@ -201,14 +201,14 @@ export const ForensicAuditSection: React.FC<ForensicAuditSectionProps> = ({
               <div className="space-y-0.5">
                 <span className="text-[11px] text-slate-500 dark:text-[#8E8E93] font-medium flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-                  Bank UPI Float
+                  Online UPI Float
                 </span>
                 <p className="text-sm font-semibold font-mono text-slate-900 dark:text-white tabular-nums">
                   {formatINR(currentUpi)}
                 </p>
               </div>
               <span className="text-[10px] px-2 py-0.5 rounded-[4px] bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono font-medium">
-                In Bank Account
+                In UPI Account
               </span>
             </div>
 

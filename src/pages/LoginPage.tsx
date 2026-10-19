@@ -411,7 +411,7 @@ export const LoginPage: React.FC = () => {
       {/* FOOTER: COPYRIGHT & PROTOCOL INFO                                         */}
       {/* ========================================================================= */}
       <div className="w-full max-w-4xl mx-auto text-center py-2 text-[11px] text-[#707070] dark:text-[#8E8E93] font-sans bg-transparent">
-        <span>Protected by Asopalav Security & SHA-256 Ledger</span>
+        <span>Protected by Asopalav Role-Based Security</span>
       </div>
 
       {/* ========================================================================= */}

@@ -10,7 +10,6 @@ import {
   Search,
   X,
   Calendar,
-  Download,
   Printer,
   ArrowDownLeft,
   ArrowUpRight,
@@ -279,54 +278,6 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
 
-  const handleExportPassbookCSV = () => {
-    triggerHaptic('success');
-
-    let csv = `ASOPALAV ENDEAVOURS LLP - TREASURY PASSBOOK REGISTER\n`;
-    csv += `Exported On: ${formatDateFns(new Date(), 'dd-MMM-yyyy HH:mm:ss')}\n`;
-    csv += `Branch: ${selectedBranchId} | Verified Drawer Cash: ${formatINR(currentCashBalance)} | Bank UPI: ${formatINR(currentUpiBalance)}\n`;
-    csv += `Filter Scope: ${scopeFilter} | Channel: ${channelFilter} | Date: ${dateBounds.label}\n\n`;
-
-    csv += `Line #,Date & Time,Account Channel,Voucher / Slip #,Particulars & Description,Category,Payee / Vendor,Withdrawal Debit (INR),Deposit Credit (INR),Running Balance (INR),Cashier / Handled By\n`;
-
-    filteredEntries.forEach((entry, idx) => {
-      const credit = Number(entry.credit_amount) || 0;
-      const debit = Number(entry.debit_amount) || 0;
-      const parsed = parseLedgerNotes(entry.remarks);
-      const isUpi = entry.wallet_type === 'UPI';
-      const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
-      const balances = entriesWithRunningBalance.get(entryKey);
-      const runningBal = isUpi ? balances?.runningUpi : balances?.runningCash;
-      const vInfo = entry.reference_number ? voucherMap.get(entry.reference_number) : null;
-
-      const dateStr = formatDate(entry.created_at, 'dd-MMM-yyyy HH:mm:ss');
-      const channel = isUpi ? 'Bank UPI' : 'Cash Drawer Till';
-      const refNo = entry.reference_number || entry.id || '';
-      const particular = (parsed.title || '').replace(/"/g, '""');
-      const category = (vInfo?.category_name || '').replace(/"/g, '""');
-      const payee = (vInfo?.recipient_name || '').replace(/"/g, '""');
-      const cashier = (entry.cashier_name || '').replace(/"/g, '""');
-
-      csv += `${idx + 1},"${dateStr}","${channel}","${refNo}","${particular}","${category}","${payee}",${debit.toFixed(2)},${credit.toFixed(2)},${(runningBal || 0).toFixed(2)},"${cashier}"\n`;
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `asopalav_treasury_passbook_${formatDateFns(new Date(), 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    showToast({
-      type: 'success',
-      title: 'Passbook CSV Exported',
-      message: `${filteredEntries.length} records downloaded.`,
-    });
-  };
-
   const handlePrint = () => {
     triggerHaptic('selection');
     window.print();
@@ -360,17 +311,8 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Export CSV & Print */}
+        {/* Action Controls: Print */}
         <div className="flex items-center gap-2 self-end sm:self-center">
-          <button
-            type="button"
-            onClick={handleExportPassbookCSV}
-            className="h-8 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#202024] text-slate-700 dark:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#282828] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-            title="Export as CSV for Excel / CA"
-          >
-            <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
-            <span>Export CSV</span>
-          </button>
 
           <button
             type="button"
@@ -412,7 +354,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
             )}
           </div>
 
-          {/* Account Channel Selector (Cash Drawer vs Bank UPI) */}
+          {/* Account Channel Selector (Cash Drawer vs Online UPI) */}
           <div className="inline-flex rounded-[6px] p-0.5 bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#282828] shrink-0 text-xs">
             <button
               type="button"
@@ -464,7 +406,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
               )}
             >
               <Building2 className="w-3 h-3 text-blue-500" />
-              <span>Bank UPI</span>
+              <span>Online UPI</span>
             </button>
           </div>
         </div>
@@ -724,7 +666,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
                           )}
                         >
                           {isUpi ? <Building2 className="w-3 h-3" /> : <Coins className="w-3 h-3" />}
-                          <span>{entry.wallet_type === 'UPI' ? 'Bank UPI' : 'Cash Drawer'}</span>
+                          <span>{entry.wallet_type === 'UPI' ? 'Online UPI' : 'Cash Drawer'}</span>
                         </span>
                       </td>
 
@@ -774,7 +716,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
                             {formatINR(runningBal !== undefined ? runningBal : (Number(entry.running_balance) || 0))}
                           </span>
                           <span className="text-[9.5px] font-sans text-slate-400 dark:text-[#737373]">
-                            {isUpi ? 'Bank Bal' : 'Till Bal'}
+                            {isUpi ? 'UPI Bal' : 'Till Bal'}
                           </span>
                         </div>
                       </td>

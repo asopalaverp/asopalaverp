@@ -32,9 +32,6 @@ const StaffAdvancesPage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage }))
 );
-const SecurityAuditPage = lazy(() =>
-  import('@/pages/SecurityAuditPage').then((m) => ({ default: m.SecurityAuditPage }))
-);
 const StaffDirectoryPage = lazy(() =>
   import('@/pages/StaffDirectoryPage').then((m) => ({ default: m.StaffDirectoryPage }))
 );
@@ -43,9 +40,6 @@ const ShowroomSettingsPage = lazy(() =>
 );
 const ProfileSecurityPage = lazy(() =>
   import('@/pages/ProfileSecurityPage').then((m) => ({ default: m.ProfileSecurityPage }))
-);
-const NotificationsPage = lazy(() =>
-  import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage }))
 );
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 import { AppErrorBoundary } from '@/components/common/AppErrorBoundary';
@@ -417,16 +411,15 @@ export const App: React.FC = () => {
         return <StaffAdvancesPage />;
       case 'reports':
         return <ReportsPage />;
-      case 'audit':
-        return <SecurityAuditPage />;
       case 'staff':
         return <StaffDirectoryPage />;
       case 'settings':
         return <ShowroomSettingsPage />;
       case 'profile':
         return <ProfileSecurityPage />;
+      case 'audit':
       case 'notifications':
-        return <NotificationsPage />;
+        return <DashboardPage />;
       case '404':
         return <NotFoundPage />;
       default:
