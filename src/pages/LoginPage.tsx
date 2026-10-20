@@ -146,7 +146,6 @@ export const LoginPage: React.FC = () => {
       const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqr';
       const verifyCredential = (plain: string, storedHash?: string | null): boolean => {
         if (!storedHash || !plain) return false;
-        if (storedHash === plain) return true;
         if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
           try {
             return bcrypt.compareSync(plain, storedHash);
@@ -154,6 +153,7 @@ export const LoginPage: React.FC = () => {
             return false;
           }
         }
+        if (import.meta.env.DEV && storedHash === plain) return true;
         return false;
       };
 

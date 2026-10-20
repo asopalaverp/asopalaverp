@@ -118,23 +118,6 @@ const getAdvanceAgeing = (advanceDate: string, status: string) => {
   return { days, category: 'overdue_15', label: `${days}d (Overdue)`, isOverdue: true };
 };
 
-function downloadBlob(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function generateAdvanceSqlInsert(a: StaffAdvance): string {
-  const esc = (val?: string | null) => (val ? `'${val.replace(/'/g, "''")}'` : 'NULL');
-  return `INSERT INTO staff_advances (id, receipt_number, branch_code, advance_date, staff_name, staff_code, department_name, payment_method, advance_amount, bills_submitted_amount, cash_returned_amount, unsettled_balance, status, purpose) VALUES (${esc(a.id)}, ${esc(a.receipt_number)}, ${esc(a.branch_code)}, ${esc(a.advance_date)}, ${esc(a.staff_name)}, ${esc(a.staff_code)}, ${esc(a.department_name)}, ${esc(a.payment_method)}, ${Number(a.advance_amount) || 0}, ${Number(a.bills_submitted_amount) || 0}, ${Number(a.cash_returned_amount) || 0}, ${Number(a.unsettled_balance) || 0}, ${esc(a.status)}, ${esc(a.purpose)});`;
-}
-
 export const StaffAdvancesPage: React.FC = () => {
   const { setAdvanceModalOpen, setSettleTargetAdvance, setActivePage } = useUIStore();
   const { user, can } = useAuthStore();

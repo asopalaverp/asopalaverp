@@ -11,7 +11,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { formatINR, formatCompactINR, numberToWordsINR, formatDate, formatVoucherNumber, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
 import { confirmDialog } from '@/store/dialogStore';
 import { DailyEodTillModal } from '@/components/treasury/DailyEodTillModal';
-import { ForensicAuditSection } from '@/components/treasury/ForensicAuditSection';
+import { DailyCashDrawerStatement } from '@/components/treasury/DailyCashDrawerStatement';
 import { TreasuryPassbookTable } from '@/components/treasury/TreasuryPassbookTable';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -124,18 +124,6 @@ function parseLedgerNotes(remarks?: string) {
   }
 
   return { title, chips, modeDetails };
-}
-
-function downloadBlob(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export const CashDrawerTreasuryPage: React.FC = () => {
@@ -1212,7 +1200,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
       </div>
 
       {/* 4. Verified Day-by-Day Cash Statement */}
-      <ForensicAuditSection
+      <DailyCashDrawerStatement
         ledgerEntries={allLedgerEntries}
         currentCashBalance={currentCashBalance}
         currentUpiBalance={currentUpiBalance}
@@ -1220,7 +1208,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
         onSelectDate={setSelectedDayFilter}
         selectedDate={selectedDayFilter}
         defaultExpanded={true}
-        contextTitle="Cash Drawer & UPI Treasury Day-by-Day Statement"
+        contextTitle="Cash Drawer & UPI Day-by-Day Statement"
       />
 
       {/* 5. Full Cash Passbook Register & Advance Table */}

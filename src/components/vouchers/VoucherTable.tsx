@@ -167,18 +167,6 @@ const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'actions', label: 'Tools' },
 ];
 
-function downloadBlob(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
 export const VoucherTable: React.FC<VoucherTableProps> = ({
   vouchers,
   categories,
@@ -234,7 +222,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
 
   // Popovers & Feedback State
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
 
@@ -264,16 +251,12 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
-  const exportRef = useRef<HTMLDivElement | null>(null);
   const columnPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Global mutual exclusivity dropdown listener
   useEffect(() => {
     const handleGlobalDropdownOpen = (e: Event) => {
       const customEvt = e as CustomEvent<string>;
-      if (customEvt.detail !== 'voucher-export') {
-        setIsExportMenuOpen(false);
-      }
       if (customEvt.detail !== 'voucher-columns') {
         setIsColumnPickerOpen(false);
       }
@@ -288,9 +271,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   // Close popovers on outside click and ESC key
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
       if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
         setIsColumnPickerOpen(false);
       }
@@ -305,7 +285,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setIsFilterOpen(false);
-        setIsExportMenuOpen(false);
         setIsColumnPickerOpen(false);
         setActiveRowDropdownId(null);
       }
@@ -326,7 +305,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       setIsColumnPickerOpen(false);
     } else {
       setIsFilterOpen(false);
-      setIsExportMenuOpen(false);
       setActiveRowDropdownId(null);
       setIsColumnPickerOpen(true);
       openExclusivePopover('voucher-columns');
@@ -338,22 +316,9 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
       setIsFilterOpen(false);
     } else {
       setIsColumnPickerOpen(false);
-      setIsExportMenuOpen(false);
       setActiveRowDropdownId(null);
       setIsFilterOpen(true);
       openExclusivePopover('voucher-filter');
-    }
-  };
-
-  const handleToggleExport = () => {
-    if (isExportMenuOpen) {
-      setIsExportMenuOpen(false);
-    } else {
-      setIsFilterOpen(false);
-      setIsColumnPickerOpen(false);
-      setActiveRowDropdownId(null);
-      setIsExportMenuOpen(true);
-      openExclusivePopover('voucher-export');
     }
   };
 
@@ -662,84 +627,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     setSelectedIds(new Set());
   };
 
-  // Export handlers
-  const getExportData = () => {
-    return selectedIds.size > 0
-      ? filteredVouchers.filter((v) => selectedIds.has(v.id))
-      : filteredVouchers;
-  };
-
-  const handleExportCSV = async () => {
-    const list = getExportData();
-    const splitsMap: Record<string, any[]> = {};
-    for (const v of list) {
-      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
-        const splits = await erpService.getVoucherSplits(v.voucher_number);
-        if (splits && splits.length > 0) {
-          splitsMap[v.voucher_number] = splits;
-        }
-      }
-    }
-
-    const csvDataUri = erpService.generateComprehensiveVoucherCSV(list, splitsMap);
-    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
-    downloadBlob(
-      `Asopalav_Expenses_Master_${new Date().toISOString().slice(0, 10)}.csv`,
-      '\uFEFF' + cleanCsv,
-      'text/csv;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Master CSV Exported',
-      message: `Exported ${list.length} vouchers with full 28+ fields.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportItemizedSplitsCSV = async () => {
-    const list = getExportData();
-    const splitsMap: Record<string, any[]> = {};
-    for (const v of list) {
-      if (v.payment_type === 'Staff_Split' || v.recipient_name?.includes('Staff')) {
-        const splits = await erpService.getVoucherSplits(v.voucher_number);
-        if (splits && splits.length > 0) {
-          splitsMap[v.voucher_number] = splits;
-        }
-      }
-    }
-
-    const csvDataUri = erpService.generateItemizedSplitCSV(list, splitsMap);
-    const cleanCsv = csvDataUri.replace(/^data:text\/csv;charset=utf-8,\uFEFF?/, '');
-    downloadBlob(
-      `Asopalav_Itemized_Split_Schedule_${new Date().toISOString().slice(0, 10)}.csv`,
-      '\uFEFF' + cleanCsv,
-      'text/csv;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Itemized Schedule Exported',
-      message: `Exported itemized line-by-line split breakdown for ${list.length} vouchers.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-
-  const handleExportJSON = () => {
-    const list = getExportData();
-    const jsonContent = JSON.stringify(list, null, 2);
-    downloadBlob(
-      `Asopalav_Expenses_Dataset_${new Date().toISOString().slice(0, 10)}.json`,
-      jsonContent,
-      'application/json;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'JSON Dataset Exported',
-      message: `Exported ${list.length} raw voucher records.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -756,7 +643,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
 
       if (e.key === 'Escape') {
         if (isFilterOpen) setIsFilterOpen(false);
-        if (isExportMenuOpen) setIsExportMenuOpen(false);
         if (isColumnPickerOpen) setIsColumnPickerOpen(false);
         if (activeRowDropdownId) setActiveRowDropdownId(null);
         if (search) setSearch('');
@@ -780,9 +666,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
           e.preventDefault();
           const targetVoucher = paginatedVouchers[focusedIndex];
           if (targetVoucher) openDrawer(targetVoucher);
-        } else if (e.key === 'e' || e.key === 'E') {
-          e.preventDefault();
-          setIsExportMenuOpen((prev) => !prev);
         }
       }
     };
@@ -791,7 +674,6 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isFilterOpen,
-    isExportMenuOpen,
     isColumnPickerOpen,
     activeRowDropdownId,
     search,
@@ -1404,24 +1286,8 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleExportCSV}
-              className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white hover:border-primary transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Download className="w-3.5 h-3.5 text-primary" />
-              <span>Export CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportJSON}
-              className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] text-xs font-sans text-slate-900 dark:text-white hover:border-primary transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Code className="w-3.5 h-3.5 text-sky-500" />
-              <span>Export JSON</span>
-            </button>
-            <button
-              type="button"
               onClick={handleClearSelection}
-              className="px-2.5 py-1.5 rounded-[6px] text-xs font-sans text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer"
+              className="px-2.5 py-1.5 rounded-[6px] text-xs font-sans text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white transition-colors cursor-pointer border border-slate-200 dark:border-[#2e2e2e]"
             >
               Deselect All
             </button>

@@ -1085,17 +1085,6 @@ export const StaffDirectoryPage: React.FC = () => {
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin text-[#3ecf8e]')} />
             </button>
 
-            {/* Export CSV Direct Action */}
-            <button
-              type="button"
-              onClick={() => handleExportData('csv')}
-              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200/80 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.06] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] hover:bg-black/[0.06] dark:hover:bg-white/[0.1] text-xs font-medium font-sans flex items-center gap-1.5 transition-all cursor-pointer shadow-xs select-none"
-              title="Export records to CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
-
             {/* Single Primary Emerald CTA */}
             {activeTab === 'logins' ? (
               <button
@@ -2157,21 +2146,12 @@ export const StaffDirectoryPage: React.FC = () => {
         {/* Floating Batch Actions Dock (When Rows Selected) */}
         {selectedIds.size > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-[12px] bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-white shadow-2xl border border-slate-200 dark:border-[#2e2e2e] flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
-            <div className="flex items-center gap-2 pr-3 border-r border-slate-200 dark:border-[#2e2e2e]">
+            <div className="flex items-center gap-2 pr-3">
               <span className="w-2 h-2 rounded-full bg-[#3ecf8e] animate-pulse" />
               <span className="font-mono font-semibold text-xs tabular-nums text-slate-900 dark:text-white">
                 {selectedIds.size} Selected
               </span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => handleExportData('csv')}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#222222] hover:bg-slate-100 dark:hover:bg-[#282828] text-xs font-mono transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-              <span>Export CSV</span>
-            </button>
 
             <button
               type="button"

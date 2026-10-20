@@ -25,6 +25,7 @@ import {
   StaffMember,
   Department,
   SecurityAuditLog,
+  GstTaxRate,
 } from '@/types/database';
 
 export const isPrivilegedAdminRole = (role?: string | null): boolean => {
@@ -937,7 +938,7 @@ class ERPService {
     if (paymentMethod !== 'Physical_Cash' || useOverrideStore.getState().is40A3ExceededAllowed()) {
       return { isCompliant: true, limit: Infinity, exceeded: false };
     }
-    // Section 40A(3): ₹10,000 cash limit. Courier/GTA exemption u/s 40A(3A): ₹35,000.
+    // ₹10,000 cash limit rule. Courier exemption: ₹35,000.
     const limit = paymentType === 'Courier' ? 35000 : 10000;
     const exceeded = amount > limit;
     return {
@@ -945,7 +946,7 @@ class ERPService {
       limit,
       exceeded,
       reason: exceeded
-        ? `Income Tax Section 40A(3) Notice: Cash payments above ₹${limit.toLocaleString('en-IN')} cannot be claimed as business expense. Switch to Online UPI QR.`
+        ? `Cash Limit Notice: Payments above ₹${limit.toLocaleString('en-IN')} in cash require Manager Approval or should be paid via UPI / Bank Transfer.`
         : undefined,
     };
   }
@@ -5345,6 +5346,371 @@ class ERPService {
         insertedCount: 0,
         message: err.message || 'Failed to import master data.',
       };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 13. EOD TILL CLOSING & DENOMINATION LOCKS (DATABASE PERSISTENT)
+  // --------------------------------------------------------------------------
+  async saveEodTillLock(lockData: import('@/types/database').EodTillLockRecord): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const payload = {
+        branch_id: lockData.branch_id,
+        lock_date: lockData.lock_date,
+        slip_id: lockData.slip_id,
+        system_cash_balance: lockData.system_cash_balance,
+        physical_counted_cash: lockData.physical_counted_cash,
+        cash_variance: lockData.cash_variance,
+        is_balanced: lockData.is_balanced,
+        denominations: lockData.denominations,
+        cashier_name: lockData.cashier_name,
+        supervisor_name: lockData.supervisor_name,
+        notes: lockData.notes || null,
+        locked_at: lockData.locked_at || new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('eod_till_locks')
+        .upsert([payload], { onConflict: 'branch_id,lock_date' })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('Database saveEodTillLock notice, keeping local copy:', error.message);
+      }
+
+      try {
+        localStorage.setItem(`asopalav_eod_lock_${lockData.lock_date}_${lockData.branch_id}`, JSON.stringify(lockData));
+      } catch {}
+
+      return { success: true, data: data || lockData };
+    } catch (err: any) {
+      console.warn('EOD Lock save fallback to local:', err);
+      try {
+        localStorage.setItem(`asopalav_eod_lock_${lockData.lock_date}_${lockData.branch_id}`, JSON.stringify(lockData));
+      } catch {}
+      return { success: true, data: lockData };
+    }
+  }
+
+  async getEodTillLock(branchId: string, lockDate: string): Promise<import('@/types/database').EodTillLockRecord | null> {
+    try {
+      const { data, error } = await supabase
+        .from('eod_till_locks')
+        .select('*')
+        .eq('branch_id', branchId)
+        .eq('lock_date', lockDate)
+        .maybeSingle();
+
+      if (!error && data) {
+        return {
+          id: data.id,
+          branch_id: data.branch_id,
+          lock_date: data.lock_date,
+          slip_id: data.slip_id,
+          system_cash_balance: Number(data.system_cash_balance) || 0,
+          physical_counted_cash: Number(data.physical_counted_cash) || 0,
+          cash_variance: Number(data.cash_variance) || 0,
+          is_balanced: data.is_balanced,
+          denominations: data.denominations || {},
+          cashier_name: data.cashier_name,
+          supervisor_name: data.supervisor_name,
+          notes: data.notes,
+          locked_at: data.locked_at,
+          created_at: data.created_at,
+        };
+      }
+    } catch (e) {
+      console.warn('getEodTillLock DB lookup error:', e);
+    }
+
+    try {
+      const raw = localStorage.getItem(`asopalav_eod_lock_${lockDate}_${branchId}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+
+    return null;
+  }
+
+  async getAllEodTillLocks(branchId?: string, limit = 60): Promise<import('@/types/database').EodTillLockRecord[]> {
+    try {
+      let query = supabase
+        .from('eod_till_locks')
+        .select('*')
+        .order('lock_date', { ascending: false })
+        .limit(limit);
+
+      if (branchId && branchId !== 'ALL') {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          branch_id: d.branch_id,
+          lock_date: d.lock_date,
+          slip_id: d.slip_id,
+          system_cash_balance: Number(d.system_cash_balance) || 0,
+          physical_counted_cash: Number(d.physical_counted_cash) || 0,
+          cash_variance: Number(d.cash_variance) || 0,
+          is_balanced: d.is_balanced,
+          denominations: d.denominations || {},
+          cashier_name: d.cashier_name,
+          supervisor_name: d.supervisor_name,
+          notes: d.notes,
+          locked_at: d.locked_at,
+          created_at: d.created_at,
+        }));
+      }
+    } catch (e) {
+      console.warn('getAllEodTillLocks DB query fallback:', e);
+    }
+
+    const locks: import('@/types/database').EodTillLockRecord[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('asopalav_eod_lock_')) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+            if (parsed && (!branchId || branchId === 'ALL' || parsed.branchId === branchId || parsed.branch_id === branchId)) {
+              locks.push(parsed);
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    return locks;
+  }
+
+  // --------------------------------------------------------------------------
+  // BATCH VOUCHER SPLITS LOOKUP (FOR TALLY & SPLIT SCHEDULE REPORT)
+  // --------------------------------------------------------------------------
+  async getSplitsForVouchers(voucherNumbers: string[]): Promise<Record<string, VoucherSplit[]>> {
+    if (!voucherNumbers || voucherNumbers.length === 0) return {};
+    const splitsMap: Record<string, VoucherSplit[]> = {};
+    try {
+      const cleanNumbers = Array.from(new Set(voucherNumbers.filter(Boolean)));
+      if (cleanNumbers.length === 0) return {};
+
+      const { data, error } = await supabase
+        .from('voucher_splits')
+        .select('*')
+        .in('voucher_number', cleanNumbers)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        data.forEach((s: any) => {
+          if (!splitsMap[s.voucher_number]) {
+            splitsMap[s.voucher_number] = [];
+          }
+          splitsMap[s.voucher_number].push({
+            id: s.id,
+            voucher_number: s.voucher_number,
+            branch_id: s.branch_id,
+            branch_code: s.branch_code,
+            staff_code: s.staff_code,
+            staff_name: s.staff_name,
+            department_name: s.department_name,
+            category_name: s.category_name,
+            amount: Number(s.amount) || 0,
+            created_at: s.created_at,
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('getSplitsForVouchers error:', e);
+    }
+    return splitsMap;
+  }
+
+  // --------------------------------------------------------------------------
+  // DYNAMIC GST TAX SLABS (SUPABASE BACKED)
+  // --------------------------------------------------------------------------
+  async getGstTaxRates(onlyActive: boolean = false): Promise<GstTaxRate[]> {
+    try {
+      let query = supabase
+        .from('gst_tax_rates')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (onlyActive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          rate_percent: Number(d.rate_percent),
+          rate_label: d.rate_label,
+          is_active: Boolean(d.is_active),
+          display_order: Number(d.display_order) || 0,
+          created_at: d.created_at,
+          updated_at: d.updated_at,
+        }));
+        try {
+          localStorage.setItem('asopalav_gst_tax_rates_cache', JSON.stringify(mapped));
+        } catch {}
+        return mapped;
+      }
+
+      // If table exists in Supabase but has 0 records, attempt automatic seed
+      if (!error && data && data.length === 0) {
+        try {
+          const defaultSeed = [
+            { rate_percent: 5, rate_label: '5% (Fabric & Saree Alterations)', is_active: true, display_order: 1 },
+            { rate_percent: 12, rate_label: '12% (Readymade Apparel & Packaging)', is_active: true, display_order: 2 },
+            { rate_percent: 18, rate_label: '18% (Standard Services & Repairs)', is_active: true, display_order: 3 },
+            { rate_percent: 28, rate_label: '28% (Luxury Goods & Special GTA)', is_active: true, display_order: 4 },
+          ];
+          const { data: seeded, error: seedErr } = await supabase
+            .from('gst_tax_rates')
+            .insert(defaultSeed)
+            .select();
+          if (!seedErr && seeded && seeded.length > 0) {
+            const mapped = seeded.map((d: any) => ({
+              id: d.id,
+              rate_percent: Number(d.rate_percent),
+              rate_label: d.rate_label,
+              is_active: Boolean(d.is_active),
+              display_order: Number(d.display_order) || 0,
+              created_at: d.created_at,
+              updated_at: d.updated_at,
+            }));
+            try {
+              localStorage.setItem('asopalav_gst_tax_rates_cache', JSON.stringify(mapped));
+            } catch {}
+            return onlyActive ? mapped.filter((s) => s.is_active) : mapped;
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('gst_tax_rates DB query error, using defaults:', e);
+    }
+
+    // Default standard slabs if table is not yet migrated or offline
+    let baseSlabs: GstTaxRate[] = [
+      { id: 'gst-5', rate_percent: 5, rate_label: '5% (Fabric & Saree Alterations)', is_active: true, display_order: 1 },
+      { id: 'gst-12', rate_percent: 12, rate_label: '12% (Readymade Apparel & Packaging)', is_active: true, display_order: 2 },
+      { id: 'gst-18', rate_percent: 18, rate_label: '18% (Standard Services & Repairs)', is_active: true, display_order: 3 },
+      { id: 'gst-28', rate_percent: 28, rate_label: '28% (Luxury Goods & Special GTA)', is_active: true, display_order: 4 },
+    ];
+
+    try {
+      const cached = localStorage.getItem('asopalav_gst_tax_rates_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          baseSlabs = parsed;
+        }
+      }
+    } catch {}
+
+    return onlyActive ? baseSlabs.filter((s) => s.is_active) : baseSlabs;
+  }
+
+  async toggleGstRateStatus(id: string, isActive: boolean, userName: string, userRole: string): Promise<boolean> {
+    try {
+      let query = supabase
+        .from('gst_tax_rates')
+        .update({ is_active: isActive, updated_at: new Date().toISOString() });
+
+      if (id && !id.startsWith('gst-')) {
+        query = query.eq('id', id);
+      } else {
+        const percent = Number(id.replace('gst-', ''));
+        if (!isNaN(percent)) {
+          query = query.eq('rate_percent', percent);
+        }
+      }
+
+      await query;
+    } catch (e) {
+      console.warn('toggleGstRateStatus DB error:', e);
+    }
+
+    // Always keep local cache in sync so UI immediately updates
+    try {
+      const cached = localStorage.getItem('asopalav_gst_tax_rates_cache');
+      let slabs: GstTaxRate[] = cached ? JSON.parse(cached) : [
+        { id: 'gst-5', rate_percent: 5, rate_label: '5% (Fabric & Saree Alterations)', is_active: true, display_order: 1 },
+        { id: 'gst-12', rate_percent: 12, rate_label: '12% (Readymade Apparel & Packaging)', is_active: true, display_order: 2 },
+        { id: 'gst-18', rate_percent: 18, rate_label: '18% (Standard Services & Repairs)', is_active: true, display_order: 3 },
+        { id: 'gst-28', rate_percent: 28, rate_label: '28% (Luxury Goods & Special GTA)', is_active: true, display_order: 4 },
+      ];
+      slabs = slabs.map((s) => {
+        if (s.id === id || (id.startsWith('gst-') && s.rate_percent === Number(id.replace('gst-', '')))) {
+          return { ...s, is_active: isActive };
+        }
+        return s;
+      });
+      localStorage.setItem('asopalav_gst_tax_rates_cache', JSON.stringify(slabs));
+    } catch {}
+
+    await logSecurityEvent({
+      userName,
+      userRole,
+      actionType: 'Update_Master_Data' as any,
+      targetEntity: 'gst_tax_rates',
+      targetIdentifier: id,
+      eventDescription: `${isActive ? 'Enabled' : 'Disabled'} GST tax slab ID ${id}`,
+      justification: 'Showroom tax configuration updated by admin',
+    });
+
+    return true;
+  }
+
+  async saveGstTaxRate(
+    rate: Partial<GstTaxRate>,
+    userName: string,
+    userRole: string
+  ): Promise<{ success: boolean; data?: GstTaxRate; error?: string }> {
+    try {
+      const payload = {
+        rate_percent: Number(rate.rate_percent),
+        rate_label: rate.rate_label || `${rate.rate_percent}% GST Slab`,
+        is_active: rate.is_active ?? true,
+        display_order: Number(rate.display_order) || 0,
+        updated_at: new Date().toISOString(),
+      };
+
+      let result: any;
+      if (rate.id && !rate.id.startsWith('gst-')) {
+        const { data, error } = await supabase
+          .from('gst_tax_rates')
+          .update(payload)
+          .eq('id', rate.id)
+          .select()
+          .single();
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await supabase
+          .from('gst_tax_rates')
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        result = data;
+      }
+
+      await logSecurityEvent({
+        userName,
+        userRole,
+        actionType: (rate.id ? 'Update_Master_Data' : 'Create_Master_Data') as any,
+        targetEntity: 'gst_tax_rates',
+        targetIdentifier: String(rate.rate_percent),
+        eventDescription: `Saved GST slab ${rate.rate_percent}% (${payload.rate_label})`,
+        justification: 'Admin updated GST tax master data',
+      });
+
+      return { success: true, data: result };
+    } catch (e: any) {
+      console.warn('saveGstTaxRate error:', e);
+      return { success: false, error: e.message || 'Failed to save GST rate' };
     }
   }
 }

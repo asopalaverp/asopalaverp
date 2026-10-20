@@ -30,9 +30,13 @@ export const reinitializeSupabase = (url: string, key: string): SupabaseClient =
     throw new Error('Invalid Supabase URL. Only *.supabase.co project URLs are accepted.');
   }
 
-  // Validate: anon/service key must look like a JWT (starts with 'ey')
-  if (!trimmedKey.startsWith('ey') || trimmedKey.length < 100) {
-    console.error('[Security] reinitializeSupabase blocked: Key does not look like a valid JWT.');
+  // Validate: anon/publishable key must look like a valid Supabase key (starts with 'sb_publishable_' or JWT 'ey')
+  const isKeyFormatValid =
+    (trimmedKey.startsWith('sb_publishable_') && trimmedKey.length > 20) ||
+    (trimmedKey.startsWith('ey') && trimmedKey.length > 50);
+
+  if (!isKeyFormatValid) {
+    console.error('[Security] reinitializeSupabase blocked: Key does not look like a valid Supabase key format.');
     throw new Error('Invalid Supabase key format.');
   }
 

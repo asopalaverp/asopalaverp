@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   ShieldCheck,
@@ -15,8 +15,10 @@ import {
 import { formatINR, numberToWordsINR, triggerHaptic } from '@/lib/utils';
 import { logSecurityEvent } from '@/lib/audit';
 import { useAuthStore } from '@/store/authStore';
+import { erpService } from '@/lib/erpService';
 
 interface DenominationCounts {
+  [key: string]: number;
   c500: number;
   c200: number;
   c100: number;
@@ -83,9 +85,44 @@ export const DailyEodTillModal: React.FC<DailyEodTillModalProps> = ({
   const activeUserName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email?.split('@')[0] || 'Store Manager';
   const [counterStaffName, setCounterStaffName] = useState(activeUserName);
   const [supervisorName, setSupervisorName] = useState(activeUserName);
-  const [handoverNote, setHandoverNote] = useState('Day-end physical till reconciliation and safe handover');
+  const [handoverNote, setHandoverNote] = useState('Day-end physical till reconciliation and drawer handover');
   const [isLocked, setIsLocked] = useState(false);
   const [lockedSlip, setLockedSlip] = useState<any | null>(null);
+
+  // Check if today's till is already locked in DB or local storage
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    async function checkExistingLock() {
+      try {
+        const existing = await erpService.getEodTillLock(branchId, todayStr);
+        if (isMounted && existing) {
+          setIsLocked(true);
+          setLockedSlip({
+            slipId: existing.slip_id,
+            branchId: existing.branch_id,
+            branchCode,
+            date: existing.lock_date,
+            systemBalance: existing.system_cash_balance,
+            physicalCounted: existing.physical_counted_cash,
+            variance: existing.cash_variance,
+            isBalanced: existing.is_balanced,
+            denominations: existing.denominations,
+            cashier: existing.cashier_name,
+            supervisor: existing.supervisor_name,
+            note: existing.notes || '',
+            lockedAt: existing.locked_at || existing.created_at,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to check existing EOD lock:', e);
+      }
+    }
+    checkExistingLock();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, branchId, branchCode, todayStr]);
 
   const totalCounted = useMemo(() => {
     return (
@@ -146,12 +183,23 @@ export const DailyEodTillModal: React.FC<DailyEodTillModalProps> = ({
       lockedAt: new Date().toISOString(),
     };
 
-    // Save to local storage for persistent EOD record
-    try {
-      localStorage.setItem(`asopalav_eod_lock_${todayStr}_${branchId}`, JSON.stringify(slipData));
-    } catch {}
+    // 1. Save to database eod_till_locks & local storage backup
+    await erpService.saveEodTillLock({
+      branch_id: branchId,
+      lock_date: todayStr,
+      slip_id: slipId,
+      system_cash_balance: systemCashBalance,
+      physical_counted_cash: totalCounted,
+      cash_variance: variance,
+      is_balanced: isPerfectMatch,
+      denominations: counts,
+      cashier_name: counterStaffName.trim() || activeUserName,
+      supervisor_name: supervisorName.trim() || activeUserName,
+      notes: handoverNote.trim(),
+      locked_at: new Date().toISOString(),
+    });
 
-    // Immutable security audit event with IP & device telemetry
+    // 2. Immutable security audit event with IP & device context
     await logSecurityEvent({
       userName: supervisorName || activeUserName,
       userRole: 'Store_Manager',

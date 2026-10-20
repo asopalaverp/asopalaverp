@@ -280,7 +280,103 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
 
   const handlePrint = () => {
     triggerHaptic('selection');
-    window.print();
+    const printWin = window.open('', '_blank', 'width=900,height=800');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    const rows = filteredEntries
+      .map((entry, idx) => {
+        const credit = Number(entry.credit_amount) || 0;
+        const debit = Number(entry.debit_amount) || 0;
+        const isUpi = entry.wallet_type === 'UPI';
+        const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
+        const balances = entriesWithRunningBalance.get(entryKey);
+        const runningBal = isUpi ? balances?.runningUpi : balances?.runningCash;
+        const parsed = parseLedgerNotes(entry.remarks);
+        const refCode = entry.reference_number || (entry.id ? String(entry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO');
+
+        return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${formatDate(entry.created_at, 'dd-MMM-yyyy HH:mm')}</td>
+          <td>${entry.wallet_type}</td>
+          <td>${refCode}</td>
+          <td>${parsed.title || entry.transaction_type || 'Transaction'}${entry.remarks ? ` - ${entry.remarks}` : ''}</td>
+          <td style="text-align:right; color:#dc2626;">${debit > 0 ? `-${debit.toFixed(2)}` : '—'}</td>
+          <td style="text-align:right; color:#16a34a;">${credit > 0 ? `+${credit.toFixed(2)}` : '—'}</td>
+          <td style="text-align:right; font-weight:bold;">₹${(runningBal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+      })
+      .join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Asopalav Passbook - ${selectedBranchId || 'ASI'}</title>
+        <style>
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #111; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 14px; }
+          .brand { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+          .sub { font-size: 12px; color: #555; margin-top: 3px; }
+          .meta-row { display: flex; justify-content: space-between; font-size: 11px; margin: 6px 0; font-family: monospace; }
+          table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 11px; font-family: monospace; }
+          th, td { padding: 6px 4px; border-bottom: 1px dotted #ccc; }
+          th { border-bottom: 2px solid #111; border-top: 2px solid #111; font-weight: 700; text-transform: uppercase; font-size: 10px; background: #f8f8f8; }
+          .summary-box { border: 1px solid #111; padding: 8px 12px; margin: 16px 0; display: flex; justify-content: space-between; font-family: monospace; font-size: 12px; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; font-size: 11px; }
+          .sig-box { width: 40%; border-top: 1px solid #111; text-align: center; padding-top: 6px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">ASOPALAV ENDEAVOURS LLP</div>
+          <div class="sub">Showroom Cash Drawer &amp; Treasury Passbook Register</div>
+        </div>
+        <div class="meta-row">
+          <span><strong>Showroom:</strong> ${selectedBranchId || 'ASI'}</span>
+          <span><strong>Period:</strong> ${dateBounds.label}</span>
+          <span><strong>Generated:</strong> ${new Date().toLocaleString('en-IN')}</span>
+        </div>
+        <div class="summary-box">
+          <span>Current Cash Drawer: <strong>₹${Number(currentCashBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+          <span>Current UPI Account: <strong>₹${Number(currentUpiBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+          <span>Total Records: <strong>${filteredEntries.length}</strong></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;">#</th>
+              <th>Date &amp; Time</th>
+              <th>Channel</th>
+              <th>Reference #</th>
+              <th>Description / Particulars</th>
+              <th style="text-align:right;">Debit (₹)</th>
+              <th style="text-align:right;">Credit (₹)</th>
+              <th style="text-align:right;">Running Bal (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="signatures">
+          <div class="sig-box">Cashier Signature</div>
+          <div class="sig-box">Store Manager / Accountant Signature</div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWin.document.write(html);
+    printWin.document.close();
   };
 
   return (

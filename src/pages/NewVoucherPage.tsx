@@ -179,6 +179,39 @@ export const NewVoucherPage: React.FC = () => {
   const [remarks, setRemarks] = useState<string>('');
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
 
+  // GST Tax Invoice State (for B2B Vendor Invoices & ITC Claims)
+  const [isGstInvoice, setIsGstInvoice] = useState<boolean>(false);
+  const [vendorGstin, setVendorGstin] = useState<string>('');
+  const [gstRate, setGstRate] = useState<number>(18);
+  const [activeGstSlabs, setActiveGstSlabs] = useState<Array<{ rate: number; label: string }>>([
+    { rate: 5, label: '5%' },
+    { rate: 12, label: '12%' },
+    { rate: 18, label: '18%' },
+    { rate: 28, label: '28%' },
+  ]);
+
+  // Load dynamic GST slabs from Supabase
+  useEffect(() => {
+    let isMounted = true;
+    erpService.getGstTaxRates(true).then((slabs) => {
+      if (isMounted && slabs && slabs.length > 0) {
+        const mapped = slabs.map((s) => ({
+          rate: s.rate_percent,
+          label: `${s.rate_percent}%`,
+        }));
+        setActiveGstSlabs(mapped);
+        if (!slabs.some((s) => s.rate_percent === 18) && slabs.length > 0) {
+          setGstRate(slabs[0].rate_percent);
+        }
+      }
+    }).catch((err) => {
+      console.warn('Dynamic GST slabs load error:', err);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Submission, Preview & Feedback State
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -265,10 +298,30 @@ export const NewVoucherPage: React.FC = () => {
     return Number(amount) || 0;
   }, [mode, isMultiVendor, amount, splits, vendorSplits]);
 
-  // Section 40A(3) Compliance Check
+  // Cash Limit Check (₹10,000 threshold)
   const sec40A3Check = useMemo(() => {
     return erpService.validateSection40A3(paymentMethod, finalCalculatedAmount, mode);
   }, [paymentMethod, finalCalculatedAmount, mode]);
+
+  // GST Breakdown (CGST/SGST for Gujarat 24, IGST for Inter-State)
+  const gstBreakdown = useMemo(() => {
+    const total = finalCalculatedAmount;
+    if (!isGstInvoice || total <= 0) {
+      return { taxable: total, cgst: 0, sgst: 0, igst: 0, totalGst: 0, totalAmount: total };
+    }
+    const cleanGstin = vendorGstin.trim().toUpperCase();
+    const isInterstate = cleanGstin.length >= 2 && !cleanGstin.startsWith('24');
+    const rate = Number(gstRate) || 0;
+    const taxable = Math.round((total / (1 + rate / 100)) * 100) / 100;
+    const totalGst = Math.round((total - taxable) * 100) / 100;
+
+    if (isInterstate) {
+      return { taxable, cgst: 0, sgst: 0, igst: totalGst, totalGst, totalAmount: total };
+    } else {
+      const half = Math.round((totalGst / 2) * 100) / 100;
+      return { taxable, cgst: half, sgst: Math.round((totalGst - half) * 100) / 100, igst: 0, totalGst, totalAmount: total };
+    }
+  }, [isGstInvoice, finalCalculatedAmount, vendorGstin, gstRate]);
 
   const {
     isNegativeWalletAllowed,
@@ -326,6 +379,9 @@ export const NewVoucherPage: React.FC = () => {
     ]);
     setCourierCompany('');
     setTrackingNumber('');
+    setIsGstInvoice(false);
+    setVendorGstin('');
+    setGstRate(18);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -336,9 +392,9 @@ export const NewVoucherPage: React.FC = () => {
   const _handleValidateAndPreview = () => {
     setError(null);
 
-    // Section 40A(3) enforcement
+    // Cash Limit Check (₹10,000 threshold)
     if (sec40A3Check.exceeded && !is40A3ExceededAllowed()) {
-      setError(`Cash payment of ${formatINR(finalCalculatedAmount)} exceeds the ₹10,000 tax limit. Please switch to Online UPI.`);
+      setError(`Cash payment of ${formatINR(finalCalculatedAmount)} exceeds the ₹10,000 cash limit. Please switch to Online UPI or obtain Manager Approval.`);
       return;
     }
 
@@ -596,6 +652,15 @@ export const NewVoucherPage: React.FC = () => {
           payload.category_name = categoryName.trim();
           payload.department_name = departmentName.trim();
           payload.recipient_name = recipientName.trim();
+          if (isGstInvoice) {
+            payload.is_gst_invoice = true;
+            payload.vendor_gstin = vendorGstin.trim().toUpperCase() || undefined;
+            payload.taxable_amount = gstBreakdown.taxable;
+            payload.gst_rate = gstRate;
+            payload.cgst_amount = gstBreakdown.cgst;
+            payload.sgst_amount = gstBreakdown.sgst;
+            payload.igst_amount = gstBreakdown.igst;
+          }
         }
       } else if (mode === 'Courier') {
         payload.category_name = categoryName.trim();
@@ -855,17 +920,17 @@ export const NewVoucherPage: React.FC = () => {
           </div>
         )}
 
-        {/* Section 40A(3) Compliance Alert */}
+        {/* Cash Limit Notice */}
         {sec40A3Check.exceeded && (
           <div className="p-3.5 rounded-[12px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans animate-in fade-in shadow-xs">
             <div className="flex items-start gap-2.5">
               <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <strong className="block font-semibold text-amber-900 dark:text-amber-200 text-xs">
-                  Cash Limit Warning (Over ₹10,000)
+                  Cash Limit Notice (Over ₹10,000)
                 </strong>
                 <span className="text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
-                  Cash payment of {formatINR(finalCalculatedAmount)} exceeds ₹10,000 tax limit. Please pay with Online UPI.
+                  Cash payment of {formatINR(finalCalculatedAmount)} exceeds ₹10,000. Please pay with Online UPI or obtain Manager Approval.
                 </span>
               </div>
             </div>
@@ -1198,6 +1263,118 @@ export const NewVoucherPage: React.FC = () => {
                           clearable={true}
                         />
                       </div>
+                    </div>
+
+                    {/* GST Tax Invoice Toggle & Inputs */}
+                    <div className="pt-2.5 border-t border-slate-100 dark:border-[#242424] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-slate-800 dark:text-[#EDEDED] flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isGstInvoice}
+                            onChange={(e) => {
+                              triggerHaptic('selection');
+                              setIsGstInvoice(e.target.checked);
+                            }}
+                            className="w-3.5 h-3.5 rounded-[4px] text-[#3ecf8e] focus:ring-[#3ecf8e]/30 border-slate-300 dark:border-[#2e2e2e]"
+                          />
+                          <span>Tax Invoice (GST Registered Vendor)</span>
+                        </label>
+                        {isGstInvoice && (
+                          <span className="text-[10px] font-mono text-[#3ecf8e] bg-emerald-500/10 px-2 py-0.5 rounded-[4px] border border-emerald-500/20 font-medium">
+                            ITC Eligible
+                          </span>
+                        )}
+                      </div>
+
+                      {isGstInvoice && (
+                        <div className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#1a1a1c] border border-slate-200/80 dark:border-[#2a2a2e] space-y-2.5 text-xs animate-in fade-in">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-medium text-slate-600 dark:text-[#A1A1A1]">
+                                  Vendor GSTIN
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setVendorGstin('24')}
+                                  className="text-[10px] text-[#3ecf8e] hover:underline font-mono cursor-pointer"
+                                >
+                                  + Gujarat (24)
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={vendorGstin}
+                                onChange={(e) => setVendorGstin(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ''))}
+                                placeholder="24AAAAA0000A1Z5"
+                                className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#141414] px-3 py-1.5 text-slate-900 dark:text-white text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-zinc-600 uppercase focus:outline-none focus:border-[#3ecf8e]"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-medium text-slate-600 dark:text-[#A1A1A1]">
+                                  GST Rate
+                                </label>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {activeGstSlabs.length} slabs active
+                                </span>
+                              </div>
+                              <div className={cn(
+                                'grid gap-1',
+                                activeGstSlabs.length <= 4 ? 'grid-cols-4' : 'grid-cols-5'
+                              )}>
+                                {activeGstSlabs.map((slab) => (
+                                  <button
+                                    key={slab.rate}
+                                    type="button"
+                                    onClick={() => {
+                                      triggerHaptic('selection');
+                                      setGstRate(slab.rate);
+                                    }}
+                                    className={cn(
+                                      'py-1.5 rounded-[4px] font-mono text-xs text-center border transition-all cursor-pointer',
+                                      gstRate === slab.rate
+                                        ? 'bg-[#3ecf8e]/15 border-[#3ecf8e] text-emerald-800 dark:text-[#3ecf8e] font-semibold'
+                                        : 'bg-white dark:bg-[#202020] border-slate-200 dark:border-[#2e2e2e] text-slate-600 dark:text-zinc-400'
+                                    )}
+                                  >
+                                    {slab.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Calculated Tax Breakdown Display */}
+                          {finalCalculatedAmount > 0 && (
+                            <div className="pt-2 border-t border-slate-200 dark:border-[#282828] grid grid-cols-3 gap-2 text-center font-mono text-[11px]">
+                              <div className="p-1.5 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200/60 dark:border-[#242424]">
+                                <span className="block text-[10px] text-slate-400">Taxable Amount</span>
+                                <span className="font-semibold text-slate-800 dark:text-zinc-200 tabular-nums">
+                                  {formatINR(gstBreakdown.taxable)}
+                                </span>
+                              </div>
+                              <div className="p-1.5 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200/60 dark:border-[#242424]">
+                                <span className="block text-[10px] text-slate-400">
+                                  {gstBreakdown.igst > 0 ? 'IGST' : 'CGST + SGST'}
+                                </span>
+                                <span className="font-semibold text-emerald-600 dark:text-[#3ecf8e] tabular-nums">
+                                  +{formatINR(gstBreakdown.totalGst)}
+                                </span>
+                              </div>
+                              <div className="p-1.5 rounded-[4px] bg-white dark:bg-[#141414] border border-slate-200/60 dark:border-[#242424]">
+                                <span className="block text-[10px] text-slate-400">Total Invoice</span>
+                                <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                                  {formatINR(gstBreakdown.totalAmount)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
