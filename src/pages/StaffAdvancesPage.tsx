@@ -9,6 +9,7 @@ import { useScrollLock } from '@/hooks/useScrollLock';
 import { differenceInDays } from 'date-fns';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { SegmentedControl } from '@/components/ui';
+import { DateRangePicker, DateRange } from '@/components/ui/DateRangePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -118,25 +119,8 @@ const getAdvanceAgeing = (advanceDate: string, status: string) => {
   return { days, category: 'overdue_15', label: `${days}d (Overdue)`, isOverdue: true };
 };
 
-function downloadBlob(filename: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function generateAdvanceSqlInsert(a: StaffAdvance): string {
-  const esc = (val?: string | null) => (val ? `'${val.replace(/'/g, "''")}'` : 'NULL');
-  return `INSERT INTO staff_advances (id, receipt_number, branch_code, advance_date, staff_name, staff_code, department_name, payment_method, advance_amount, bills_submitted_amount, cash_returned_amount, unsettled_balance, status, purpose) VALUES (${esc(a.id)}, ${esc(a.receipt_number)}, ${esc(a.branch_code)}, ${esc(a.advance_date)}, ${esc(a.staff_name)}, ${esc(a.staff_code)}, ${esc(a.department_name)}, ${esc(a.payment_method)}, ${Number(a.advance_amount) || 0}, ${Number(a.bills_submitted_amount) || 0}, ${Number(a.cash_returned_amount) || 0}, ${Number(a.unsettled_balance) || 0}, ${esc(a.status)}, ${esc(a.purpose)});`;
-}
-
 export const StaffAdvancesPage: React.FC = () => {
-  const { setAdvanceModalOpen, setSettleTargetAdvance } = useUIStore();
+  const { setAdvanceModalOpen, setSettleTargetAdvance, setActivePage } = useUIStore();
   const { user, can } = useAuthStore();
   const isDeveloper = isPrivilegedAdminRole(user?.role_code);
   const { selectedBranchId } = useBranchStore();
@@ -147,6 +131,10 @@ export const StaffAdvancesPage: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState('ALL');
   const [minDue, setMinDue] = useState<string>('');
   const [maxDue, setMaxDue] = useState<string>('');
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: '',
+    endDate: '',
+  });
 
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -155,7 +143,7 @@ export const StaffAdvancesPage: React.FC = () => {
 
   // Sub-view Tab & Pro Developer Controls
   const [activeSubTab, setActiveSubTab] = useState<SubViewTab>('grid');
-  const [tableDensity, setTableDensity] = useState<TableDensity>('normal');
+  const [tableDensity, setTableDensity] = useState<TableDensity>('compact');
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
     new Set([
       'receipt_number',
@@ -176,12 +164,10 @@ export const StaffAdvancesPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Popovers & Feedback
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const exportRef = useRef<HTMLDivElement | null>(null);
   const columnPickerRef = useRef<HTMLDivElement | null>(null);
 
   const [actionModal, setActionModal] = useState<ActionModalState>({
@@ -295,9 +281,6 @@ export const StaffAdvancesPage: React.FC = () => {
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
       if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
         setIsColumnPickerOpen(false);
       }
@@ -402,6 +385,13 @@ export const StaffAdvancesPage: React.FC = () => {
 
       if (!matchSearch) return false;
 
+      if (dateRange.startDate || dateRange.endDate) {
+        const rawDate = a.advance_date || a.created_at || '';
+        const aDate = rawDate.trim().slice(0, 10);
+        if (dateRange.startDate && aDate && aDate < dateRange.startDate) return false;
+        if (dateRange.endDate && aDate && aDate > dateRange.endDate) return false;
+      }
+
       if (selectedDept !== 'ALL' && a.department_name !== selectedDept) {
         return false;
       }
@@ -468,7 +458,7 @@ export const StaffAdvancesPage: React.FC = () => {
     });
 
     return result;
-  }, [advances, search, statusFilter, selectedDept, minDue, maxDue, sortField, sortOrder]);
+  }, [advances, search, statusFilter, selectedDept, minDue, maxDue, sortField, sortOrder, dateRange]);
 
   // Grouped Staff Analytics
   const staffMemberAnalytics = useMemo(() => {
@@ -579,88 +569,6 @@ export const StaffAdvancesPage: React.FC = () => {
       : filteredAdvances;
   };
 
-  const handleExportCSV = () => {
-    const list = getExportData();
-    const headers = [
-      'Receipt #',
-      'Date',
-      'Staff Code',
-      'Staff Name',
-      'Department',
-      'Branch',
-      'Payment Mode',
-      'Total Advance Given',
-      'Bills Submitted',
-      'Cash Returned',
-      'Pending Balance',
-      'Status',
-      'Purpose',
-    ];
-
-    const rows = list.map((a) => [
-      a.receipt_number,
-      a.advance_date,
-      a.staff_code,
-      `"${a.staff_name}"`,
-      `"${a.department_name}"`,
-      a.branch_code,
-      a.payment_method,
-      a.advance_amount,
-      a.bills_submitted_amount,
-      a.cash_returned_amount,
-      a.unsettled_balance,
-      a.status,
-      `"${a.purpose.replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(
-      `Staff_Advances_Ledger_${new Date().toISOString().slice(0, 10)}.csv`,
-      csvContent,
-      'text/csv;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as CSV.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportJSON = () => {
-    const list = getExportData();
-    const jsonContent = JSON.stringify(list, null, 2);
-    downloadBlob(
-      `Staff_Advances_Dump_${new Date().toISOString().slice(0, 10)}.json`,
-      jsonContent,
-      'application/json;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as JSON.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
-  const handleExportSQL = () => {
-    const list = getExportData();
-    const sqlContent =
-      `-- Asopalav Staff Advances SQL Dump\n-- Generated on ${new Date().toISOString()}\n\n` +
-      list.map(generateAdvanceSqlInsert).join('\n');
-    downloadBlob(
-      `Staff_Advances_${new Date().toISOString().slice(0, 10)}.sql`,
-      sqlContent,
-      'text/plain;charset=utf-8;'
-    );
-    showToast({
-      type: 'success',
-      title: 'Export Complete',
-      message: `Exported ${list.length} staff advance records as SQL dump.`,
-    });
-    setIsExportMenuOpen(false);
-  };
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -675,7 +583,6 @@ export const StaffAdvancesPage: React.FC = () => {
       }
 
       if (e.key === 'Escape') {
-        if (isExportMenuOpen) setIsExportMenuOpen(false);
         if (isColumnPickerOpen) setIsColumnPickerOpen(false);
         if (activeRowDropdownId) setActiveRowDropdownId(null);
         if (search) setSearch('');
@@ -701,9 +608,6 @@ export const StaffAdvancesPage: React.FC = () => {
           if (target && target.unsettled_balance > 0) {
             setSettleTargetAdvance(target);
           }
-        } else if (e.key === 'e' || e.key === 'E') {
-          e.preventDefault();
-          setIsExportMenuOpen((prev) => !prev);
         }
       }
     };
@@ -711,7 +615,6 @@ export const StaffAdvancesPage: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    isExportMenuOpen,
     isColumnPickerOpen,
     activeRowDropdownId,
     search,
@@ -831,48 +734,19 @@ export const StaffAdvancesPage: React.FC = () => {
               size="sm"
             />
 
-            {/* Export Menu */}
-            <div className="relative" ref={exportRef}>
-              <button
-                type="button"
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export</span>
-                <ChevronDown className="w-3 h-3 text-slate-400 dark:text-[#707070]" />
-              </button>
-
-              {isExportMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-2xl p-1 z-50 space-y-0.5 text-xs font-mono animate-in fade-in zoom-in-95 duration-100">
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#3ecf8e]" />
-                      <span>Export CSV</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 dark:text-[#707070]">.csv</span>
-                  </button>
-
-                  {isDeveloper && (
-                    <button
-                      type="button"
-                      onClick={handleExportJSON}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] hover:bg-slate-100 dark:hover:bg-[#222222] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        <span>Export JSON</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 dark:text-[#707070]">.json</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Direct Link to Reports Hub (F5) Single Source of Truth */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setActivePage('reports');
+              }}
+              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Open Staff Advances & Financial Reports in Reports Hub (F5)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span className="hidden sm:inline">Reports Hub (F5)</span>
+            </button>
 
             {/* Primary Action Button */}
             <button
@@ -916,6 +790,17 @@ export const StaffAdvancesPage: React.FC = () => {
                 </button>
               ) : null}
             </div>
+
+            {/* Date Range Picker */}
+            <DateRangePicker
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+              onChange={(range) => {
+                triggerHaptic('selection');
+                setDateRange(range);
+              }}
+              size="sm"
+            />
 
             {/* Status & Ageing Filter Dropdown */}
             <div className="w-52">
@@ -1105,14 +990,6 @@ export const StaffAdvancesPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 font-mono">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="px-3 py-1.5 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#2e2e2e] text-xs text-slate-800 dark:text-white hover:border-[#3ecf8e] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs font-medium"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                <span>Export CSV</span>
-              </button>
               <button
                 type="button"
                 onClick={handleClearSelection}

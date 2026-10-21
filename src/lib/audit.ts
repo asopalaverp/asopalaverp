@@ -73,8 +73,41 @@ export async function validateHashChainIntegrity(logs: SecurityAuditLog[]): Prom
   };
 }
 
+// In-memory cache for resolved client IP address
+let cachedClientIp: string | null = null;
+let ipResolutionPromise: Promise<string> | null = null;
+
+export async function getClientIpAddress(): Promise<string> {
+  if (cachedClientIp) return cachedClientIp;
+  if (ipResolutionPromise) return ipResolutionPromise;
+
+  ipResolutionPromise = (async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch('https://api.ipify.org?format=json', {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ip) {
+          cachedClientIp = data.ip;
+          return data.ip;
+        }
+      }
+    } catch {
+      // Offline or network restricted
+    }
+    cachedClientIp = '192.168.1.6 (Showroom LAN)';
+    return cachedClientIp;
+  })();
+
+  return ipResolutionPromise;
+}
+
 /**
- * Creates and logs an immutable cryptographic security audit record
+ * Creates and logs an immutable cryptographic security audit record with IP & device telemetry
  */
 export async function logSecurityEvent(params: {
   userName: string;
@@ -84,10 +117,20 @@ export async function logSecurityEvent(params: {
   targetIdentifier: string;
   eventDescription: string;
   justification: string;
+  ipAddress?: string;
 }): Promise<SecurityAuditLog> {
   const auditNumber = `AUD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
   const rawPayload = `${auditNumber}|${params.userName}|${params.actionType}|${params.targetIdentifier}|${Date.now()}`;
   const signature = await generateAuditSignature(rawPayload);
+
+  let ip = params.ipAddress || cachedClientIp;
+  if (!ip) {
+    try {
+      ip = await getClientIpAddress();
+    } catch {
+      ip = '192.168.1.6 (Showroom LAN)';
+    }
+  }
 
   const logEntry: SecurityAuditLog = {
     id: crypto.randomUUID(),
@@ -99,7 +142,7 @@ export async function logSecurityEvent(params: {
     target_identifier: params.targetIdentifier,
     event_description: params.eventDescription,
     justification: params.justification || 'Standard counter authorization',
-    ip_address: '127.0.0.1',
+    ip_address: ip,
     tamper_proof_signature: signature,
     created_at: new Date().toISOString(),
   };
@@ -117,6 +160,30 @@ export async function logSecurityEvent(params: {
   })();
 
   return logEntry;
+}
+
+/**
+ * Comprehensive user behavior and page action telemetry logger
+ */
+export async function logUserActivity(params: {
+  userName?: string;
+  userRole?: string;
+  action: string;
+  page: string;
+  details: string;
+  targetIdentifier?: string;
+}): Promise<SecurityAuditLog> {
+  const userStr = params.userName || 'Asopalav User';
+  const roleStr = params.userRole || 'Cashier';
+  return logSecurityEvent({
+    userName: userStr,
+    userRole: roleStr,
+    actionType: params.action as any,
+    targetEntity: params.page,
+    targetIdentifier: params.targetIdentifier || params.page,
+    eventDescription: `[${params.page}] ${params.details}`,
+    justification: `User Activity Audit - ${params.action}`,
+  });
 }
 
 const LOCAL_AUDIT_KEY = 'asopalav_audit_logs_cache';

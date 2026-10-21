@@ -65,23 +65,14 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
 
     try {
       const uploadPromises = files.map(async (file) => {
-        try {
-          const cloudUrl = await uploadToR2(file, 'receipts', file.name);
-          if (cloudUrl && cloudUrl.trim()) return cloudUrl;
-        } catch (r2Err) {
-          console.warn('R2 direct upload error, generating local preview:', r2Err);
+        const cloudUrl = await uploadToR2(file, 'receipts', file.name);
+        if (!cloudUrl || !cloudUrl.startsWith('http') || cloudUrl.startsWith('blob:')) {
+          throw new Error('Cloudflare R2 failed to return a permanent public CDN URL.');
         }
-        // Fallback: Read as Data URL to guarantee user sees preview without crash
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve((e.target?.result as string) || '');
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(file);
-        });
+        return cloudUrl;
       });
 
-      const results = await Promise.all(uploadPromises);
-      const validUrls = results.filter((u) => Boolean(u && u.trim()));
+      const validUrls = await Promise.all(uploadPromises);
 
       if (validUrls.length > 0) {
         onChange([...photoUrls, ...validUrls]);
@@ -89,18 +80,8 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
         showToast({
           id: toastId,
           type: 'success',
-          title: 'Bill Attached',
-          message: `Added ${validUrls.length} receipt image(s) to bill.`,
-        });
-      } else {
-        const errMsg = 'Could not read receipt file. Please check file permissions and try again.';
-        setUploadError(errMsg);
-        triggerHaptic('error');
-        showToast({
-          id: toastId,
-          type: 'error',
-          title: 'Upload Failed',
-          message: errMsg,
+          title: 'Receipt Attached (Cloudflare R2)',
+          message: `Saved ${validUrls.length} receipt photo(s) permanently to Cloudflare R2 storage.`,
         });
       }
     } catch (err: any) {

@@ -133,7 +133,7 @@ export const MobileBottomNav: React.FC = () => {
           <button
             type="button"
             onClick={() => handleNavClick(isCashier ? 'advances' : 'treasury')}
-            aria-label={isCashier ? 'Staff Advances' : 'Cash Box & Bank'}
+            aria-label={isCashier ? 'Staff Advances' : 'Cash Drawer & UPI'}
             className="flex flex-col items-center justify-center flex-1 h-full py-1 select-none cursor-pointer active:scale-[0.92] transition-transform duration-150"
           >
             <div

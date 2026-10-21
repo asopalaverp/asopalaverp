@@ -24,6 +24,7 @@ import {
   Clock,
   Store,
   Bell,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   AppTableIcon,
@@ -143,8 +144,8 @@ export const Sidebar: React.FC = () => {
         },
         {
           id: 'treasury',
-          label: 'Cash Box & Bank',
-          description: 'Cash drawer & safe drops',
+          label: 'Cash Drawer & UPI',
+          description: 'Cash drawer till & passbook',
           icon: Wallet,
           permission: 'can_inject_float',
         },
@@ -163,8 +164,15 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      title: 'MANAGEMENT & AUDIT',
+      title: 'MANAGEMENT',
       items: [
+        {
+          id: 'reports',
+          label: 'Financial Reports',
+          description: 'Tally, Advances & CA Pack',
+          icon: FileSpreadsheet,
+          permission: 'can_export_tally',
+        },
         {
           id: 'staff',
           label: 'Staff Directory',
@@ -178,25 +186,6 @@ export const Sidebar: React.FC = () => {
           description: 'Categories & brand rules',
           icon: SlidersHorizontal,
           permission: 'can_manage_periods',
-        },
-        {
-          id: 'audit',
-          label: 'Activity History',
-          description: 'Immutable security audit trail',
-          icon: ShieldAlert,
-          permission: 'can_view_audit_logs',
-        },
-        {
-          id: 'notifications',
-          label: 'Alerts & Messages',
-          description: 'Cross-terminal announcements',
-          icon: Bell,
-        },
-        {
-          id: 'profile',
-          label: 'My Profile',
-          description: 'Security & user avatar',
-          icon: ShieldCheck,
         },
       ],
     },
@@ -727,7 +716,7 @@ export const Sidebar: React.FC = () => {
                 onClick={() => {
                   lockScreen();
                 }}
-                title="Lock Terminal Screen"
+                title="Lock Screen"
                 aria-label="Lock Screen"
                 className="h-8 rounded-[6px] bg-white dark:bg-[#1a1a1a] hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200/80 dark:border-[#2a2a2a] text-slate-600 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center justify-center transition-colors cursor-pointer"
               >

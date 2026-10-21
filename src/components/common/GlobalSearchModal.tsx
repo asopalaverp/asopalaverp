@@ -4,7 +4,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { searchEngine, SearchResultItem, SearchCategory } from '@/lib/searchEngine';
-import { formatINR, formatDate, cn } from '@/lib/utils';
+import { formatINR, formatDate, formatVoucherNumber, cn } from '@/lib/utils';
 import { animateModalOpen, animateModalClose, animateStaggerCards } from '@/lib/animations';
 import {
   Search,
@@ -184,7 +184,7 @@ export const GlobalSearchModal: React.FC = () => {
       showToast({
         type: 'info',
         title: 'Opening Voucher',
-        message: `Voucher #${item.rawItem.voucher_number}`,
+        message: `Voucher #${formatVoucherNumber(item.rawItem.voucher_number)}`,
       });
     } else if (item.actionType === 'open_advance' && item.rawItem) {
       setSettleTargetAdvance(item.rawItem);
@@ -228,7 +228,7 @@ export const GlobalSearchModal: React.FC = () => {
         category: 'vouchers',
         title: 'Add New Expense',
         categoryLabel: 'SHOP WORK',
-        subtitle: 'Pay bill from cash box or shop bank UPI',
+        subtitle: 'Pay bill from cash box or shop UPI QR',
         relevanceScore: 100,
         actionType: 'navigate' as const,
         actionPayload: { page: 'new-voucher' },
@@ -237,9 +237,9 @@ export const GlobalSearchModal: React.FC = () => {
       {
         id: 'cmd-cash-drawer',
         category: 'vouchers',
-        title: 'Cash Box & Bank',
+        title: 'Cash Drawer & UPI',
         categoryLabel: 'SHOP WORK',
-        subtitle: 'Check cash in box, bank UPI balance & move cash to safe',
+        subtitle: 'Check cash in box, UPI balance & drawer passbook',
         relevanceScore: 90,
         actionType: 'navigate' as const,
         actionPayload: { page: 'treasury' },
@@ -289,33 +289,13 @@ export const GlobalSearchModal: React.FC = () => {
         actionPayload: { page: 'settings' },
         perm: 'can_manage_periods',
       },
-      {
-        id: 'cmd-audit',
-        category: 'master',
-        title: 'Activity History',
-        categoryLabel: 'SETTINGS & TEAM',
-        subtitle: 'View history of who did what and when',
-        relevanceScore: 65,
-        actionType: 'navigate' as const,
-        actionPayload: { page: 'audit' },
-        perm: 'can_view_audit_logs',
-      },
-      {
-        id: 'cmd-notifications',
-        category: 'actions',
-        title: 'Alerts & Messages',
-        categoryLabel: 'SYSTEM & TOOLS',
-        subtitle: 'Safe drop alerts, overdue advances & closing warnings',
-        relevanceScore: 60,
-        actionType: 'navigate' as const,
-        actionPayload: { page: 'notifications' },
-      },
+
       {
         id: 'cmd-shortcuts',
         category: 'actions',
         title: 'Keyboard Shortcuts',
         categoryLabel: 'SYSTEM & TOOLS',
-        subtitle: 'View all keyboard shortcuts and POS hotkeys',
+        subtitle: 'View all keyboard shortcuts and function hotkeys',
         relevanceScore: 55,
         actionType: 'navigate' as const,
         actionPayload: { page: 'dashboard' },
@@ -417,6 +397,7 @@ export const GlobalSearchModal: React.FC = () => {
     if (item.id === 'cmd-new-expense') return Receipt;
     if (item.id === 'cmd-cash-drawer') return Wallet;
     if (item.id === 'cmd-advances') return HandCoins;
+    if (item.id === 'cmd-reports' || item.actionPayload?.page === 'reports') return FileSpreadsheet;
     if (item.id === 'cmd-ledger') return AppTableIcon;
     if (item.id === 'cmd-staff') return Users;
     if (item.id === 'cmd-settings') return Sliders;
@@ -435,7 +416,7 @@ export const GlobalSearchModal: React.FC = () => {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 select-none font-sans"
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 select-none font-sans"
       onKeyDown={handleKeyDown}
     >
       <div
