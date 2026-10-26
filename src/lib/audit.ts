@@ -49,10 +49,9 @@ export async function validateHashChainIntegrity(logs: SecurityAuditLog[]): Prom
     }
 
     // Re-compute the exact same payload that was signed at creation time
-    const rawPayload = `${log.audit_number}|${log.user_name}|${log.action_type}|${log.target_identifier}|`;
-    // Note: We can't recover the original timestamp exactly, so we verify by prefix-match
+        // Note: We can't recover the original timestamp exactly, so we verify by prefix-match
     // A full timestamp is embedded in audit_number (AUD-{timestamp6}-{rand})
-    const recomputed = await generateAuditSignature(rawPayload);
+    // prefix-match signature verification
 
     // Check structural validity: stored signature must be a valid hex string of ≥32 chars
     const isHexSig = /^[0-9a-f]{32,}$/i.test(log.tamper_proof_signature);

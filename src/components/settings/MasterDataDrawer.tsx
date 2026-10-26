@@ -3,23 +3,19 @@ import { useScrollLock } from '@/hooks/useScrollLock';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { erpService } from '@/lib/erpService';
-import { Branch, AppUser, StaffMember, ExpenseCategory, Department, CourierPartner, AppRole } from '@/types/database';
+import { StaffMember, Department, AppRole } from '@/types/database';
 import { SlideOverDrawer } from '@/components/ui/SlideOverDrawer';
 import { SupabaseFieldRow } from '@/components/ui/SupabaseFieldRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   Trash2,
   AlertCircle,
-  AlertTriangle,
-  Code2,
-  Check,
+  AlertTriangle,  Check,
   Save,
   CheckCircle2,
-  ShieldCheck,
-  ExternalLink,
-  X,
+  ShieldCheck,  X,
 } from 'lucide-react';
-import { cn, cleanIndianPhoneInput } from '@/lib/utils';
+import { cleanIndianPhoneInput } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 
 export type MasterDrawerType = 'branch' | 'category' | 'department' | 'courier' | 'user' | 'staff' | 'role';
@@ -32,16 +28,6 @@ export interface MasterDrawerProps {
   onSuccess: () => void;
 }
 
-const tableNames: Record<MasterDrawerType, string> = {
-  branch: 'branches',
-  category: 'expense_categories',
-  department: 'departments',
-  courier: 'courier_partners',
-  user: 'app_users',
-  staff: 'staff_members',
-  role: 'app_roles',
-};
-
 export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   isOpen,
   onClose,
@@ -52,8 +38,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
   const { user } = useAuthStore();
   const { branches } = useBranchStore();
   const isPrivileged = isPrivilegedAdminRole(user?.role_code);
-  const isDeveloper = isPrivileged;
-  const isSuperAdmin = isPrivileged;
+    const isSuperAdmin = isPrivileged;
   const isEdit = Boolean(record);
 
   useScrollLock(isOpen);
@@ -526,8 +511,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
     }
   };
 
-  const tableName = tableNames[type];
-
+  
   const entityLabels: Record<MasterDrawerType, string> = {
     branch: 'Shop Branch',
     category: 'Expense Category',
@@ -1218,7 +1202,7 @@ export const MasterDataDrawer: React.FC<MasterDrawerProps> = ({
                         department_code: matchedDept?.department_code || prev.department_code || null,
                       }));
                     }}
-                    placeholder="Select department from Supabase..."
+                    placeholder="Select department..."
                     searchPlaceholder="Search department..."
                     allowCustom={false}
                   />

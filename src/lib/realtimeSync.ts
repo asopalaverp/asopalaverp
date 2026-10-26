@@ -277,14 +277,6 @@ export function initRealtimeSync(allowedBranchIds: string[] = []) {
           }
         }
       )
-      // 8. Live Notifications
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'app_notifications' },
-        () => {
-          window.dispatchEvent(new Event('asopalav:notifications-updated'));
-        }
-      )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log(`[Realtime] Connected to live sync channel. Branch scope: ${isGlobal ? 'ALL' : allowedBranchIds.join(', ')}`);

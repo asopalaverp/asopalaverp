@@ -11,34 +11,13 @@ import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
 import { VendorSplitItem } from '@/types/database';
 import {
   XCircle,
-  Eye,
-  CreditCard,
-  FileText,
-  AlertTriangle,
-  Receipt,
-  Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Building2,
-  Calendar,
-  Wallet,
-  Tag,
-  Check,
-  Code2,
-  FileCode,
-  ShieldCheck,
-  Smartphone,
+  Eye,  AlertTriangle,  Trash2,  Building2,  Wallet,  Check,  Smartphone,
   Truck,
   Edit3,
   Save,
-  Undo,
-  UserCheck,
-  Users,
+  Undo,  Users,
   Loader2,
-  Printer,
-  UploadCloud,
-  Camera,
-} from 'lucide-react';
+  Printer,} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
@@ -53,7 +32,7 @@ export const VoucherDetailDrawer: React.FC = () => {
   const { activeDrawerVoucher, setActiveDrawerVoucher, closeDrawer, openLightbox } = useUIStore();
   const { user, can } = useAuthStore();
   const { isCashierVoidAllowed } = useOverrideStore();
-  const { categories, departments, staff, couriers, refresh } = useVouchers();
+  const { categories, departments, staff, refresh } = useVouchers();
 
   const [activeAction, setActiveAction] = useState<'none' | 'void' | 'delete'>('none');
   const [actionReason, setActionReason] = useState('');
@@ -72,8 +51,8 @@ export const VoucherDetailDrawer: React.FC = () => {
     showToast({
       id: toastId,
       type: 'loading',
-      title: 'Uploading to Cloudflare R2',
-      message: `Uploading ${files.length} receipt photo(s)...`,
+      title: 'Uploading Receipt',
+      message: `Saving ${files.length} receipt photo(s)...`,
       durationMs: 8000,
     });
 
@@ -83,7 +62,7 @@ export const VoucherDetailDrawer: React.FC = () => {
       const validR2Urls = uploadedUrls.filter(u => u && u.startsWith('http') && !u.startsWith('blob:'));
 
       if (validR2Urls.length === 0) {
-        throw new Error('No valid Cloudflare R2 URLs received.');
+        throw new Error('Could not process receipt photo.');
       }
 
       // Filter out any broken/expired blob: URLs from past sessions
@@ -107,8 +86,8 @@ export const VoucherDetailDrawer: React.FC = () => {
       showToast({
         id: toastId,
         type: 'success',
-        title: 'Receipt Attached (Cloudflare R2)',
-        message: `Successfully saved ${validR2Urls.length} receipt photo(s) permanently to Cloudflare R2.`,
+        title: 'Receipt Attached',
+        message: validR2Urls.length === 1 ? 'Receipt photo saved successfully.' : `${validR2Urls.length} receipt photos saved successfully.`,
       });
     } catch (err: any) {
       console.error('Re-upload bill error:', err);
@@ -117,7 +96,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         id: toastId,
         type: 'error',
         title: 'Upload Failed',
-        message: err?.message || 'Could not upload receipt to Cloudflare R2.',
+        message: err?.message || 'Could not upload receipt photo. Please try again.',
       });
     } finally {
       setIsUploadingBill(false);
@@ -218,8 +197,7 @@ export const VoucherDetailDrawer: React.FC = () => {
 
   const v = activeDrawerVoucher;
   const isPrivileged = isPrivilegedAdminRole(user?.role_code);
-  const isDeveloper = isPrivileged;
-  const isSuperAdmin = isPrivileged;
+    const isSuperAdmin = isPrivileged;
   const allowCashierVoid = isCashierVoidAllowed();
   const canVoid = can('can_void_voucher') || isSuperAdmin || user?.role_code === 'Store_Manager' || allowCashierVoid;
 

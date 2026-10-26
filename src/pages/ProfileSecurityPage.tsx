@@ -23,12 +23,8 @@ import {
   Camera,
   Upload,
   Trash2,
-  Sparkles,
-  Menu,
-  X,
-  ChevronRight,
-  ShieldAlert,
-  Save,
+  Sparkles,  X,
+  ChevronRight,  Save,
   CheckCircle2,
 } from 'lucide-react';
 
@@ -43,7 +39,7 @@ interface ProfileTabItem {
 }
 
 export const ProfileSecurityPage: React.FC = () => {
-  const { user, login, updateUserPin } = useAuthStore();
+  const { user, updateUserPin } = useAuthStore();
   const { theme, setTheme, setActivePage } = useUIStore();
   const { getActiveBranch } = useBranchStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,7 +63,7 @@ export const ProfileSecurityPage: React.FC = () => {
   const [firstName, setFirstName] = useState(user?.first_name || '');
   const [lastName, setLastName] = useState(user?.last_name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [username, setUsername] = useState(user?.username || '');
+  const [username] = useState(user?.username || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -128,8 +124,8 @@ export const ProfileSecurityPage: React.FC = () => {
         showToast({
           id: toastId,
           type: 'success',
-          title: 'Photo Uploaded to Cloud',
-          message: 'Saved to Supabase storage. Click "Save Profile" to apply to your account.',
+          title: 'Photo Uploaded',
+          message: 'Photo saved. Click "Save Profile" to apply changes.',
         });
       } else {
         showToast({

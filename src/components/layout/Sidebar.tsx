@@ -7,11 +7,7 @@ import {
   LayoutGrid,
   Receipt,
   Wallet,
-  HandCoins,
-  Coins,
-  Users,
-  ShieldAlert,
-  ShieldCheck,
+  HandCoins,  Users,  ShieldCheck,
   SlidersHorizontal,
   ChevronsUpDown,
   Check,
@@ -22,16 +18,11 @@ import {
   Moon,
   Keyboard,
   Clock,
-  Store,
-  Bell,
-  FileSpreadsheet,
+  Store,  FileSpreadsheet,
 } from 'lucide-react';
 import {
-  AppTableIcon,
-  AppSidebarCollapseIcon,
-  AppSidebarExpandIcon,
+  AppTableIcon,  AppSidebarExpandIcon,
 } from '@/components/icons/AppIcons';
-import { BrandLogo } from '@/components/icons/BrandLogo';
 import { useBrandStore } from '@/store/brandStore';
 import { cn } from '@/lib/utils';
 import { RolePermissions } from '@/types/database';

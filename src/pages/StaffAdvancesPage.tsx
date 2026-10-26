@@ -6,8 +6,7 @@ import { erpService } from '@/lib/erpService';
 import { StaffAdvance } from '@/types/database';
 import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { useScrollLock } from '@/hooks/useScrollLock';
-import { differenceInDays } from 'date-fns';
-import { MetricCard } from '@/components/ui/MetricCard';
+import { differenceInDays, format } from 'date-fns';
 import { SegmentedControl } from '@/components/ui';
 import { DateRangePicker, DateRange } from '@/components/ui/DateRangePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -16,20 +15,10 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import {
   HandCoins,
   Plus,
-  Search,
-  CheckCircle2,
-  FileSpreadsheet,
+  Search,  FileSpreadsheet,
   Flag,
-  Trash2,
-  Calendar,
-  Receipt,
-  PenTool,
-  User,
-  Zap,
-  X,
-  AlertTriangle,
-  ArrowDownLeft,
-  ChevronLeft,
+  Trash2,  Receipt,
+  PenTool,  X,  ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   ArrowUp,
@@ -37,22 +26,9 @@ import {
   Layers,
   CheckSquare,
   Square,
-  Sparkles,
-  Clock,
-  Code,
-  Check,
-  SlidersHorizontal,
-  BarChart3,
-  Users,
-  Building2,
-  Terminal,
-  MoreVertical,
-  Activity,
-  RotateCcw,
-  ChevronDown,
-  CornerDownRight,
-  Filter,
-  ShieldCheck,
+  Sparkles,  SlidersHorizontal,  Users,
+  Building2,  MoreVertical,
+  Activity,  ShieldCheck,
   Download,
 } from 'lucide-react';
 
@@ -119,11 +95,22 @@ const getAdvanceAgeing = (advanceDate: string, status: string) => {
   return { days, category: 'overdue_15', label: `${days}d (Overdue)`, isOverdue: true };
 };
 
+function downloadBlob(filename: string, content: string, mimeType: string = 'text/csv;charset=utf-8;') {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export const StaffAdvancesPage: React.FC = () => {
   const { setAdvanceModalOpen, setSettleTargetAdvance, setActivePage } = useUIStore();
   const { user, can } = useAuthStore();
-  const isDeveloper = isPrivilegedAdminRole(user?.role_code);
-  const { selectedBranchId } = useBranchStore();
+    const { selectedBranchId } = useBranchStore();
 
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [search, setSearch] = useState('');
@@ -261,16 +248,19 @@ export const StaffAdvancesPage: React.FC = () => {
 
   useEffect(() => {
     fetchAdvances();
+    let advTimeout: any = null;
     const handleUpdates = () => {
-      fetchAdvances();
+      if (advTimeout) clearTimeout(advTimeout);
+      advTimeout = setTimeout(() => {
+        fetchAdvances();
+      }, 400);
     };
     window.addEventListener('asopalav:advances-updated', handleUpdates);
-    window.addEventListener('asopalav:wallet-updated', handleUpdates);
     return () => {
+      if (advTimeout) clearTimeout(advTimeout);
       window.removeEventListener('asopalav:advances-updated', handleUpdates);
-      window.removeEventListener('asopalav:wallet-updated', handleUpdates);
     };
-  }, [fetchAdvances]);
+  }, [selectedBranchId]);
 
   // Reset pagination on filter change
   useEffect(() => {
@@ -296,6 +286,64 @@ export const StaffAdvancesPage: React.FC = () => {
   }, [activeRowDropdownId]);
 
   // Departments list
+    // Count bridged advances from F2 workflow
+  const bridgedStats = useMemo(() => {
+    const list = advances.filter((a) => a.is_direct_voucher_advance);
+    const count = list.length;
+    const amount = list.reduce((s, a) => s + (Number(a.advance_amount) || 0), 0);
+    return { count, amount };
+  }, [advances]);
+
+  // Export Monthly Payroll Salary Deductions CSV
+  const handleExportPayrollDeductions = () => {
+    triggerHaptic();
+    const currentMonth = format(new Date(), 'MMMM yyyy');
+    const headers = [
+      'Staff Member',
+      'Department',
+      'Staff Code',
+      'Voucher / Receipt No.',
+      'Disbursal Date',
+      'Advance Disbursed (INR)',
+      'Bills Submitted (INR)',
+      'Cash Returned (INR)',
+      'Remaining Balance Due (INR)',
+      'Payroll Deduction Month',
+      'Payment Mode',
+      'Status',
+      'Workflow Source',
+      'Purpose / Notes',
+    ];
+
+    const activeDeductions = advances.filter((a) => a.unsettled_balance > 0);
+    const exportList = activeDeductions.length > 0 ? activeDeductions : advances;
+
+    const rows = exportList.map((adv) => [
+      `"${adv.staff_name.replace(/"/g, '""')}"`,
+      `"${(adv.department_name || 'General Operations').replace(/"/g, '""')}"`,
+      `"${adv.staff_code}"`,
+      `"${adv.receipt_number}"`,
+      `"${adv.advance_date}"`,
+      adv.advance_amount,
+      adv.bills_submitted_amount || 0,
+      adv.cash_returned_amount || 0,
+      adv.unsettled_balance,
+      `"${adv.salary_deduction_month || currentMonth}"`,
+      `"${adv.payment_method === 'Online_UPI' ? 'UPI' : 'Cash'}"`,
+      `"${adv.status.replace(/_/g, ' ')}"`,
+      `"${adv.is_direct_voucher_advance ? 'Cashier F2 Advance Salary' : 'Dedicated Advance System'}"`,
+      `"${(adv.purpose || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    downloadBlob(`Asopalav_Staff_Salary_Deductions_${format(new Date(), 'yyyy_MM')}.csv`, csv);
+    showToast({
+      type: 'success',
+      title: 'Payroll Deductions Exported',
+      message: `Exported ${rows.length} staff advance deduction lines for month-end payroll processing.`,
+    });
+  };
+
   const departmentsList = useMemo(() => {
     const set = new Set<string>();
     advances.forEach((a) => {
@@ -563,13 +611,7 @@ export const StaffAdvancesPage: React.FC = () => {
     setSelectedIds(new Set());
   };
 
-  const getExportData = () => {
-    return selectedIds.size > 0
-      ? filteredAdvances.filter((a) => selectedIds.has(a.id))
-      : filteredAdvances;
-  };
-
-  // Keyboard navigation
+    // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName.toLowerCase();
@@ -624,41 +666,7 @@ export const StaffAdvancesPage: React.FC = () => {
     setSettleTargetAdvance,
   ]);
 
-  const handleFlagSalarySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!actionModal.advance) return;
-
-    setActionModal((prev) => ({ ...prev, isSubmitting: true, error: undefined }));
-    try {
-      await erpService.flagForSalaryDeduction(
-        actionModal.advance.receipt_number,
-        actionModal.month,
-        user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username : 'Store Manager',
-        selectedBranchId
-      );
-      await fetchAdvances();
-      setActionModal({
-        type: null,
-        advance: null,
-        reason: '',
-        month: '',
-        isSubmitting: false,
-      });
-      showToast({
-        type: 'success',
-        title: 'Salary Deduction',
-        message: `Advance #${actionModal.advance.receipt_number} flagged for ${actionModal.month} salary deduction`,
-      });
-    } catch (err: any) {
-      setActionModal((prev) => ({
-        ...prev,
-        isSubmitting: false,
-        error: err.message || 'Failed to flag for salary deduction',
-      }));
-    }
-  };
-
-  const toggleColumn = (key: ColumnKey) => {
+    const toggleColumn = (key: ColumnKey) => {
     const next = new Set(visibleColumns);
     if (next.has(key)) {
       if (next.size > 1) next.delete(key);
@@ -734,6 +742,17 @@ export const StaffAdvancesPage: React.FC = () => {
               size="sm"
             />
 
+                        {/* Export Monthly Payroll Salary Deductions */}
+            <button
+              type="button"
+              onClick={handleExportPayrollDeductions}
+              className="h-8.5 px-3 py-1.5 rounded-[6px] border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-[#3ecf8e] text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Download itemized salary deductions sheet for Month-End Payroll"
+            >
+              <Download className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span className="hidden md:inline">Payroll Deductions CSV</span>
+            </button>
+
             {/* Direct Link to Reports Hub (F5) Single Source of Truth */}
             <button
               type="button"
@@ -766,6 +785,21 @@ export const StaffAdvancesPage: React.FC = () => {
 
       {/* Main Container Area */}
       <main className="px-4 lg:px-6 py-4 space-y-4 flex-1">
+                {/* Smart Workflow Bridge Active Banner */}
+        {bridgedStats.count > 0 && (
+          <div className="p-3 rounded-[10px] bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-900 dark:text-[#3ecf8e] flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 shrink-0 text-[#3ecf8e]" />
+              <span>
+                <strong>Smart Workflow Bridge Active:</strong> {bridgedStats.count} advances ({formatINR(bridgedStats.amount)}) recorded by cashier &amp; manager via F2 &ldquo;Advance Salary&rdquo; are automatically unified into this payroll deduction ledger.
+              </span>
+            </div>
+            <span className="self-start sm:self-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-800 dark:text-[#3ecf8e] uppercase tracking-wider shrink-0">
+              Auto-Reconciled
+            </span>
+          </div>
+        )}
+
         {/* Filter Controls Bar */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-[12px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#282828] shadow-xs">
           <div className="flex flex-wrap items-center gap-2 flex-1">
@@ -1353,6 +1387,14 @@ export const StaffAdvancesPage: React.FC = () => {
                           >
                             <div className="flex items-center gap-1.5 font-medium">
                               <span>{adv.staff_name}</span>
+                              {adv.is_direct_voucher_advance && (
+                                <span
+                                  className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium"
+                                  title="Disbursed via F2 Add Expense (Advance Salary Category)"
+                                >
+                                  F2 Salary Adv
+                                </span>
+                              )}
                               {adv.signature_image_url && (
                                 <span
                                   className="inline-flex items-center text-[10px] text-[#3ecf8e]"

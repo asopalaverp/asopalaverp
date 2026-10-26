@@ -38,8 +38,7 @@ export const AnnouncementBanner: React.FC = () => {
     ? "broadcast"
     : null;
 
-  const isVisible = mode !== null && !isExiting;
-
+  
   const handleDismiss = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {

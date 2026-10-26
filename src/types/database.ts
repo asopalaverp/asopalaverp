@@ -272,6 +272,8 @@ export interface StaffAdvance {
   salary_deducted_at?: string | null;
   salary_deducted_by_name?: string | null;
   created_at: string;
+  is_direct_voucher_advance?: boolean;
+  source_category?: string;
 }
 
 export interface CashClosing {

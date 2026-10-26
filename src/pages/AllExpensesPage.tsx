@@ -1,27 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { format, startOfMonth } from 'date-fns';
 import { useUIStore } from '@/store/uiStore';
-import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
-import { erpService } from '@/lib/erpService';
+import { DateRange } from '@/components/ui/DateRangePicker';
 import { formatINR, formatCompactINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
-import { SegmentedControl } from '@/components/ui';
-import {
-  Download,
-  Plus,
+import {  Plus,
   Receipt,
   Wallet,
   Smartphone,
   Layers,
   RefreshCw,
-  FileSpreadsheet,
-  Calendar,
-} from 'lucide-react';
+  FileSpreadsheet,} from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { DateRangePicker, DateRange } from '@/components/ui/DateRangePicker';
 
 export const AllExpensesPage: React.FC = () => {
   const { setActivePage } = useUIStore();
@@ -31,8 +25,7 @@ export const AllExpensesPage: React.FC = () => {
 
   // Role detection: Cashier vs Executive/Admin
   const isCashier = user?.role_code === 'Cashier' || user?.role_code?.toLowerCase() === 'cashier';
-  const isAdminOrManager = isPrivilegedAdminRole(user?.role_code) || user?.role_code === 'Store_Manager' || user?.role_code?.toLowerCase() === 'store_manager';
-
+  
   const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const [dateRange, setDateRange] = useState<DateRange>(() => ({
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),

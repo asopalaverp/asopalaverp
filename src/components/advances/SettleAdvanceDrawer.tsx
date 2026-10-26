@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { erpService } from '@/lib/erpService';
-import { formatINR, cn, triggerHaptic } from '@/lib/utils';
+import { formatINR, cn } from '@/lib/utils';
 import { BillUploader } from '@/components/vouchers/BillUploader';
 import { TouchSignatureCanvas } from '@/components/advances/TouchSignatureCanvas';
 import { Avatar, AvatarFallback } from '@/components/ui/Avatar';
@@ -15,7 +15,6 @@ import {
   Coins,
   CheckCircle2,
   FileCheck,
-  ArrowRight,
 } from 'lucide-react';
 import { showToast } from '@/components/ui/ToastContainer';
 import { SubmitButton } from '@/components/ui/SubmitButton';

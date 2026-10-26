@@ -1,62 +1,44 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { format, startOfWeek, startOfMonth, startOfQuarter } from 'date-fns';
+import { format, startOfWeek, startOfMonth, startOfQuarter, subDays, addDays } from 'date-fns';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { supabase } from '@/lib/supabase';
 import { calculateDailyCashBalances, calculateDailyTreasuryBalances } from '@/lib/dailyCashBalance';
-import { StaffAdvance, ExpenseVoucher, WalletLedger, VoucherSplit } from '@/types/database';
+import { StaffAdvance, WalletLedger, VoucherSplit } from '@/types/database';
 import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { LogsBarChart } from '@/components/fragments/LogsBarChart';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { DatePicker } from '@/components/ui/DatePicker';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui';
-import { formatINR, formatCompactINR, cn, triggerHaptic } from '@/lib/utils';
-import { showToast } from '@/components/ui/ToastContainer';
+import { formatINR, cn, triggerHaptic } from '@/lib/utils';
+import { useAnomalyDetector } from '@/hooks/useAnomalyDetector';
+import { ExecutiveBriefingWidget } from '@/components/dashboard/ExecutiveBriefingWidget';
+import { HourlyHeatmapWidget } from '@/components/dashboard/HourlyHeatmapWidget';
+import { DepartmentBudgetCapsWidget } from '@/components/dashboard/DepartmentBudgetCapsWidget';
 import {
   Wallet,
   ArrowRight,
-  FileSpreadsheet,
-  Check,
-  PieChart,
+  FileSpreadsheet,  PieChart,
   Building2,
-  TrendingUp,
-  TrendingDown,
-  HandCoins,
-  Receipt,
+  TrendingUp,  Receipt,
   Calendar,
   Filter,
-  RotateCcw,
-  ShieldCheck,
-  AlertTriangle,
-  AlertCircle,
-  CreditCard,
-  Coins,
-  Layers,
-  Tag,
-  Activity,
-  CheckCircle2,
-  ArrowUpRight,
+  RotateCcw,  AlertTriangle,  Coins,
+  Layers,  Activity,  ArrowUpRight,
   ArrowDownRight,
-  Plus,
-  Sparkles,
-  Lock,
-  Unlock,
-  ChevronDown,
-  X,
+  Plus,  Lock,  X,
   LayoutDashboard,
-  RefreshCw,
-  Clock,
-  Users,
+  RefreshCw,  Users,
+  ShieldAlert,
 } from 'lucide-react';
+import { useDuplicateDetector } from '@/hooks/useDuplicateDetector';
+import { DuplicateDetectionModal } from '@/components/vouchers/DuplicateDetectionModal';
 
 export const DashboardPage: React.FC = () => {
   const { user, can, isBranchAllowed } = useAuthStore();
-  const { selectedBranchId, branches, getActiveBranch } = useBranchStore();
+  const { selectedBranchId, getActiveBranch } = useBranchStore();
   const { setActivePage } = useUIStore();
   const { vouchers, categories, departments, loading, refresh } = useVouchers();
 
@@ -71,6 +53,18 @@ export const DashboardPage: React.FC = () => {
   const [advances, setAdvances] = useState<StaffAdvance[]>([]);
   const [isPeriodLocked, setIsPeriodLocked] = useState(false);
   const [splitsMap, setSplitsMap] = useState<Record<string, VoucherSplit[]>>({});
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+
+  // Real-time Duplicate Detection Radar
+  const {
+    clusters: duplicateClusters,
+    activeCount: duplicateActiveCount,
+    totalAtRiskAmount: duplicateAtRiskAmount,
+    dismissCluster,
+  } = useDuplicateDetector(vouchers, ledgerEntries);
+
+  // Statistical Anomaly Radar (Google Cloud Monitoring Z-Score / IQR Engine)
+  const { anomaliesMap, anomalyList, anomalyCount } = useAnomalyDetector(vouchers);
 
 
   // Slicers State (For Admin/Executive: Multi-dimensional, For Cashier: Locked to today)
@@ -78,7 +72,10 @@ export const DashboardPage: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedMode, setSelectedMode] = useState<'ALL' | 'Physical_Cash' | 'Online_UPI'>('ALL');
-  const [isCustomDateOpen, setIsCustomDateOpen] = useState(false);
+  
+  // Interactive Dashboard Table Slicers (Click-to-Filter on Top 5 Depts & Categories)
+  const [activeDeptFilter, setActiveDeptFilter] = useState<string>('ALL');
+  const [activeCatFilter, setActiveCatFilter] = useState<string>('ALL');
 
   const activeBranch = getActiveBranch();
   const minCashThreshold = activeBranch?.min_cash_threshold || 3000;
@@ -138,29 +135,49 @@ export const DashboardPage: React.FC = () => {
     loadLedger();
     loadAdvances();
 
-    let timeoutId: any = null;
-    const handleUpdates = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
+    let walletTimeout: any = null;
+    let ledgerTimeout: any = null;
+    let advTimeout: any = null;
+
+    const onWalletUpdate = () => {
+      if (walletTimeout) clearTimeout(walletTimeout);
+      walletTimeout = setTimeout(() => loadWallet(), 400);
+    };
+
+    const onLedgerUpdate = () => {
+      if (ledgerTimeout) clearTimeout(ledgerTimeout);
+      ledgerTimeout = setTimeout(() => loadLedger(), 400);
+    };
+
+    const onAdvancesUpdate = () => {
+      if (advTimeout) clearTimeout(advTimeout);
+      advTimeout = setTimeout(() => loadAdvances(), 400);
+    };
+
+    const onVouchersUpdate = () => {
+      if (walletTimeout) clearTimeout(walletTimeout);
+      if (ledgerTimeout) clearTimeout(ledgerTimeout);
+      walletTimeout = setTimeout(() => {
         loadWallet();
         loadLedger();
-        loadAdvances();
-      }, 300);
+      }, 400);
     };
 
-    window.addEventListener('asopalav:wallet-updated', handleUpdates);
-    window.addEventListener('asopalav:ledger-updated', handleUpdates);
-    window.addEventListener('asopalav:advances-updated', handleUpdates);
-    window.addEventListener('asopalav:vouchers-updated', handleUpdates);
+    window.addEventListener('asopalav:wallet-updated', onWalletUpdate);
+    window.addEventListener('asopalav:ledger-updated', onLedgerUpdate);
+    window.addEventListener('asopalav:advances-updated', onAdvancesUpdate);
+    window.addEventListener('asopalav:vouchers-updated', onVouchersUpdate);
 
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      window.removeEventListener('asopalav:wallet-updated', handleUpdates);
-      window.removeEventListener('asopalav:ledger-updated', handleUpdates);
-      window.removeEventListener('asopalav:advances-updated', handleUpdates);
-      window.removeEventListener('asopalav:vouchers-updated', handleUpdates);
+      if (walletTimeout) clearTimeout(walletTimeout);
+      if (ledgerTimeout) clearTimeout(ledgerTimeout);
+      if (advTimeout) clearTimeout(advTimeout);
+      window.removeEventListener('asopalav:wallet-updated', onWalletUpdate);
+      window.removeEventListener('asopalav:ledger-updated', onLedgerUpdate);
+      window.removeEventListener('asopalav:advances-updated', onAdvancesUpdate);
+      window.removeEventListener('asopalav:vouchers-updated', onVouchersUpdate);
     };
-  }, [selectedBranchId, loadWallet, loadLedger, loadAdvances]);
+  }, [selectedBranchId]);
 
   // Active time range slicer
   const effectiveTimeRange = timeRange;
@@ -224,8 +241,10 @@ export const DashboardPage: React.FC = () => {
     const isToday = customStartDate === todayStr && customEndDate === todayStr;
     if (!isToday && (customStartDate || customEndDate || (timeRange !== 'today' && timeRange !== 'custom')) && !isCashier) count++;
     if (selectedMode !== 'ALL') count++;
+    if (activeDeptFilter !== 'ALL') count++;
+    if (activeCatFilter !== 'ALL') count++;
     return count;
-  }, [timeRange, customStartDate, customEndDate, selectedMode, isCashier, todayStr]);
+  }, [timeRange, customStartDate, customEndDate, selectedMode, isCashier, todayStr, activeDeptFilter, activeCatFilter]);
 
   // Load line-item splits for multi-department/split vouchers in view
   useEffect(() => {
@@ -522,7 +541,7 @@ export const DashboardPage: React.FC = () => {
     };
   }, [vouchers]);
 
-  // Cash Runway Calculation (Days of float remaining based on 7-day average cash burn)
+  // Cash Runway Calculation & Predictive Till Exhaustion Clock
   const cashRunway = useMemo(() => {
     const now = new Date();
     const sevenDaysAgo = new Date();
@@ -540,11 +559,71 @@ export const DashboardPage: React.FC = () => {
     const dailyAverageCashBurn = Math.max(Math.round(total7DayCash / 7), 500);
     const runwayDays = Math.round(cashBalance / dailyAverageCashBurn);
 
+    // Projected Depletion Date & Day
+    let predictedDepletionDate = '';
+    if (runwayDays <= 1) {
+      predictedDepletionDate = 'Today (~6:00 PM)';
+    } else if (runwayDays === 2) {
+      predictedDepletionDate = 'Tomorrow (~4:30 PM)';
+    } else {
+      const depDate = addDays(now, Math.min(runwayDays, 60));
+      predictedDepletionDate = format(depDate, 'EEEE d MMM');
+    }
+
+    // Recommended Float Top-Up: Covers 5 days of burn + 20% safety buffer, rounded to clean ₹5,000 banknote chunks
+    const rawRecommended = dailyAverageCashBurn * 5 * 1.2;
+    const recommendedTopUp = Math.max(10000, Math.round(rawRecommended / 5000) * 5000);
+
     return {
       dailyAverageCashBurn,
       runwayDays,
+      predictedDepletionDate,
+      recommendedTopUp,
     };
   }, [vouchers, cashBalance]);
+
+  // Daily Spend Burn Rate & Anomaly Velocity Meter
+  // Compares today's outflow against showroom's 7-day rolling daily average
+  const burnRateStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const sevenDaysAgoStr = format(subDays(now, 7), 'yyyy-MM-dd');
+
+    // Past 7 completed days spend (excluding today)
+    const past7DaysVouchers = vouchers.filter((v) => {
+      if (v.status === 'Voided' || v.status === 'Pending_Approval' || v.payment_type === 'Advance_Settlement') return false;
+      const vDate = v.payment_date || (v.created_at ? v.created_at.slice(0, 10) : '');
+      return vDate >= sevenDaysAgoStr && vDate < todayStr;
+    });
+
+    const totalPast7DaysSpend = past7DaysVouchers.reduce((sum, v) => sum + (Number(v.total_amount) || 0), 0);
+    const rollingDailyAverage = Math.round(totalPast7DaysSpend / 7);
+
+    // Today's total outflow (Cash + UPI) from treasuryBreakdown
+    const todayOutflow = treasuryBreakdown.total.outflow;
+
+    const deltaAmount = todayOutflow - rollingDailyAverage;
+    const deltaPercent = rollingDailyAverage > 0 ? Math.round(((todayOutflow - rollingDailyAverage) / rollingDailyAverage) * 100) : 0;
+
+    let paceStatus: 'normal' | 'above' | 'spike' | 'below' = 'normal';
+    if (todayOutflow === 0 || deltaPercent === 0) {
+      paceStatus = 'normal';
+    } else if (deltaPercent > 50) {
+      paceStatus = 'spike';
+    } else if (deltaPercent > 0) {
+      paceStatus = 'above';
+    } else {
+      paceStatus = 'below';
+    }
+
+    return {
+      todayOutflow,
+      rollingDailyAverage,
+      deltaAmount,
+      deltaPercent,
+      paceStatus,
+    };
+  }, [vouchers, treasuryBreakdown.total.outflow]);
 
 
   // Category Spend Stats
@@ -632,6 +711,32 @@ export const DashboardPage: React.FC = () => {
               </button>
             )}
 
+            {isAdminOrManager && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setIsDuplicateModalOpen(true);
+                }}
+                className={cn(
+                  "h-9 px-3 py-1.5 rounded-[6px] border text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer",
+                  duplicateActiveCount > 0
+                    ? "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20"
+                    : "border-slate-200 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#1a1a1a] text-slate-700 dark:text-[#A1A1A1] hover:text-slate-900 dark:hover:text-[#EDEDED]"
+                )}
+                title="Duplicate Detection & Resolution Studio"
+              >
+                <ShieldAlert className={cn("w-3.5 h-3.5", duplicateActiveCount > 0 ? "text-rose-500 animate-pulse" : "text-[#3ecf8e]")} />
+                <span className="hidden sm:inline">Duplicates</span>
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded-full font-mono text-[10px]",
+                  duplicateActiveCount > 0 ? "bg-rose-500 text-white font-bold" : "bg-slate-200 dark:bg-[#282828] text-slate-600 dark:text-[#aaa]"
+                )}>
+                  {duplicateActiveCount}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => refresh()}
@@ -667,6 +772,62 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* Duplicate Detection Alert Banner (Admin Only) */}
+        {isAdminOrManager && duplicateActiveCount > 0 && (
+          <div className="p-3.5 sm:p-4 rounded-[12px] bg-gradient-to-r from-rose-500/10 via-amber-500/5 to-transparent border border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-slate-900 dark:text-white shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-500 shrink-0 mt-0.5">
+                <ShieldAlert className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-semibold tracking-tight text-rose-700 dark:text-rose-400">
+                    Duplicate Expense Radar: {duplicateActiveCount} Suspicious {duplicateActiveCount === 1 ? 'Entry' : 'Entries'} Detected
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-[4px] bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono text-[10px] font-bold">
+                    {formatINR(duplicateAtRiskAmount)} At-Risk
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-[#A1A1A1] mt-0.5">
+                  Identified potential duplicate bill numbers or rapid double-submissions. Review immediately to protect drawer ledger accuracy.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                setIsDuplicateModalOpen(true);
+              }}
+              className="h-8 px-3.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+            >
+              <span>Review &amp; Take Action ({duplicateActiveCount})</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* FAANG-Grade Executive Briefing Widget */}
+        <ExecutiveBriefingWidget
+          cashBalance={cashBalance}
+          runwayDays={cashRunway.runwayDays}
+          predictedDepletionDate={cashRunway.predictedDepletionDate}
+          recommendedTopUp={cashRunway.recommendedTopUp}
+          momComparison={momComparison}
+          burnRateStats={burnRateStats}
+          duplicateCount={duplicateActiveCount}
+          anomalyCount={anomalyCount}
+          topDepartment={departmentStats[0] || null}
+          pendingStaffAdvances={{
+            count: advanceMetrics.pendingCount,
+            totalAmount: advanceMetrics.totalUnsettled,
+          }}
+          onOpenDuplicates={() => setIsDuplicateModalOpen(true)}
+          onOpenReports={() => setActivePage('reports')}
+          onOpenAdvances={() => setActivePage('advances')}
+        />
 
         {/* =========================================================================
             SECTION A: CASHIER VIEW (STRICTLY SHIFT TILL ONLY - NO MACRO SPEND)
@@ -730,7 +891,6 @@ export const DashboardPage: React.FC = () => {
                     setCustomStartDate(range.startDate);
                     setCustomEndDate(range.endDate);
                     setTimeRange('custom');
-                    setIsCustomDateOpen(true);
                   }}
                   size="sm"
                 />
@@ -745,6 +905,31 @@ export const DashboardPage: React.FC = () => {
                   onChange={(val) => setSelectedMode(val as typeof selectedMode)}
                   size="sm"
                 />
+
+                {/* 7-Day Burn Rate Velocity Meter */}
+                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-[6px] bg-slate-50 dark:bg-[#1f1f1f] border border-slate-200/80 dark:border-[#2e2e2e] text-xs">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+                    7-Day Avg:
+                  </span>
+                  <span className="font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
+                    {formatINR(burnRateStats.rollingDailyAverage)}/day
+                  </span>
+                  <span
+                    className={cn(
+                      'px-1.5 py-0.5 rounded-[4px] text-[10px] font-mono font-bold uppercase inline-flex items-center gap-1',
+                      burnRateStats.paceStatus === 'spike'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                        : burnRateStats.paceStatus === 'above'
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                        : burnRateStats.paceStatus === 'below'
+                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                        : 'bg-emerald-500/15 text-emerald-600 dark:text-[#3ecf8e] border border-emerald-500/30'
+                    )}
+                  >
+                    <span>{burnRateStats.deltaPercent >= 0 ? `+${burnRateStats.deltaPercent}%` : `${burnRateStats.deltaPercent}%`}</span>
+                    <span>{burnRateStats.paceStatus === 'spike' ? 'Spike' : burnRateStats.paceStatus === 'above' ? 'Pacing Up' : burnRateStats.paceStatus === 'below' ? 'Under Avg' : 'Normal Pace'}</span>
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -755,9 +940,10 @@ export const DashboardPage: React.FC = () => {
                       const today = format(new Date(), 'yyyy-MM-dd');
                       setTimeRange('today');
                       setSelectedMode('ALL');
-                      setIsCustomDateOpen(false);
                       setCustomStartDate(today);
                       setCustomEndDate(today);
+                      setActiveDeptFilter('ALL');
+                      setActiveCatFilter('ALL');
                       triggerHaptic('light');
                     }}
                     className="h-8 px-2.5 py-1 rounded-[6px] border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
@@ -815,7 +1001,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* NEW EXECUTIVE STRATEGIC ROW: MoM Comparison & Staff Advance Aging */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
               {/* MoM Comparison Card (Like-for-Like MTD) */}
               <div className="lg:col-span-6 p-4 sm:p-5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] rounded-[12px] space-y-3 shadow-sm">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#242424]">
@@ -974,58 +1160,122 @@ export const DashboardPage: React.FC = () => {
                 </div>
 
                 <span className="px-2.5 py-1 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] font-mono text-xs font-semibold text-slate-900 dark:text-white tabular-nums shrink-0">
-                  {departmentStats.length} Cost Centers
+                  {departmentStats.length > 5 ? `Top 5 of ${departmentStats.length} Cost Centers` : `${departmentStats.length} Cost Centers`}
                 </span>
               </div>
 
-              {/* Department Ranking Matrix */}
+              {/* Department Ranking Matrix - Top 5 Only (Click-to-Filter Table) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {departmentStats.length === 0 ? (
                   <div className="col-span-2 py-8 text-center text-slate-500 dark:text-[#737373] text-xs font-sans">
                     No department expenses recorded in this period.
                   </div>
                 ) : (
-                  departmentStats.map((dept, idx) => (
-                    <div
-                      key={dept.name}
-                      className="p-3 rounded-[8px] bg-slate-50 dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] space-y-2"
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-[#282828] text-[10px] font-mono font-bold flex items-center justify-center text-slate-700 dark:text-zinc-300">
-                            #{idx + 1}
-                          </span>
-                          <span className="font-semibold text-slate-900 dark:text-white truncate">
-                            {dept.name}
-                          </span>
-                          <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400">
-                            ({dept.count} {dept.count === 1 ? 'bill' : 'bills'})
-                          </span>
+                  departmentStats.slice(0, 5).map((dept, idx) => {
+                    const isSelected = activeDeptFilter === dept.name;
+                    return (
+                      <button
+                        key={dept.name}
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic('light');
+                          if (isSelected) {
+                            setActiveDeptFilter('ALL');
+                          } else {
+                            setActiveDeptFilter(dept.name);
+                            setTimeout(() => {
+                              document.getElementById('dashboard-voucher-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 100);
+                          }
+                        }}
+                        className={cn(
+                          'w-full text-left p-3 rounded-[8px] border transition-all cursor-pointer group shadow-2xs space-y-2',
+                          isSelected
+                            ? 'bg-[#3ecf8e]/10 border-[#3ecf8e] ring-1 ring-[#3ecf8e]/30 shadow-xs'
+                            : 'bg-slate-50 dark:bg-[#18181a] border-slate-200 dark:border-[#242424] hover:border-slate-300 dark:hover:border-[#383838] hover:bg-slate-100/70 dark:hover:bg-[#1c1c1e]'
+                        )}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className={cn(
+                                'w-5 h-5 rounded-full text-[10px] font-mono font-bold flex items-center justify-center shrink-0',
+                                isSelected
+                                  ? 'bg-[#3ecf8e] text-slate-950 font-black'
+                                  : 'bg-slate-200 dark:bg-[#282828] text-slate-700 dark:text-zinc-300'
+                              )}
+                            >
+                              #{idx + 1}
+                            </span>
+                            <span className="font-semibold text-slate-900 dark:text-white truncate">
+                              {dept.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 shrink-0">
+                              ({dept.count} {dept.count === 1 ? 'bill' : 'bills'})
+                            </span>
+                            {isSelected && (
+                              <span className="px-1.5 py-0.2 rounded-[4px] bg-[#3ecf8e] text-slate-950 text-[9px] font-bold font-mono uppercase tracking-wide shrink-0">
+                                Sliced
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">
+                              {formatINR(dept.amount)}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-[4px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] font-mono text-[10px] font-bold">
+                              {dept.percentage}%
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono font-bold text-slate-900 dark:text-white">
-                            {formatINR(dept.amount)}
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] font-mono text-[10px] font-bold">
-                            {dept.percentage}%
-                          </span>
+                        {/* Progress Bar */}
+                        <div className="w-full h-1.5 bg-slate-200 dark:bg-[#282828] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.max(dept.percentage, 3)}%`,
+                              backgroundColor: dept.color,
+                            }}
+                          />
                         </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="w-full h-1.5 bg-slate-200 dark:bg-[#282828] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.max(dept.percentage, 3)}%`,
-                            backgroundColor: dept.color,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))
+                      </button>
+                    );
+                  })
                 )}
+              </div>
+
+              {/* Footer: For more, go to Report View */}
+              {departmentStats.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 dark:border-[#242424] flex flex-wrap items-center justify-between gap-2.5">
+                  <span className="text-xs text-slate-500 dark:text-[#888]">
+                    {departmentStats.length > 5
+                      ? `Displaying Top 5 highest-spend cost centers (${departmentStats.length - 5} additional departments active).`
+                      : `Displaying all ${departmentStats.length} active cost centers for this timeframe.`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setActivePage('reports');
+                    }}
+                    className="px-3 py-1.5 rounded-[6px] bg-[#3ecf8e]/10 hover:bg-[#3ecf8e]/20 border border-[#3ecf8e]/30 text-xs font-sans text-emerald-800 dark:text-[#3ecf8e] flex items-center gap-1.5 transition-colors cursor-pointer group font-medium shadow-2xs"
+                  >
+                    <span>View Full Department Breakdown in Reports</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#3ecf8e] transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* FAANG-Grade Observability: Department Budget Caps & Hourly Spend Heatmap */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-6">
+                <DepartmentBudgetCapsWidget departmentStats={departmentStats} />
+              </div>
+              <div className="lg:col-span-6">
+                <HourlyHeatmapWidget vouchers={filteredVouchers} />
               </div>
             </div>
 
@@ -1060,7 +1310,7 @@ export const DashboardPage: React.FC = () => {
                         Expense Heads Breakdown
                       </h3>
                       <p className="text-[11px] text-slate-500 dark:text-[#A1A1A1]">
-                        Operational expense categories directly from Supabase
+                        Operational expense breakdown across active categories
                       </p>
                     </div>
                   </div>
@@ -1076,43 +1326,68 @@ export const DashboardPage: React.FC = () => {
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-[#242424]">
-                      {categoryStats.slice(0, 6).map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="py-2.5 px-2 flex flex-col gap-1.5 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] rounded-[6px] transition-colors group"
-                        >
-                          <div className="flex items-center justify-between gap-3 text-xs">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: item.color }}
+                      {categoryStats.slice(0, 6).map((item, idx) => {
+                        const isSelected = activeCatFilter === item.name;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              triggerHaptic('light');
+                              if (isSelected) {
+                                setActiveCatFilter('ALL');
+                              } else {
+                                setActiveCatFilter(item.name);
+                                setTimeout(() => {
+                                  document.getElementById('dashboard-voucher-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 100);
+                              }
+                            }}
+                            className={cn(
+                              'w-full text-left py-2.5 px-2 flex flex-col gap-1.5 rounded-[6px] transition-all cursor-pointer group',
+                              isSelected
+                                ? 'bg-[#3ecf8e]/15 border border-[#3ecf8e]/40 ring-1 ring-[#3ecf8e]/30 shadow-xs'
+                                : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: item.color }}
+                                />
+                                <span className="font-medium font-sans text-slate-900 dark:text-white truncate">
+                                  {item.name}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] text-[10px] font-mono text-slate-600 dark:text-[#A1A1A1] font-medium shrink-0">
+                                  {item.count} {item.count === 1 ? 'bill' : 'bills'}
+                                </span>
+                                {isSelected && (
+                                  <span className="px-1.5 py-0.2 rounded-[4px] bg-[#3ecf8e] text-slate-950 text-[9px] font-bold font-mono uppercase tracking-wide shrink-0">
+                                    Sliced
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2.5 shrink-0">
+                                <span className="font-mono text-xs font-semibold tabular-nums text-slate-900 dark:text-white">
+                                  {formatINR(item.amount)}
+                                </span>
+                                <span className="w-12 text-right px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono font-medium text-slate-600 dark:text-[#A1A1A1] tabular-nums">
+                                  {item.percentage}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="w-full h-1 bg-slate-100 dark:bg-[#1f1f1f] rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
                               />
-                              <span className="font-medium font-sans text-slate-900 dark:text-white truncate">
-                                {item.name}
-                              </span>
-                              <span className="px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] text-[10px] font-mono text-slate-600 dark:text-[#A1A1A1] font-medium shrink-0">
-                                {item.count} {item.count === 1 ? 'bill' : 'bills'}
-                              </span>
                             </div>
-
-                            <div className="flex items-center gap-2.5 shrink-0">
-                              <span className="font-mono text-xs font-semibold tabular-nums text-slate-900 dark:text-white">
-                                {formatINR(item.amount)}
-                              </span>
-                              <span className="w-12 text-right px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-[#1f1f1f] border border-slate-200 dark:border-[#2e2e2e] text-[10px] font-mono font-medium text-slate-600 dark:text-[#A1A1A1] tabular-nums">
-                                {item.percentage}%
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="w-full h-1 bg-slate-100 dark:bg-[#1f1f1f] rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1202,7 +1477,7 @@ export const DashboardPage: React.FC = () => {
         )}
 
         {/* 5. Recent Expense Records Table (Common to Both Roles) */}
-        <div className="space-y-3 pt-2">
+        <div id="dashboard-voucher-table" className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Receipt className="w-4 h-4 text-[#3ecf8e]" />
@@ -1227,6 +1502,59 @@ export const DashboardPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Active Click-to-Filter Slicers Banner */}
+          {(activeDeptFilter !== 'ALL' || activeCatFilter !== 'ALL') && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 px-3 rounded-[8px] bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 text-xs animate-in fade-in">
+              <div className="flex flex-wrap items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                <span className="font-medium text-slate-700 dark:text-zinc-200">Filtering Table By:</span>
+                {activeDeptFilter !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-[#3ecf8e] text-slate-950 font-semibold font-mono text-[11px] shadow-2xs">
+                    <span>Dept: {activeDeptFilter}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setActiveDeptFilter('ALL');
+                      }}
+                      className="hover:opacity-75 cursor-pointer"
+                      title="Remove Department Filter"
+                    >
+                      <X className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  </span>
+                )}
+                {activeCatFilter !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-[#3ecf8e] text-slate-950 font-semibold font-mono text-[11px] shadow-2xs">
+                    <span>Category: {activeCatFilter}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setActiveCatFilter('ALL');
+                      }}
+                      className="hover:opacity-75 cursor-pointer"
+                      title="Remove Category Filter"
+                    >
+                      <X className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveDeptFilter('ALL');
+                  setActiveCatFilter('ALL');
+                }}
+                className="text-xs font-semibold text-emerald-800 dark:text-[#3ecf8e] hover:underline cursor-pointer"
+              >
+                Clear Slicers
+              </button>
+            </div>
+          )}
+
           <div>
             <VoucherTable
               vouchers={vouchers}
@@ -1235,6 +1563,10 @@ export const DashboardPage: React.FC = () => {
               hideTelemetry={true}
               startDate={customStartDate}
               endDate={customEndDate}
+              departmentFilter={activeDeptFilter}
+              categoryFilter={activeCatFilter}
+              onClearDepartmentFilter={() => setActiveDeptFilter('ALL')}
+              onClearCategoryFilter={() => setActiveCatFilter('ALL')}
               onDateRangeChange={(range) => {
                 setCustomStartDate(range.startDate);
                 setCustomEndDate(range.endDate);
@@ -1244,6 +1576,19 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Duplicate Detection Studio Modal */}
+      <DuplicateDetectionModal
+        isOpen={isDuplicateModalOpen}
+        onClose={() => setIsDuplicateModalOpen(false)}
+        clusters={duplicateClusters}
+        onDismiss={dismissCluster}
+        onRefresh={() => {
+          refresh();
+          loadWallet();
+          loadLedger();
+        }}
+      />
     </div>
   );
 };

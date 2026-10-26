@@ -8,19 +8,14 @@ import {
   AccountingPeriod,
   CurrencyDenomination,
   AppRole,
-  RolePermissions,
-  Branch,
-  ExpenseCategory,
-  Department,
-  CourierPartner,
-  StaffMember,
+  RolePermissions,  StaffMember,
   GstTaxRate,
 } from '@/types/database';
 import { formatINR, formatDate, cn, triggerHaptic } from '@/lib/utils';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
 import { useNotificationStore } from '@/store/notificationStore';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { toast, showToast } from '@/components/ui/ToastContainer';
+import { toast } from '@/components/ui/ToastContainer';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 import {
@@ -36,28 +31,13 @@ import {
   Edit2,
   FileSpreadsheet,
   Check,
-  Search,
-  Download,
-  Code2,
-  Terminal,
-  ChevronDown,
-  X,
+  Search,  X,
   Megaphone,
   Send,
   Trash2,
   Sparkles,
-  Shield,
-  ShieldAlert,
-  Users,
-  Table as TableIcon,
-  RefreshCw,
-  LucideIcon,
-  Menu,
-  AlertCircle,
-  HandCoins,
-  ToggleLeft,
-  ToggleRight,
-  Percent,
+  Shield,  Users,  RefreshCw,
+  LucideIcon,  HandCoins,  Percent,
   Copy,
 } from 'lucide-react';
 
@@ -235,22 +215,7 @@ export const ShowroomSettingsPage: React.FC = () => {
   const [lockReason, setLockReason] = useState('');
   const [isSubmittingLock, setIsSubmittingLock] = useState(false);
 
-  // Export Dropdown State
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const exportRef = useRef<HTMLDivElement | null>(null);
-
-  // Close export dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Broadcast Composer State
+    // Broadcast Composer State
   const [broadcastBadge, setBroadcastBadge] = useState('NEW');
   const [broadcastMessage, setBroadcastMessage] = useState(broadcast?.message || '');
   const [broadcastLink, setBroadcastLink] = useState(broadcast?.link || '');
@@ -526,7 +491,7 @@ SET rate_label = EXCLUDED.rate_label,
     navigator.clipboard.writeText(sql);
     setCopiedGstSql(true);
     setTimeout(() => setCopiedGstSql(false), 2500);
-    toast.success('SQL copied! Paste into Supabase -> SQL Editor -> Run');
+    toast.success('Setup code copied to clipboard!');
   };
 
   const handleToggleGstRate = async (rate: GstTaxRate) => {
@@ -537,7 +502,7 @@ SET rate_label = EXCLUDED.rate_label,
       setGstRates((prev) => prev.map((r) => (r.id === rate.id ? { ...r, is_active: nextStatus } : r)));
       toast.success(`${rate.rate_percent}% GST slab is now ${nextStatus ? 'Active (Visible in POS)' : 'Disabled (Hidden from App)'}`);
     } else {
-      toast.error('Failed to update GST slab status in Supabase');
+      toast.error('Failed to update GST rate setting. Please try again.');
     }
   };
 
@@ -555,133 +520,7 @@ SET rate_label = EXCLUDED.rate_label,
   };
 
   // Export handlers
-  const handleExportCsv = () => {
-    let csvContent = '';
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `${currentTab.id}_export_${dateStr}.csv`;
-
-    switch (activeTabId) {
-      case 'periods':
-        csvContent =
-          'Period Key,Start Date,End Date,Status,Locked By,Lock Reason\n' +
-          periods
-            .map(
-              (p) =>
-                `${escapeCsvField(p.period_key)},${escapeCsvField(p.start_date)},${escapeCsvField(p.end_date)},${escapeCsvField(p.is_locked ? 'Locked' : 'Open')},${escapeCsvField(p.locked_by_name || '')},${escapeCsvField(p.lock_reason || '')}`
-            )
-            .join('\n');
-        break;
-      case 'branches':
-        csvContent =
-          'Branch Code,Branch Name,City,State,GSTIN,Min Cash,Max Cash,Max UPI,Status\n' +
-          branches
-            .map(
-              (b) =>
-                `${escapeCsvField(b.branch_code)},${escapeCsvField(b.branch_name)},${escapeCsvField(b.city)},${escapeCsvField(b.state)},${escapeCsvField(b.gstin || '')},${escapeCsvField(b.min_cash_threshold || 0)},${escapeCsvField(b.max_cash_ceiling || 0)},${escapeCsvField(b.max_upi_ceiling || 0)},${escapeCsvField(b.is_active ? 'Active' : 'Inactive')}`
-            )
-            .join('\n');
-        break;
-      case 'categories':
-        csvContent =
-          'Category Name,Color Theme,Status\n' +
-          categories
-            .map((c) => `${escapeCsvField(c.category_name)},${escapeCsvField(c.color_theme || '')},${escapeCsvField(c.is_active ? 'Active' : 'Inactive')}`)
-            .join('\n');
-        break;
-      case 'departments':
-        csvContent =
-          'Department Code,Department Name,Status\n' +
-          departments
-            .map((d) => `${escapeCsvField(d.department_code)},${escapeCsvField(d.department_name)},${escapeCsvField(d.is_active ? 'Active' : 'Inactive')}`)
-            .join('\n');
-        break;
-      case 'couriers':
-        csvContent =
-          'Partner Code,Partner Name,Contact Phone,Status\n' +
-          couriers
-            .map(
-              (cr) =>
-                `${escapeCsvField(cr.partner_code)},${escapeCsvField(cr.partner_name)},${escapeCsvField(cr.contact_phone || '')},${escapeCsvField(cr.is_active ? 'Active' : 'Inactive')}`
-            )
-            .join('\n');
-        break;
-      case 'staff':
-        csvContent =
-          'Staff Code,First Name,Last Name,Branch,Department,Designation,Mobile,Status\n' +
-          staffMembers
-            .map(
-              (s) =>
-                `${escapeCsvField(s.staff_code)},${escapeCsvField(s.first_name)},${escapeCsvField(s.last_name || '')},${escapeCsvField(s.branch_code || '')},${escapeCsvField(s.department_name || '')},${escapeCsvField(s.designation || '')},${escapeCsvField(s.mobile_number || '')},${escapeCsvField(s.is_active ? 'Active' : 'Inactive')}`
-            )
-            .join('\n');
-        break;
-      case 'roles':
-        csvContent =
-          'Role Code,Role Title,Description,System Role\n' +
-          roles
-            .map(
-              (r) =>
-                `${escapeCsvField(r.role_code)},${escapeCsvField(r.role_title)},${escapeCsvField(r.description || '')},${escapeCsvField(r.is_system_role ? 'Yes' : 'No')}`
-            )
-            .join('\n');
-        break;
-      case 'denominations':
-        csvContent =
-          'Value,Display Label,Type,Sort Order,Status\n' +
-          denominations
-            .map(
-              (dn) =>
-                `${escapeCsvField(dn.denomination_value)},${escapeCsvField(dn.display_label)},${escapeCsvField(dn.is_coin ? 'Coin' : 'Note')},${escapeCsvField(dn.sort_order)},${escapeCsvField(dn.is_active ? 'Active' : 'Inactive')}`
-            )
-            .join('\n');
-        break;
-      default:
-        csvContent = 'ID,Name\n';
-    }
-
-    downloadBlob(filename, csvContent, 'text/csv;charset=utf-8;');
-    toast.success(`Exported ${filename}`);
-  };
-
-  const handleExportJson = () => {
-    let data: any = [];
-    switch (activeTabId) {
-      case 'periods':
-        data = periods;
-        break;
-      case 'branches':
-        data = branches;
-        break;
-      case 'categories':
-        data = categories;
-        break;
-      case 'departments':
-        data = departments;
-        break;
-      case 'couriers':
-        data = couriers;
-        break;
-      case 'staff':
-        data = staffMembers;
-        break;
-      case 'roles':
-        data = roles;
-        break;
-      case 'denominations':
-        data = denominations;
-        break;
-      case 'broadcasts':
-        data = broadcast ? [broadcast] : [];
-        break;
-      default:
-        data = [];
-    }
-    const jsonStr = JSON.stringify(data, null, 2);
-    downloadBlob(`${currentTab.id}_schema.json`, jsonStr, 'application/json');
-    toast.success(`Exported JSON schema for ${currentTab.name}`);
-  };
-
-  // Filtering data rows
+      // Filtering data rows
   const filteredPeriods = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return periods.filter((p) => {
@@ -1285,7 +1124,7 @@ SET rate_label = EXCLUDED.rate_label,
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs text-slate-900 dark:text-white">
-                          Supabase Live Cloud Status
+                          Live Cloud Sync Status
                         </span>
                         <span
                           className={cn(
@@ -1296,14 +1135,14 @@ SET rate_label = EXCLUDED.rate_label,
                           )}
                         >
                           {gstRates.length > 0 && !gstRates[0].id.startsWith('gst-')
-                            ? '● Live in Supabase Database'
-                            : '⚠ Table Empty in Supabase (Action Required)'}
+                            ? '● Connected & In Sync'
+                            : '⚠ Setup Required'}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-[#A1A1A1]">
                         {gstRates.length > 0 && !gstRates[0].id.startsWith('gst-')
-                          ? 'Changes made here or in Supabase Table Editor sync instantly across all showroom counters.'
-                          : 'Table public.gst_tax_rates in Supabase has 0 rows. Run the 5-second SQL script in Supabase SQL Editor.'}
+                          ? 'Changes made here sync instantly across all showroom counters.'
+                          : 'Tax configuration is pending initialization. Contact administrator.'}
                       </p>
                     </div>
 
@@ -1312,17 +1151,17 @@ SET rate_label = EXCLUDED.rate_label,
                         type="button"
                         onClick={handleCopyGstSql}
                         className="px-3 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
-                        title="Copy exact SQL to paste into Supabase SQL Editor"
+                        title="Copy setup configuration"
                       >
                         <Copy className="w-3.5 h-3.5 text-[#171717]" />
-                        <span>{copiedGstSql ? 'SQL Copied!' : 'Copy Supabase SQL'}</span>
+                        <span>{copiedGstSql ? 'Copied!' : 'Copy Setup Script'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={loadData}
                         disabled={isLoading}
                         className="p-1.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#202024] hover:bg-slate-100 dark:hover:bg-[#282828] text-slate-600 dark:text-[#A1A1A1] text-xs cursor-pointer"
-                        title="Check Supabase for live records"
+                        title="Check cloud records for updates"
                       >
                         <RefreshCw className={cn('w-3.5 h-3.5 text-[#3ecf8e]', isLoading && 'animate-spin')} />
                       </button>

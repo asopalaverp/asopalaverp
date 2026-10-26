@@ -6,9 +6,7 @@ import {
   Receipt,
   Wallet,
   HandCoins,
-  Plus,
-  Coins,
-  ChevronRight,
+  Plus,  ChevronRight,
 } from 'lucide-react';
 import { cn, triggerHaptic } from '@/lib/utils';
 import { useScrollLock } from '@/hooks/useScrollLock';
@@ -17,10 +15,7 @@ export const MobileBottomNav: React.FC = () => {
   const {
     activePage,
     setActivePage,
-    setMobileSidebarOpen,
-    setAdvanceModalOpen,
-    isStaffAdvanceBetaEnabled,
-  } = useUIStore();
+    setMobileSidebarOpen,  } = useUIStore();
   const { user, can } = useAuthStore();
 
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);

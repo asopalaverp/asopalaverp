@@ -67,7 +67,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
       const uploadPromises = files.map(async (file) => {
         const cloudUrl = await uploadToR2(file, 'receipts', file.name);
         if (!cloudUrl || !cloudUrl.startsWith('http') || cloudUrl.startsWith('blob:')) {
-          throw new Error('Cloudflare R2 failed to return a permanent public CDN URL.');
+          throw new Error('Could not save receipt photo. Please try again.');
         }
         return cloudUrl;
       });
@@ -80,8 +80,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({
         showToast({
           id: toastId,
           type: 'success',
-          title: 'Receipt Attached (Cloudflare R2)',
-          message: `Saved ${validUrls.length} receipt photo(s) permanently to Cloudflare R2 storage.`,
+          title: 'Receipt Attached',
+          message: validUrls.length === 1 
+            ? 'Receipt photo saved successfully.' 
+            : `${validUrls.length} receipt photos saved successfully.`,
         });
       }
     } catch (err: any) {

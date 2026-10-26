@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { AppUser, AppRole, RolePermissions, StaffMember } from '@/types/database';
+import { AppUser, StaffMember } from '@/types/database';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { MasterDataDrawer, MasterDrawerType } from '@/components/settings/MasterDataDrawer';
 import { SegmentedControl } from '@/components/ui';
@@ -16,12 +16,8 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
   UserPlus,
   FileSpreadsheet,
-  Search,
-  Building2,
-  Shield,
-  ShieldCheck,
-  ShieldAlert,
-  Users,
+  Search,  Shield,
+  ShieldCheck,  Users,
   Edit2,
   Plus,
   Check,
@@ -29,34 +25,19 @@ import {
   UserX,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Download,
-  Code,
-  Terminal,
-  MoreVertical,
-  ChevronDown,
-  X,
+  ArrowUpDown,  MoreVertical,  X,
   SlidersHorizontal,
   CheckSquare,
   Square,
   Sparkles,
-  Phone,
-  Briefcase,
-  Key,
+  Phone,  Key,
   Lock,
-  Unlock,
-  User,
-  MapPin,
-  Tag,
-  Eye,
+  Unlock,  Eye,
   EyeOff,
   AlertCircle,
   RefreshCw,
 } from 'lucide-react';
 import { cn, formatIndianPhone } from '@/lib/utils';
-import { MetricCard } from '@/components/ui/MetricCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 type UserSortField = 'username' | 'name' | 'role' | 'status';
@@ -575,8 +556,7 @@ const ResetUserPasswordModal: React.FC<ResetUserPasswordModalProps> = ({
 
 export const StaffDirectoryPage: React.FC = () => {
   const { user, can, getAllowedBranches } = useAuthStore();
-  const isDeveloper = isPrivilegedAdminRole(user?.role_code);
-  const { branches, selectedBranchId } = useBranchStore();
+    const { branches, selectedBranchId } = useBranchStore();
   const { setBulkImportOpen } = useUIStore();
   const { staff, refresh, loading } = useVouchers();
 
@@ -587,9 +567,7 @@ export const StaffDirectoryPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [staffBranchFilter, setStaffBranchFilter] = useState(canViewAll ? (selectedBranchId || 'ALL') : (allowedBranches[0]?.branch_id || 'Aellp-ASI'));
   const [usersList, setUsersList] = useState<AppUser[]>([]);
-  const [rolesList, setRolesList] = useState<AppRole[]>([]);
-  const [permissionsList, setPermissionsList] = useState<RolePermissions[]>([]);
-
+    
   // Sorting
   const [userSortField, setUserSortField] = useState<UserSortField>('username');
   const [userSortOrder, setUserSortOrder] = useState<SortOrder>('asc');
@@ -602,8 +580,7 @@ export const StaffDirectoryPage: React.FC = () => {
 
   // Pro Enterprise Controls
   const [density, setDensity] = useState<TableDensity>('normal');
-  const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
+    const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
@@ -617,8 +594,7 @@ export const StaffDirectoryPage: React.FC = () => {
   );
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const exportRef = useRef<HTMLDivElement | null>(null);
-  const columnPickerRef = useRef<HTMLDivElement | null>(null);
+    const columnPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Drawer States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -646,14 +622,8 @@ export const StaffDirectoryPage: React.FC = () => {
 
   const loadDirectory = async () => {
     try {
-      const [u, r, p] = await Promise.all([
-        erpService.getAppUsers(),
-        erpService.getAppRoles(),
-        erpService.getAllRolePermissions(),
-      ]);
+      const u = await erpService.getAppUsers();
       setUsersList(u);
-      setRolesList(r);
-      setPermissionsList(p);
     } catch (e) {
       console.error('Error loading staff directory:', e);
     }
@@ -762,9 +732,7 @@ export const StaffDirectoryPage: React.FC = () => {
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setIsExportOpen(false);
-      }
+      
       if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
         setIsColumnPickerOpen(false);
       }
@@ -975,7 +943,6 @@ export const StaffDirectoryPage: React.FC = () => {
         setSelectedIds(new Set());
         setFocusedIndex(-1);
         setActiveRowDropdownId(null);
-        setIsExportOpen(false);
         setIsColumnPickerOpen(false);
       }
     };
@@ -984,57 +951,7 @@ export const StaffDirectoryPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentDisplayedRecords, focusedIndex, activeTab]);
 
-  const handleExportData = (format: 'csv' | 'json') => {
-    setIsExportOpen(false);
-    const dateStr = new Date().toISOString().slice(0, 10);
-
-    if (activeTab === 'logins') {
-      const recordsToExport = selectedIds.size > 0
-        ? filteredUsers.filter((u) => selectedIds.has(u.id))
-        : filteredUsers;
-
-      if (format === 'json') {
-        downloadBlob(`asopalav_users_${dateStr}.json`, JSON.stringify(recordsToExport, null, 2), 'application/json');
-      } else if (format === 'csv') {
-        const headers = ['Username', 'First Name', 'Last Name', 'Role', 'Email', 'Assigned Branches', 'Status'];
-        const rows = recordsToExport.map((u) => [
-          u.username,
-          u.first_name,
-          u.last_name,
-          u.role_code,
-          u.email || '',
-          (u.assigned_branches || []).join(';'),
-          u.is_active !== false ? 'Active' : 'Inactive',
-        ]);
-        const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
-        downloadBlob(`asopalav_users_${dateStr}.csv`, csv, 'text/csv');
-      }
-    } else {
-      const recordsToExport = selectedIds.size > 0
-        ? filteredStaff.filter((s) => selectedIds.has(s.staff_code))
-        : filteredStaff;
-
-      if (format === 'json') {
-        downloadBlob(`asopalav_staff_${dateStr}.json`, JSON.stringify(recordsToExport, null, 2), 'application/json');
-      } else if (format === 'csv') {
-        const headers = ['Staff Code', 'First Name', 'Middle Name', 'Last Name', 'Mobile Number', 'Department', 'Designation', 'Branch'];
-        const rows = recordsToExport.map((s) => [
-          s.staff_code,
-          s.first_name,
-          s.middle_name || '',
-          s.last_name || '',
-          s.mobile_number || '',
-          s.department_name || '',
-          s.designation || '',
-          s.branch_code || '',
-        ]);
-        const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
-        downloadBlob(`asopalav_staff_${dateStr}.csv`, csv, 'text/csv');
-      }
-    }
-  };
-
-  const densityStyles = {
+    const densityStyles = {
     compact: { header: 'py-1.5 px-3 text-[11px]', cell: 'py-1.5 px-3 text-xs' },
     normal: { header: 'py-2.5 px-3.5 text-xs', cell: 'py-2.5 px-3.5 text-xs' },
     relaxed: { header: 'py-3.5 px-4 text-xs', cell: 'py-3.5 px-4 text-xs' },

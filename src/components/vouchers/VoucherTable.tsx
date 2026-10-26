@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ExpenseVoucher, ExpenseCategory, Department } from '@/types/database';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
@@ -12,55 +12,27 @@ import {
   Download,
   CheckSquare,
   Square,
-  Eye,
-  ChevronDown,
-  ChevronLeft,
+  Eye,  ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  X,
-  Sparkles,
-  Layers,
-  Coins,
-  Smartphone,
-  CreditCard,
-  AlertCircle,
-  FileSpreadsheet,
-  Code,
-  Check,
-  SlidersHorizontal,
-  BarChart3,
-  Users,
-  Building2,
-  Terminal,
-  MoreVertical,
-  Activity,
-  Maximize2,
-  Minimize2,
-  CornerDownRight,
-  RotateCcw,
-  Calendar,
-  User,
-  Tag,
-  ShieldCheck,
-  HandCoins,
+  X,  Layers,
+  Coins,  CreditCard,  FileSpreadsheet,  SlidersHorizontal,
+  BarChart3,  Building2,  RotateCcw,  User,
+  Tag,  HandCoins,
   Coffee,
   Truck,
   Wrench,
   Store,
-  Zap,
-  PieChart,
-  Wallet,
+  Zap,  Wallet,
   CheckCircle2,
-  Printer,
-  ArrowRight,
-} from 'lucide-react';
-import { DateRangePicker, DateRange } from '@/components/ui/DateRangePicker';
+  Printer,} from 'lucide-react';
+import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { openExclusivePopover } from '@/lib/popoverManager';
-import { erpService } from '@/lib/erpService';
 import { showToast } from '@/components/ui/ToastContainer';
+import { useAnomalyDetector } from '@/hooks/useAnomalyDetector';
 
 const VoucherCategoryAvatar: React.FC<{ category?: string | null; className?: string }> = ({ category, className }) => {
   const cat = (category || '').toLowerCase();
@@ -136,6 +108,10 @@ interface VoucherTableProps {
   startDate?: string;
   endDate?: string;
   onDateRangeChange?: (range: { startDate: string; endDate: string }) => void;
+  departmentFilter?: string;
+  categoryFilter?: string;
+  onClearDepartmentFilter?: () => void;
+  onClearCategoryFilter?: () => void;
   title?: string;
   subtitle?: string;
 }
@@ -184,6 +160,10 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   startDate,
   endDate,
   onDateRangeChange,
+  departmentFilter,
+  categoryFilter,
+  onClearDepartmentFilter,
+  onClearCategoryFilter,
   title,
   subtitle,
 }) => {
@@ -241,9 +221,27 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
 
+  // Sync external department/category filter if passed
+  useEffect(() => {
+    if (departmentFilter !== undefined) {
+      setSelectedDept(departmentFilter);
+      setCurrentPage(1);
+    }
+  }, [departmentFilter]);
+
+  useEffect(() => {
+    if (categoryFilter !== undefined) {
+      setSelectedCategory(categoryFilter);
+      setCurrentPage(1);
+    }
+  }, [categoryFilter]);
+
   // Sorting State
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // Statistical Anomaly Radar (Google Cloud Monitoring IQR & Z-score)
+  const { anomaliesMap } = useAnomalyDetector(vouchers);
 
   // Selection & Focus State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -299,8 +297,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
-  const filterRef = useRef<HTMLDivElement | null>(null);
-  const columnPickerRef = useRef<HTMLDivElement | null>(null);
+    const columnPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Global mutual exclusivity dropdown listener
   useEffect(() => {
@@ -360,17 +357,7 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     }
   };
 
-  const handleToggleFilter = () => {
-    if (isFilterOpen) {
-      setIsFilterOpen(false);
-    } else {
-      setIsColumnPickerOpen(false);
-      setActiveRowDropdownId(null);
-      setIsFilterOpen(true);
-      openExclusivePopover('voucher-filter');
-    }
-  };
-
+  
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
@@ -822,6 +809,8 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
     triggerHaptic('light');
     setSelectedCategory('ALL');
     setSelectedDept('ALL');
+    if (onClearDepartmentFilter) onClearDepartmentFilter();
+    if (onClearCategoryFilter) onClearCategoryFilter();
     setSelectedMode('ALL');
     setSelectedStatus('ALL');
     setMinAmount('');
@@ -2136,7 +2125,17 @@ export const VoucherTable: React.FC<VoucherTableProps> = ({
                             densityStyles.cell
                           )}
                         >
-                          {formatINR(v.total_amount)}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {anomaliesMap.get(v.id) && (
+                              <span
+                                className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[9px] font-mono font-bold inline-flex items-center gap-0.5 select-none"
+                                title={anomaliesMap.get(v.id)?.reason}
+                              >
+                                <span>⚡ Outlier</span>
+                              </span>
+                            )}
+                            <span>{formatINR(v.total_amount)}</span>
+                          </div>
                         </td>
                       )}
 

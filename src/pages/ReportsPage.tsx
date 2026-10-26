@@ -2,40 +2,31 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, startOfWeek, startOfMonth, startOfQuarter, subDays, subMonths } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
-import { useUIStore } from '@/store/uiStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { calculateDailyCashBalances, DayCashRecord } from '@/lib/dailyCashBalance';
+import { calculateDailyCashBalances } from '@/lib/dailyCashBalance';
 import { WalletLedger, VoucherSplit } from '@/types/database';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { DatePicker } from '@/components/ui/DatePicker';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import {
   FileSpreadsheet,
   Download,
-  Search,
-  CheckCircle2,
-  Wallet,
+  Search,  Wallet,
   RefreshCw,
-  Copy,
-  Calendar,
-  Building2,
+  Copy,  Building2,
   Receipt,
   Check,
   CalendarDays,
-  Coins,
-  TrendingDown,
-  TrendingUp,
+  Coins,  TrendingUp,
   Lock,
-  Printer,
-  ShieldCheck,
-  Split,
+  Printer,  Split,
   Users,
-} from 'lucide-react';
+  Layers,
+  PieChart,} from 'lucide-react';
 
-type ReportTab = 'daily_cash' | 'tally' | 'eod_closings';
+type ReportTab = 'daily_cash' | 'cost_centers' | 'tally' | 'eod_closings';
 type TimeRangePreset =
   | 'today'
   | 'yesterday'
@@ -61,8 +52,7 @@ function downloadBlob(filename: string, content: string, mimeType: string = 'tex
 export const ReportsPage: React.FC = () => {
   const { user, can } = useAuthStore();
   const { selectedBranchId, branches, getActiveBranch, wallets } = useBranchStore();
-  const { setActivePage } = useUIStore();
-  const { vouchers, loading: vouchersLoading, refresh: refreshVouchers } = useVouchers();
+    const { vouchers, loading: vouchersLoading, refresh: refreshVouchers } = useVouchers();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<ReportTab>('daily_cash');
@@ -264,6 +254,212 @@ export const ReportsPage: React.FC = () => {
   }, [approvedVouchers]);
 
   // --------------------------------------------------------------------------
+  // FAANG-GRADE COST CENTERS & VENDOR PROCUREMENT MATRIX
+  // --------------------------------------------------------------------------
+  const costCenterReportData = useMemo(() => {
+    const deptMap = new Map<string, {
+      name: string;
+      amount: number;
+      count: number;
+      cashAmount: number;
+      upiAmount: number;
+      vendors: Map<string, { count: number; amount: number }>;
+    }>();
+
+    const vendorMap = new Map<string, {
+      name: string;
+      amount: number;
+      count: number;
+      cashAmount: number;
+      upiAmount: number;
+      primaryDept: string;
+      primaryCat: string;
+    }>();
+
+    let totalAllocatedSpend = 0;
+
+    approvedVouchers
+      .filter((v) => v.payment_type !== 'Advance_Settlement')
+      .forEach((v) => {
+        const isCash = v.payment_method === 'Physical_Cash';
+        const splits = erpService.extractAllSplitsFromVoucher(v, splitsMap);
+
+        if (splits.length > 0) {
+          splits.forEach((s) => {
+            const dept = s.departmentName || v.department_name || 'General Operations';
+            const cat = s.categoryName || v.category_name || 'Operational Expense';
+            const payee = s.staffName ? `${s.staffName}${s.staffCode ? ` (${s.staffCode})` : ''}` : (v.recipient_name || 'Unknown');
+            const amt = Number(s.amount) || 0;
+            totalAllocatedSpend += amt;
+
+            // Department
+            const d = deptMap.get(dept) || {
+              name: dept,
+              amount: 0,
+              count: 0,
+              cashAmount: 0,
+              upiAmount: 0,
+              vendors: new Map(),
+            };
+            d.amount += amt;
+            d.count += 1;
+            if (isCash) d.cashAmount += amt; else d.upiAmount += amt;
+            const vEntry = d.vendors.get(payee) || { count: 0, amount: 0 };
+            vEntry.count += 1;
+            vEntry.amount += amt;
+            d.vendors.set(payee, vEntry);
+            deptMap.set(dept, d);
+
+            // Vendor
+            const vend = vendorMap.get(payee) || {
+              name: payee,
+              amount: 0,
+              count: 0,
+              cashAmount: 0,
+              upiAmount: 0,
+              primaryDept: dept,
+              primaryCat: (cat === 'Advance Salary' || cat === 'Staff Adv for Exps') ? `${cat} (Staff Advance)` : cat,
+            };
+            vend.amount += amt;
+            vend.count += 1;
+            if (isCash) vend.cashAmount += amt; else vend.upiAmount += amt;
+            vendorMap.set(payee, vend);
+          });
+          return;
+        }
+
+        // Standard Single Voucher
+        const dept = v.department_name || 'General Operations';
+        const cat = v.category_name || 'Operational Expense';
+        const payee = v.recipient_name || 'Unknown';
+        const amt = Number(v.total_amount) || 0;
+        totalAllocatedSpend += amt;
+
+        const d = deptMap.get(dept) || {
+          name: dept,
+          amount: 0,
+          count: 0,
+          cashAmount: 0,
+          upiAmount: 0,
+          vendors: new Map(),
+        };
+        d.amount += amt;
+        d.count += 1;
+        if (isCash) d.cashAmount += amt; else d.upiAmount += amt;
+        const vEntry = d.vendors.get(payee) || { count: 0, amount: 0 };
+        vEntry.count += 1;
+        vEntry.amount += amt;
+        d.vendors.set(payee, vEntry);
+        deptMap.set(dept, d);
+
+        const vend = vendorMap.get(payee) || {
+          name: payee,
+          amount: 0,
+          count: 0,
+          cashAmount: 0,
+          upiAmount: 0,
+          primaryDept: dept,
+          primaryCat: cat,
+        };
+        vend.amount += amt;
+        vend.count += 1;
+        if (isCash) vend.cashAmount += amt; else vend.upiAmount += amt;
+        vendorMap.set(payee, vend);
+      });
+
+    // Format Departments list
+    const departments = Array.from(deptMap.values()).map((d) => {
+      let topVendorName = '-';
+      let topVendorAmt = 0;
+      d.vendors.forEach((val, k) => {
+        if (val.amount > topVendorAmt) {
+          topVendorAmt = val.amount;
+          topVendorName = k;
+        }
+      });
+
+      return {
+        name: d.name,
+        amount: d.amount,
+        count: d.count,
+        cashAmount: d.cashAmount,
+        upiAmount: d.upiAmount,
+        percentage: totalAllocatedSpend > 0 ? Math.round((d.amount / totalAllocatedSpend) * 1000) / 10 : 0,
+        avgTicket: d.count > 0 ? Math.round(d.amount / d.count) : 0,
+        primaryVendor: topVendorName,
+        primaryVendorAmount: topVendorAmt,
+      };
+    }).sort((a, b) => b.amount - a.amount);
+
+    // Format Vendors list (Pareto sorted)
+    const vendors = Array.from(vendorMap.values()).map((v) => ({
+      ...v,
+      percentage: totalAllocatedSpend > 0 ? Math.round((v.amount / totalAllocatedSpend) * 1000) / 10 : 0,
+      avgTicket: v.count > 0 ? Math.round(v.amount / v.count) : 0,
+    })).sort((a, b) => b.amount - a.amount);
+
+    const top3VendorsSpend = vendors.slice(0, 3).reduce((sum, v) => sum + v.amount, 0);
+    const top3Ratio = totalAllocatedSpend > 0 ? Math.round((top3VendorsSpend / totalAllocatedSpend) * 100) : 0;
+
+    return {
+      departments,
+      vendors,
+      totalAllocatedSpend,
+      totalDeptsCount: departments.length,
+      totalVendorsCount: vendors.length,
+      top3Ratio,
+    };
+  }, [approvedVouchers, splitsMap]);
+
+  // Cost Centers & Vendors Full CSV Export
+  const handleExportCostCentersCSV = () => {
+    triggerHaptic();
+    const deptHeaders = ['Rank', 'Department Name', 'Total Spend (INR)', '% Share', 'Voucher Count', 'Average Ticket (INR)', 'Cash Spend (INR)', 'UPI Spend (INR)', 'Primary Payee'];
+    const deptRows = costCenterReportData.departments.map((d, idx) => [
+      idx + 1,
+      `"${d.name.replace(/"/g, '""')}"`,
+      d.amount,
+      `${d.percentage}%`,
+      d.count,
+      d.avgTicket,
+      d.cashAmount,
+      d.upiAmount,
+      `"${d.primaryVendor.replace(/"/g, '""')}"`,
+    ]);
+
+    const vendorHeaders = ['Rank', 'Vendor / Payee Name', 'Primary Department', 'Primary Category', 'Total Paid (INR)', '% Share', 'Bills Count', 'Average Ticket (INR)', 'Cash Paid (INR)', 'UPI Paid (INR)'];
+    const vendorRows = costCenterReportData.vendors.map((v, idx) => [
+      idx + 1,
+      `"${v.name.replace(/"/g, '""')}"`,
+      `"${v.primaryDept.replace(/"/g, '""')}"`,
+      `"${v.primaryCat.replace(/"/g, '""')}"`,
+      v.amount,
+      `${v.percentage}%`,
+      v.count,
+      v.avgTicket,
+      v.cashAmount,
+      v.upiAmount,
+    ]);
+
+    const csvContent =
+      '\uFEFF' +
+      '--- DEPARTMENT COST CENTERS ALLOCATION ---\n' +
+      [deptHeaders.join(','), ...deptRows.map((r) => r.join(','))].join('\n') +
+      '\n\n--- PARETO VENDOR PROCUREMENT MATRIX ---\n' +
+      [vendorHeaders.join(','), ...vendorRows.map((r) => r.join(','))].join('\n');
+
+    downloadBlob(
+      `Asopalav_Cost_Centers_and_Vendors_${selectedBranchFilter}_${dateBounds.start}_to_${dateBounds.end}.csv`,
+      csvContent
+    );
+    showToast({
+      type: 'success',
+      title: 'Cost Centers & Vendors Exported',
+      message: `Exported ${costCenterReportData.departments.length} cost centers and ${costCenterReportData.vendors.length} vendors to CSV.`,
+    });
+  };
+
+  // --------------------------------------------------------------------------
   // EXPORT GENERATORS
   // --------------------------------------------------------------------------
 
@@ -348,7 +544,9 @@ export const ReportsPage: React.FC = () => {
         splits.forEach((s, idx) => {
           const refBill = s.billNumber || v.bill_number ? `Bill: ${s.billNumber || v.bill_number}` : 'Split Voucher';
           const department = s.departmentName || v.department_name || 'General Operations';
-          const debitLedger = `${s.categoryName || v.category_name || 'General Store Expense'} A/c`;
+          const cat = s.categoryName || v.category_name || 'General Store Expense';
+          const isSalaryAdv = cat === 'Advance Salary' || cat === 'Staff Adv for Exps';
+          const debitLedger = isSalaryAdv ? 'Advance Against Salary - Staff A/c' : `${cat} A/c`;
           const splitAmount = Number(s.amount) || 0;
           const payee = (s.staffName || v.recipient_name || 'Counter Expense').replace(/"/g, '""');
           const staffCode = (s.staffCode || '').replace(/"/g, '""');
@@ -376,7 +574,9 @@ export const ReportsPage: React.FC = () => {
         // Single line voucher
         const refBill = v.bill_number ? `Bill: ${v.bill_number}` : 'Cash Voucher';
         const department = v.department_name || 'General Operations';
-        const debitLedger = `${v.category_name || 'General Store Expense'} A/c`;
+        const cat = v.category_name || 'General Store Expense';
+        const isSalaryAdv = cat === 'Advance Salary' || cat === 'Staff Adv for Exps';
+        const debitLedger = isSalaryAdv ? 'Advance Against Salary - Staff A/c' : `${cat} A/c`;
         const amount = Number(v.total_amount) || 0;
         const payee = (v.recipient_name || 'Counter Expense').replace(/"/g, '""');
         const narration = (v.remarks || `Expense disbursement for ${v.category_name || 'Store Operations'}`).replace(
@@ -450,7 +650,9 @@ export const ReportsPage: React.FC = () => {
         if (splits.length > 0) {
           debitLedgerEntries = splits
             .map((s) => {
-              const debitLedger = `${s.categoryName || v.category_name || 'General Store Expense'} - ${s.staffName || 'Staff'} A/c`;
+              const cat = s.categoryName || v.category_name || 'General Store Expense';
+              const isSalaryAdv = cat === 'Advance Salary' || cat === 'Staff Adv for Exps';
+              const debitLedger = isSalaryAdv ? 'Advance Against Salary - Staff A/c' : `${cat} - ${s.staffName || 'Staff'} A/c`;
               const sAmount = Number(s.amount) || 0;
               return `          <ALLLEDGERENTRIES.LIST>
             <LEDGERNAME>${escapeXml(debitLedger)}</LEDGERNAME>
@@ -460,7 +662,9 @@ export const ReportsPage: React.FC = () => {
             })
             .join('\n');
         } else {
-          const debitLedger = `${v.category_name || 'General Store Expense'} A/c`;
+          const cat = v.category_name || 'General Store Expense';
+          const isSalaryAdv = cat === 'Advance Salary' || cat === 'Staff Adv for Exps';
+          const debitLedger = isSalaryAdv ? 'Advance Against Salary - Staff A/c' : `${cat} A/c`;
           debitLedgerEntries = `          <ALLLEDGERENTRIES.LIST>
             <LEDGERNAME>${escapeXml(debitLedger)}</LEDGERNAME>
             <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
@@ -551,7 +755,9 @@ ${voucherXmls}
         splits.forEach((s) => {
           const staffTag = s.staffCode ? ` (${s.staffCode})` : '';
           const payee = s.staffName ? `${s.staffName}${staffTag}` : v.recipient_name;
-          const debitLedger = `${s.categoryName || v.category_name || 'Expense'} A/c`;
+          const cat = s.categoryName || v.category_name || 'Expense';
+            const isSalaryAdv = cat === 'Advance Salary' || cat === 'Staff Adv for Exps';
+            const debitLedger = isSalaryAdv ? 'Advance Against Salary - Staff A/c' : `${cat} A/c`;
           const amount = Number(s.amount) || 0;
           const narration = s.description || v.remarks || '';
           lines.push([vDate, vNum, debitLedger, amount, creditLedger, amount, branchCode, payee, mode, narration].join('\t'));
@@ -728,7 +934,9 @@ ${voucherXmls}
             date: vDate,
             voucherNumber: v.voucher_number,
             lineLabel: splits.length > 0 ? `${splits.length} Splits` : undefined,
-            debitLedger: `${v.category_name || 'Expense'} A/c`,
+            debitLedger: (v.category_name === 'Advance Salary' || v.category_name === 'Staff Adv for Exps')
+              ? 'Advance Against Salary - Staff A/c'
+              : `${v.category_name || 'Expense'} A/c`,
             creditLedger,
             amount: Number(v.total_amount) || 0,
             costCenter,
@@ -801,6 +1009,17 @@ ${voucherXmls}
               >
                 <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
                 <span>Export Cash Statement (CSV)</span>
+              </button>
+            )}
+
+            {activeTab === 'cost_centers' && (
+              <button
+                type="button"
+                onClick={handleExportCostCentersCSV}
+                className="h-9 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
+              >
+                <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                <span>Export Cost Centers &amp; Vendors (CSV)</span>
               </button>
             )}
 
@@ -1012,6 +1231,38 @@ ${voucherXmls}
             type="button"
             onClick={() => {
               triggerHaptic();
+              setActiveTab('cost_centers');
+            }}
+            className={cn(
+              'px-4 py-2.5 text-xs font-medium font-sans flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer select-none',
+              activeTab === 'cost_centers'
+                ? 'border-[#3ecf8e] text-slate-900 dark:text-[#EDEDED] font-semibold'
+                : 'border-transparent text-slate-500 dark:text-[#A1A1A1] hover:text-slate-800 dark:hover:text-[#EDEDED] hover:border-slate-300 dark:hover:border-[#383838]'
+            )}
+          >
+            <Layers
+              className={cn(
+                'w-4 h-4',
+                activeTab === 'cost_centers' ? 'text-[#3ecf8e]' : 'text-slate-400 dark:text-[#707070]'
+              )}
+            />
+            <span>Cost Centers &amp; Vendors</span>
+            <span
+              className={cn(
+                'px-1.5 py-0.2 rounded-[4px] text-[10px] font-mono tabular-nums ml-1',
+                activeTab === 'cost_centers'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-[#3ecf8e] border border-emerald-500/20'
+                  : 'bg-slate-100 dark:bg-[#1f1f1f] text-slate-500 dark:text-[#707070]'
+              )}
+            >
+              {costCenterReportData.totalDeptsCount} Cost Centers
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic();
               setActiveTab('tally');
             }}
             className={cn(
@@ -1173,7 +1424,232 @@ ${voucherXmls}
           </div>
         )}
 
-        {/* 6. TAB 2: TALLY PRIME EXPORT */}
+        {/* 6. TAB 2: COST CENTERS & VENDOR PROCUREMENT MATRIX */}
+        {activeTab === 'cost_centers' && (
+          <div className="space-y-4">
+            {/* Header / Sub-banner */}
+            <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-medium text-slate-900 dark:text-[#EDEDED] font-sans flex items-center gap-2">
+                  <span>Showroom Cost Center Allocation &amp; Vendor Matrix</span>
+                  <span className="px-2 py-0.5 rounded-[4px] bg-[#3ecf8e]/10 text-emerald-700 dark:text-[#3ecf8e] text-[10px] font-mono font-bold">
+                    Full Details Breakdown
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-[#A1A1A1] font-sans mt-0.5">
+                  Complete disaggregated financial analysis across all active departments and vendor concentration.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleExportCostCentersCSV}
+                  className="h-8.5 px-3.5 py-1.5 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:bg-[#1fa672]"
+                >
+                  <Download className="w-4 h-4 text-[#171717] stroke-[2.5]" />
+                  <span>Download Cost Centers &amp; Vendors (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Summary Telemetry Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-[8px] bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] space-y-1">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans">Total Allocated Spend</span>
+                <div className="font-mono text-lg font-bold text-slate-900 dark:text-white">
+                  {formatINR(costCenterReportData.totalAllocatedSpend)}
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">Disbursed in selected period</span>
+              </div>
+
+              <div className="p-3.5 rounded-[8px] bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] space-y-1">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans">Active Cost Centers</span>
+                <div className="font-mono text-lg font-bold text-slate-900 dark:text-white">
+                  {costCenterReportData.totalDeptsCount} Departments
+                </div>
+                <span className="text-[10px] text-emerald-600 dark:text-[#3ecf8e] font-mono">100% split disaggregated</span>
+              </div>
+
+              <div className="p-3.5 rounded-[8px] bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] space-y-1">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans">Unique Vendors / Payees</span>
+                <div className="font-mono text-lg font-bold text-slate-900 dark:text-white">
+                  {costCenterReportData.totalVendorsCount} Payees
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">Vendors, shops &amp; floor staff</span>
+              </div>
+
+              <div className="p-3.5 rounded-[8px] bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] space-y-1">
+                <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-sans">Pareto Concentration</span>
+                <div className="font-mono text-lg font-bold text-sky-600 dark:text-sky-400">
+                  {costCenterReportData.top3Ratio}%
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">Top 3 vendors share of total spend</span>
+              </div>
+            </div>
+
+            {/* Section A: All Cost Centers Table */}
+            <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden space-y-2 p-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#222222]">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#3ecf8e]" />
+                  <h3 className="text-xs font-semibold text-slate-900 dark:text-white uppercase font-sans">
+                    Department Cost Allocation (Ranked by Outflow)
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-slate-500">
+                  {costCenterReportData.departments.length} Cost Centers
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50/80 dark:bg-[#161618] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
+                      <th className="py-2.5 px-3 font-semibold w-12 text-center">Rank</th>
+                      <th className="py-2.5 px-3 font-semibold">Department Name</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Spend (INR)</th>
+                      <th className="py-2.5 px-3 font-semibold text-center w-28">% Share</th>
+                      <th className="py-2.5 px-3 font-semibold text-center">Bills</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Avg Ticket</th>
+                      <th className="py-2.5 px-3 font-semibold">Primary Payee</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Cash vs UPI</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
+                    {costCenterReportData.departments.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                          No department records found for this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      costCenterReportData.departments.map((dept, idx) => (
+                        <tr key={dept.name} className="hover:bg-slate-50/60 dark:hover:bg-[#1c1c1f] transition-colors">
+                          <td className="py-2 px-3 font-mono text-center font-bold text-slate-500">
+                            #{idx + 1}
+                          </td>
+                          <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                            {dept.name}
+                          </td>
+                          <td className="py-2 px-3 font-mono font-bold text-right text-slate-900 dark:text-white tabular-nums">
+                            {formatINR(dept.amount)}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <div className="flex items-center gap-1.5 justify-center">
+                              <div className="w-16 h-1.5 rounded-full bg-slate-200 dark:bg-[#282828] overflow-hidden">
+                                <div
+                                  className="h-full bg-[#3ecf8e] rounded-full"
+                                  style={{ width: `${Math.min(dept.percentage, 100)}%` }}
+                                />
+                              </div>
+                              <span className="font-mono text-[10px] text-slate-600 dark:text-zinc-400 font-semibold w-8 text-right">
+                                {dept.percentage}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 font-mono text-center text-slate-600 dark:text-zinc-400">
+                            {dept.count}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-right text-slate-700 dark:text-zinc-300 tabular-nums">
+                            {formatINR(dept.avgTicket)}
+                          </td>
+                          <td className="py-2 px-3 text-slate-800 dark:text-zinc-200 truncate max-w-[200px]">
+                            {dept.primaryVendor}
+                            {dept.primaryVendorAmount > 0 && (
+                              <span className="ml-1 text-[10px] font-mono text-slate-400">
+                                ({formatINR(dept.primaryVendorAmount)})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-right text-[11px] text-slate-600 dark:text-zinc-400 tabular-nums">
+                            <span className="text-amber-600 dark:text-amber-400">₹{Math.round(dept.cashAmount).toLocaleString('en-IN')}</span> /{' '}
+                            <span className="text-sky-600 dark:text-sky-400">₹{Math.round(dept.upiAmount).toLocaleString('en-IN')}</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Section B: Pareto 80/20 Vendor Procurement Concentration Table */}
+            <div className="rounded-[12px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#242424] shadow-2xs overflow-hidden space-y-2 p-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#222222]">
+                <div className="flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-sky-500" />
+                  <h3 className="text-xs font-semibold text-slate-900 dark:text-white uppercase font-sans">
+                    Pareto Vendor Procurement Matrix (Ranked by Total Paid)
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-slate-500">
+                  {costCenterReportData.vendors.length} Vendors &amp; Payees
+                </span>
+              </div>
+
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-slate-200 dark:border-[#242424] bg-slate-50 dark:bg-[#18181a] text-[11px] font-mono uppercase text-slate-500 dark:text-[#707070]">
+                      <th className="py-2.5 px-3 font-semibold w-12 text-center">Rank</th>
+                      <th className="py-2.5 px-3 font-semibold">Vendor / Beneficiary Name</th>
+                      <th className="py-2.5 px-3 font-semibold">Primary Department</th>
+                      <th className="py-2.5 px-3 font-semibold">Expense Head</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Total Disbursed (INR)</th>
+                      <th className="py-2.5 px-3 font-semibold text-center w-20">% Share</th>
+                      <th className="py-2.5 px-3 font-semibold text-center">Bills</th>
+                      <th className="py-2.5 px-3 font-semibold text-right">Cash / UPI Split</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#202020] font-sans">
+                    {costCenterReportData.vendors.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                          No vendor disbursement records found.
+                        </td>
+                      </tr>
+                    ) : (
+                      costCenterReportData.vendors.map((vendor, idx) => (
+                        <tr key={vendor.name} className="hover:bg-slate-50/60 dark:hover:bg-[#1c1c1f] transition-colors">
+                          <td className="py-2 px-3 font-mono text-center font-bold text-slate-500">
+                            #{idx + 1}
+                          </td>
+                          <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                            {vendor.name}
+                          </td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-zinc-400 text-xs">
+                            {vendor.primaryDept}
+                          </td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-zinc-400 text-xs">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#202020] font-mono text-[10.5px]">
+                              {vendor.primaryCat}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 font-mono font-bold text-right text-slate-900 dark:text-white tabular-nums">
+                            {formatINR(vendor.amount)}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-center text-slate-600 dark:text-zinc-400 font-semibold text-[11px]">
+                            {vendor.percentage}%
+                          </td>
+                          <td className="py-2 px-3 font-mono text-center text-slate-600 dark:text-zinc-400">
+                            {vendor.count}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-right text-[11px] text-slate-600 dark:text-zinc-400 tabular-nums">
+                            <span className="text-amber-600 dark:text-amber-400">₹{Math.round(vendor.cashAmount).toLocaleString('en-IN')}</span> /{' '}
+                            <span className="text-sky-600 dark:text-sky-400">₹{Math.round(vendor.upiAmount).toLocaleString('en-IN')}</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 7. TAB 3: TALLY PRIME EXPORT */}
         {activeTab === 'tally' && (
           <div className="space-y-4">
             <div className="rounded-[12px] p-4 bg-white dark:bg-[#18181a] border border-slate-200 dark:border-[#242424] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">

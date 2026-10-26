@@ -4,128 +4,28 @@ import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useUIStore } from '@/store/uiStore';
 import { useVoucherStore } from '@/store/voucherStore';
-import { supabase } from '@/lib/supabase';
 import { erpService } from '@/lib/erpService';
-import { calculateDailyCashBalances, DayCashRecord, PeriodCashSummary } from '@/lib/dailyCashBalance';
+import { calculateDailyCashBalances } from '@/lib/dailyCashBalance';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { formatINR, formatCompactINR, numberToWordsINR, formatDate, formatVoucherNumber, cn, triggerHaptic, normalizeBranchCode } from '@/lib/utils';
-import { confirmDialog } from '@/store/dialogStore';
+import { formatINR, formatCompactINR, numberToWordsINR, formatDate, formatVoucherNumber, cn, triggerHaptic } from '@/lib/utils';
 import { DailyEodTillModal } from '@/components/treasury/DailyEodTillModal';
 import { DailyCashDrawerStatement } from '@/components/treasury/DailyCashDrawerStatement';
 import { TreasuryPassbookTable } from '@/components/treasury/TreasuryPassbookTable';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { AccessDeniedView } from '@/components/common/AccessDeniedView';
 import {
   Wallet,
   Coins,
-  Calculator,
-  CheckCircle2,
-  AlertCircle,
-  Building2,
-  TrendingUp,
-  TrendingDown,
-  CalendarDays,
-  Receipt,
-  Lock,
-  History,
-  Check,
-  Plus,
-  Minus,
-  RotateCcw,
-  ShieldCheck,
-  AlertTriangle,
-  Search,
-  Download,
-  FileSpreadsheet,
-  Code,
-  Terminal,
-  MoreVertical,
-  ChevronDown,
-  X,
-  SlidersHorizontal,
-  Calendar,
-  Clock,
-  Activity,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Layers,
-  LayoutList,
-  QrCode,
-  User,
-  Sparkles,
-  FileText,
-  Tag,
-  Shield,
-  RefreshCw,
-  Eye,
-  CheckCheck,
-  CheckSquare,
-  ExternalLink,
-  ChevronRight,
-  Filter,
-  Copy,
-  Printer,
-  Trash2,
-  ArrowDown,
-  ArrowUp,
-  Sliders,
-} from 'lucide-react';
-import { showToast } from '@/components/ui/ToastContainer';
+  Calculator,  Building2,
+  TrendingUp,  Receipt,  Check,  RotateCcw,  Search,  FileSpreadsheet,  X,  FileText,  RefreshCw,  Copy,} from 'lucide-react';
 import { useGsapContext } from '@/hooks/useGsap';
 import { animateStaggerCards } from '@/lib/animations';
 
 type DateFilter = 'this_month' | 'today' | 'yesterday' | 'week' | 'all' | 'custom';
 type ScopeFilter = 'ALL' | 'INFLOW' | 'OUTFLOW' | 'Float_Topup' | 'Expense_Voucher' | 'Safe_Drop' | 'Adjustment';
 type SortOption = 'newest' | 'oldest' | 'highest_amount' | 'lowest_amount';
-
-interface DenomCount {
-  [key: number]: number;
-}
-
-const ALL_DENOMS = [500, 200, 100, 50, 20, 10, 5, 2, 1];
-
-function parseLedgerNotes(remarks?: string) {
-  if (!remarks) return { title: 'Cash Added to Drawer', chips: [], modeDetails: null };
-
-  let title = remarks;
-  const chips: string[] = [];
-  let modeDetails: string | null = null;
-
-  // Extract [Transfer Mode: ...]
-  const modeMatch = title.match(/\[Transfer Mode:\s*([^\]]+)\]/i);
-  if (modeMatch) {
-    modeDetails = modeMatch[1].trim();
-    title = title.replace(modeMatch[0], '').trim();
-  }
-
-  // Extract and remove [Date: ...]
-  const dateMatch = title.match(/\[Date:\s*([^\]]+)\]/i);
-  if (dateMatch) {
-    title = title.replace(dateMatch[0], '').trim();
-  }
-
-  // Extract [Notes: ₹500×3, ...] or [₹100 x 15 = ₹1500 | ...]
-  const notesMatch = title.match(/\[(?:Notes:\s*)?([^\]]+)\]/i);
-  if (notesMatch) {
-    const rawBreakdown = notesMatch[1];
-    if (rawBreakdown.includes('₹') || rawBreakdown.includes('x') || rawBreakdown.includes('×') || rawBreakdown.includes('=')) {
-      const parts = rawBreakdown.split(/[|,]/).map((p) => p.trim()).filter(Boolean);
-      parts.forEach((p) => {
-        chips.push(p);
-      });
-      title = title.replace(notesMatch[0], '').trim();
-    }
-  }
-
-  if (!title) {
-    title = 'Morning Opening Till Float';
-  }
-
-  return { title, chips, modeDetails };
-}
 
 export const CashDrawerTreasuryPage: React.FC = () => {
   const { user, getAllowedBranches, isBranchAllowed } = useAuthStore();
@@ -158,22 +58,17 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Pro Enterprise Ledger View & Filter State
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL');
-  const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
+  const [scopeFilter] = useState<ScopeFilter>('ALL');  const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
   const [customDate, setCustomDate] = useState<string>(formatDateFns(new Date(), 'yyyy-MM-dd'));
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [selectedDayFilter, setSelectedDayFilter] = useState<string | null>(null);
-  const [isStatementOpen, setIsStatementOpen] = useState(true);
-  const [ledgerSearch, setLedgerSearch] = useState('');
+    const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerWalletFilter, setLedgerWalletFilter] = useState<'ALL' | 'Cash' | 'UPI' | 'Float_Topup'>('ALL');
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
-  const [viewLedgerEntry, setViewLedgerEntry] = useState<any | null>(null);
+  const [sortBy] = useState<SortOption>('newest');  const [activeRowDropdownId, setActiveRowDropdownId] = useState<string | null>(null);
+      const [viewLedgerEntry, setViewLedgerEntry] = useState<any | null>(null);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
-
+  
   const [isEodModalOpen, setIsEodModalOpen] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -337,81 +232,8 @@ export const CashDrawerTreasuryPage: React.FC = () => {
   }, [allLedgerEntries, currentCashBalance, dateBounds.start, dateBounds.end]);
 
   // Dynamically compute running balance anchored backwards from the verified drawer balance
-  const entriesWithRunningBalance = useMemo(() => {
-    const chronological = [...allLedgerEntries].sort(
-      (a, b) => new Date(a?.created_at || 0).getTime() - new Date(b?.created_at || 0).getTime()
-    );
-
-    const totalCashNet = chronological
-      .filter((e) => e?.wallet_type === 'Cash' || !e?.wallet_type)
-      .reduce((sum, e) => sum + ((Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0)), 0);
-
-    const totalUpiNet = chronological
-      .filter((e) => e?.wallet_type === 'UPI')
-      .reduce((sum, e) => sum + ((Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0)), 0);
-
-    let runningCash = currentCashBalance - totalCashNet;
-    let runningUpi = currentUpiBalance - totalUpiNet;
-    const balanceMap = new Map<string, { runningCash: number; runningUpi: number; runningCombined: number }>();
-
-    chronological.forEach((entry) => {
-      if (!entry) return;
-      const credit = Number(entry.credit_amount) || 0;
-      const debit = Number(entry.debit_amount) || 0;
-      const isUpi = entry.wallet_type === 'UPI';
-
-      if (isUpi) {
-        runningUpi += credit - debit;
-      } else {
-        runningCash += credit - debit;
-      }
-
-      const key = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
-      balanceMap.set(key, {
-        runningCash,
-        runningUpi,
-        runningCombined: runningCash + runningUpi,
-      });
-    });
-
-    return balanceMap;
-  }, [allLedgerEntries, currentCashBalance, currentUpiBalance]);
-
-  // Cross-reference vouchers against ledger to detect any cash check discrepancies
-  const voucherMismatches = useMemo(() => {
-    const vStore = useVoucherStore.getState();
-    const allCached = Object.values(vStore.vouchers).flat();
-    const branchCode = normalizeBranchCode(selectedBranch);
-    const branchVouchers = allCached.filter(
-      (v) => v.branch_id === selectedBranch || normalizeBranchCode(v.branch_id) === branchCode || v.branch_code === branchCode
-    );
-
-    const ledgerMap = new Map<string, number>();
-    allLedgerEntries.forEach((l) => {
-      if (l.reference_number && l.wallet_type === 'Cash' && l.transaction_type === 'Expense_Voucher') {
-        ledgerMap.set(l.reference_number, Number(l.debit_amount) || 0);
-      }
-    });
-
-    const mismatches: Array<{ voucherNumber: string; voucherAmount: number; ledgerDebit: number; diff: number }> = [];
-    branchVouchers.forEach((v) => {
-      if (v.payment_method === 'Physical_Cash' && v.status === 'Approved') {
-        const ledgerDebit = ledgerMap.get(v.voucher_number);
-        if (ledgerDebit !== undefined && Math.abs(ledgerDebit - Number(v.total_amount)) > 0.01) {
-          mismatches.push({
-            voucherNumber: v.voucher_number,
-            voucherAmount: Number(v.total_amount),
-            ledgerDebit,
-            diff: ledgerDebit - Number(v.total_amount),
-          });
-        }
-      }
-    });
-
-    return mismatches;
-  }, [allLedgerEntries, selectedBranch]);
-
-  // Filtered allocations for Pro Enterprise Timeline / Feed & Full Table
+    // Cross-reference vouchers against ledger to detect any cash check discrepancies
+    // Filtered allocations for Pro Enterprise Timeline / Feed & Full Table
   const filteredAllocations = useMemo(() => {
     let list = allLedgerEntries;
 
@@ -577,127 +399,7 @@ export const CashDrawerTreasuryPage: React.FC = () => {
     setTimeout(() => setCopiedRef(null), 2000);
   };
 
-  const handleViewSlip = async (entry: any) => {
-    triggerHaptic('selection');
-    if (entry.transaction_type === 'Expense_Voucher' && entry.reference_number) {
-      const vStore = useVoucherStore.getState();
-      const allCached = Object.values(vStore.vouchers).flat();
-      const match = allCached.find((v) => v.voucher_number === entry.reference_number);
-      if (match) {
-        useUIStore.getState().setActiveDrawerVoucher(match);
-        return;
-      }
-      try {
-        const { data } = await supabase
-          .from('expense_vouchers')
-          .select('*')
-          .eq('voucher_number', entry.reference_number)
-          .maybeSingle();
-        if (data) {
-          useUIStore.getState().setActiveDrawerVoucher(data);
-          return;
-        }
-      } catch {
-        // Fallback to entry slip
-      }
-    }
-    setViewLedgerEntry(entry);
-  };
-
-  const [purgingId, setPurgingId] = useState<string | null>(null);
-
-  const handlePurgeEntry = async (entry: any) => {
-    const confirmed = await confirmDialog({
-      title: 'Purge Audit Record',
-      message: `Are you sure you want to delete this ledger record (${entry.reference_number || 'TRZ'})? This will permanently remove it from the audit ledger and recalculate wallet balance.`,
-      confirmText: 'Purge Record',
-      variant: 'danger',
-      onConfirm: async () => {
-        const entryKey = entry.id || entry.reference_number;
-        setPurgingId(entryKey);
-        const userName = `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim();
-        const userRole = user?.role_code || 'Super_Admin';
-        await erpService.deleteLedgerEntry({
-          entryId: entryKey,
-          branchId: selectedBranch,
-          userName,
-          userRole,
-          reason: 'Super Admin duplicate / error purge',
-          adjustWalletBalance: true,
-        });
-        showToast({
-          type: 'success',
-          title: 'Entry Purged',
-          message: `Ledger entry ${entry.reference_number || ''} was removed and wallet balance recalculated.`,
-        });
-        loadTreasuryData();
-      },
-    });
-
-    if (!confirmed) return;
-  };
-
-  const handleCleanDuplicates = async () => {
-    try {
-      const userName = `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim();
-      const userRole = user?.role_code || 'Super_Admin';
-      const res = await erpService.cleanDuplicateLedgerEntries(selectedBranch, userName, userRole);
-      if (res.removedCount > 0) {
-        showToast({
-          type: 'success',
-          title: 'Duplicate Audit Complete',
-          message: `Purged ${res.removedCount} duplicate record(s). Ledger is now 100% clean.`,
-        });
-        loadTreasuryData();
-      } else {
-        showToast({
-          type: 'info',
-          title: 'Ledger Clean',
-          message: 'Zero duplicate records found. Your ledger is 100% balanced.',
-        });
-      }
-    } catch (e: any) {
-      showToast({
-        type: 'error',
-        title: 'Duplicate Cleanup Error',
-        message: e?.message || 'Failed to scan and clean duplicates.',
-      });
-    }
-  };
-
-  const handlePurgeHistoricalRecords = async () => {
-    await confirmDialog({
-      title: 'Purge Historical Test Records',
-      message: 'This will purge any leftover September test top-ups (FLT-856048 & FLT-984105) across database tables and local caches, reconciling till wallet balance to exact ledger truth. Proceed?',
-      confirmText: 'Purge Test Records',
-      variant: 'danger',
-      onConfirm: async () => {
-        try {
-          const res = await erpService.purgeErroneousHistoricalRecords(selectedBranch);
-          showToast({
-            type: 'success',
-            title: 'Historical Records Purged',
-            message: res.message,
-          });
-          loadTreasuryData();
-        } catch (e: any) {
-          showToast({
-            type: 'error',
-            title: 'Purge Failed',
-            message: e?.message || 'Failed to purge historical test records.',
-          });
-        }
-      },
-    });
-  };
-
-  const totalPages = Math.max(1, Math.ceil(filteredAllocations.length / pageSize));
-  const paginatedAllocations = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredAllocations.slice(start, start + pageSize);
-  }, [filteredAllocations, currentPage, pageSize]);
-
-  const handleResetForm = () => {
+                const handleResetForm = () => {
     triggerHaptic('light');
     setAmount('');
     setReferenceNotes('');

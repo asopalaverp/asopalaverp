@@ -7,7 +7,7 @@ import { useBranchStore } from '@/store/branchStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { format } from 'date-fns';
 import bcrypt from 'bcryptjs';
-import { DEFAULT_BRANCHES, normalizeBranchCode, normalizeBranchId, formatVoucherNumber } from '@/lib/utils';
+import { normalizeBranchCode, normalizeBranchId, formatVoucherNumber, generateVoucherCollisionToken } from '@/lib/utils';
 import {
   BranchWallet,
   WalletLedger,
@@ -17,7 +17,7 @@ import {
   StaffAdvance,
   CashClosing,
   AccountingPeriod,
-  DrawerSession,
+  
   CurrencyDenomination,
   AppUser,
   AppRole,
@@ -210,7 +210,7 @@ class ERPService {
       .from('accounting_periods')
       .upsert([updateData], { onConflict: 'period_key' });
     if (error) {
-      throw new Error(`Failed to update accounting period lock in Supabase: ${error.message}`);
+      throw new Error(`Failed to update accounting period lock in database: ${error.message}`);
     }
 
     // Update local cache immediately
@@ -690,7 +690,7 @@ class ERPService {
     // Save cleaned list locally
     localStorage.setItem(`asopalav_ledger_${branchId}`, JSON.stringify(cleanList.slice(0, 200)));
 
-    // Remove duplicates from Supabase
+    // Remove duplicates from database
     try {
       const dupIds = duplicates.map((d) => d.id).filter(Boolean);
       if (dupIds.length > 0) {
@@ -787,7 +787,7 @@ class ERPService {
           (targetCategory && v.category_name !== targetCategory) ||
           (targetDepartment && v.department_name !== targetDepartment)
         ) {
-          // Update in Supabase
+          // Update in database
           const { error: updateError } = await supabase
             .from('expense_vouchers')
             .update({
@@ -840,7 +840,7 @@ class ERPService {
     const targetRefNumbers = ['FLT-856048', 'FLT-984105'];
     const targetIds = ['66adb6d4-930a-486f-95fd-717850cda0c4', 'ef3d74c6-2779-4870-848c-eeadb7421405'];
 
-    // 1. Purge from float_allocations in Supabase
+    // 1. Purge from float_allocations in database
     try {
       await supabase
         .from('float_allocations')
@@ -850,7 +850,7 @@ class ERPService {
       console.warn('Float allocations purge fallback:', e);
     }
 
-    // 2. Purge from wallet_ledger in Supabase
+    // 2. Purge from wallet_ledger in database
     try {
       await supabase
         .from('wallet_ledger')
@@ -1629,7 +1629,7 @@ class ERPService {
   }
 
   /**
-   * Resiliently insert an expense voucher into Supabase.
+   * Resiliently insert an expense voucher into database.
    * If the Supabase schema lacks newly introduced extended columns, it auto-retries with core columns.
    */
   private async insertExpenseVoucherRecord(record: Record<string, any>): Promise<void> {
@@ -1637,7 +1637,7 @@ class ERPService {
     const { error } = await supabase.from('expense_vouchers').insert([payload]);
     if (!error) return;
 
-    // Check if error is due to an unmigrated column in Supabase schema cache
+    // Check if error is due to an unmigrated column in database schema cache
     if (error.message && error.message.includes('column of') && error.message.includes('expense_vouchers')) {
       console.warn('[Supabase Schema Adaptor] Retrying voucher insert with sanitized core fields:', error.message);
       const corePayload: Record<string, any> = {
@@ -1708,10 +1708,59 @@ class ERPService {
     const isHighValue = voucher.total_amount > 10000;
     const requiresSuperAdminApproval = voucher.total_amount > 50000;
 
+    // 1B. Same-Month Duplicate Voucher Guard
+    // Rule: Same voucher number can repeat across different months, but is strictly unique within the same month.
+    let finalVoucherNumber = voucher.voucher_number;
+    try {
+      const vDate = voucher.payment_date || new Date().toISOString().slice(0, 10);
+      const startOfMonthStr = `${vDate.slice(0, 7)}-01`;
+      const endOfMonthStr = `${vDate.slice(0, 7)}-31`;
+
+      const parts = (voucher.voucher_number || '').split('-');
+      const numPrefix = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : voucher.voucher_number;
+
+      const { data: existingMonthDups } = await supabase
+        .from('expense_vouchers')
+        .select('id, voucher_number, total_amount')
+        .eq('branch_id', voucher.branch_id)
+        .neq('status', 'Voided')
+        .gte('payment_date', startOfMonthStr)
+        .lte('payment_date', endOfMonthStr)
+        .ilike('voucher_number', `${numPrefix}%`)
+        .limit(1);
+
+      if (existingMonthDups && existingMonthDups.length > 0) {
+        throw new Error(`Bill #${numPrefix} already exists in this month. Same voucher number cannot be reused in the same month.`);
+      }
+
+      // 1C. Cross-Month Token Check:
+      // If this number already exists in a PREVIOUS/DIFFERENT month, ensure a collision token is appended
+      // to guarantee uniqueness across months in PostgreSQL while permitting monthly book rollover.
+      const { data: otherMonthDups } = await supabase
+        .from('expense_vouchers')
+        .select('id, voucher_number')
+        .eq('branch_id', voucher.branch_id)
+        .neq('status', 'Voided')
+        .or(`payment_date.lt.${startOfMonthStr},payment_date.gt.${endOfMonthStr}`)
+        .ilike('voucher_number', `${numPrefix}%`)
+        .limit(1);
+
+      if (otherMonthDups && otherMonthDups.length > 0) {
+        if (finalVoucherNumber === numPrefix) {
+          finalVoucherNumber = `${numPrefix}-${generateVoucherCollisionToken()}`;
+        }
+      }
+    } catch (dupErr: any) {
+      if (dupErr.message?.includes('already exists in this month')) {
+        throw dupErr;
+      }
+      console.warn('Same-month duplicate pre-check skipped on error:', dupErr);
+    }
+
     // 2. Prepare Database Voucher Record
     const voucherDbRecord = {
       id: crypto.randomUUID(),
-      voucher_number: voucher.voucher_number,
+      voucher_number: finalVoucherNumber,
       branch_id: voucher.branch_id,
       branch_code: voucher.branch_code,
       payment_date: voucher.payment_date,
@@ -1994,7 +2043,7 @@ class ERPService {
     approverName: string,
     approverRole: string
   ): Promise<ExpenseVoucher> {
-    // H-8 Security: Re-fetch the approver's TRUE role from Supabase DB.
+    // H-8 Security: Re-fetch the approver's TRUE role from database DB.
     // The client-passed approverRole cannot be trusted — localStorage role_code is spoofable.
     // We also re-fetch the voucher's live status so we don't approve an already-voided voucher.
     let verifiedApproverRole = approverRole;
@@ -2416,7 +2465,7 @@ class ERPService {
       console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}.`);
     }
 
-    // 1. Fetch original voucher from Supabase or memory
+    // 1. Fetch original voucher from database or memory
     let existingVoucher: ExpenseVoucher | null = null;
     try {
       const { data } = await supabase
@@ -2468,7 +2517,7 @@ class ERPService {
 
       const { error: delSplitErr } = await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
       if (delSplitErr) {
-        throw new Error(`Failed to update voucher splits in Supabase: ${delSplitErr.message}`);
+        throw new Error(`Failed to update voucher splits in database: ${delSplitErr.message}`);
       }
       const splitRecords = splits.map((s) => ({
         id: crypto.randomUUID(),
@@ -2484,12 +2533,12 @@ class ERPService {
       }));
       const { error: insSplitErr } = await supabase.from('voucher_splits').insert(splitRecords);
       if (insSplitErr) {
-        throw new Error(`Failed to save updated voucher splits in Supabase: ${insSplitErr.message}`);
+        throw new Error(`Failed to save updated voucher splits in database: ${insSplitErr.message}`);
       }
     } else if (Array.isArray(splits) && splits.length === 0) {
       const { error: clrSplitErr } = await supabase.from('voucher_splits').delete().eq('voucher_number', voucherNumber);
       if (clrSplitErr) {
-        throw new Error(`Failed to clear voucher splits in Supabase: ${clrSplitErr.message}`);
+        throw new Error(`Failed to clear voucher splits in database: ${clrSplitErr.message}`);
       }
     }
 
@@ -2543,7 +2592,7 @@ class ERPService {
           description: `Update voucher ${voucherNumber}`,
         });
       } else {
-        throw new Error(`Failed to update voucher in Supabase: ${voucherUpdateErr.message}`);
+        throw new Error(`Failed to update voucher in database: ${voucherUpdateErr.message}`);
       }
     }
 
@@ -2904,6 +2953,8 @@ class ERPService {
     const isAll = !branchId || branchId === 'ALL' || code === 'ALL';
     const canonicalId = isAll ? 'ALL' : normalizeBranchId(branchId);
 
+    // 1. Fetch from direct staff_advances table
+    let directAdvances: StaffAdvance[] = [];
     try {
       let query = supabase
         .from('staff_advances')
@@ -2915,14 +2966,103 @@ class ERPService {
       }
 
       const { data, error } = await query;
-      if (!error && data !== null) {
-        localStorage.setItem(`asopalav_advances_${canonicalId}`, JSON.stringify(data.slice(0, 200)));
-        return data;
+      if (!error && Array.isArray(data)) {
+        directAdvances = data;
       }
     } catch (e) {
-      console.warn('Advances fetched from local store fallback:', e);
+      console.warn('Direct advances fetch warning:', e);
     }
 
+    // 2. Fetch bridged salary advances from expense_vouchers (Cashier / Manager F2 Advance Salary workflow)
+    let bridgedAdvances: StaffAdvance[] = [];
+    try {
+      let vQuery = supabase
+        .from('expense_vouchers')
+        .select('*')
+        .in('category_name', ['Advance Salary', 'Staff Adv for Exps'])
+        .neq('status', 'Voided')
+        .order('created_at', { ascending: false });
+
+      if (!isAll) {
+        vQuery = vQuery.or(`branch_id.eq.${canonicalId},branch_code.eq.${code}`);
+      }
+
+      const { data: vData, error: vError } = await vQuery;
+      if (!vError && Array.isArray(vData)) {
+        bridgedAdvances = vData.map((v: any) => {
+          const staffName = v.paid_to || v.recipient_name || 'Staff Member';
+          const staffCode = `EMP-${staffName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)}`;
+          const amt = Number(v.amount) || Number(v.total_amount) || 0;
+          const advanceDate = v.payment_date || (v.created_at ? v.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10));
+
+          let monthStr = 'Current Month';
+          try {
+            monthStr = format(new Date(advanceDate), 'MMMM yyyy');
+          } catch {}
+
+          return {
+            id: `v-adv-${v.id || v.voucher_number}`,
+            receipt_number: v.voucher_number,
+            advance_date: advanceDate,
+            branch_id: v.branch_id || normalizeBranchId(v.branch_code) || 'Aellp-ASI',
+            branch_code: normalizeBranchCode(v.branch_code) || 'ASI',
+            staff_code: staffCode,
+            staff_name: staffName,
+            department_name: v.department_name || 'General Operations',
+            designation: 'Staff',
+            payment_method: (v.payment_mode === 'UPI' || v.payment_method === 'Online_UPI') ? 'Online_UPI' : 'Physical_Cash',
+            bank_utr_number: v.bank_ref_number || null,
+            advance_amount: amt,
+            purpose: v.description || v.remarks || `Advance Salary (Recorded via F2 Add Expense)`,
+            signature_image_url: '',
+            bills_submitted_amount: 0,
+            cash_returned_amount: 0,
+            unsettled_balance: amt,
+            settlement_proofs: [],
+            disbursed_by_name: v.created_by_name || 'Store Cashier',
+            status: 'Active_Unsettled' as const,
+            salary_deduction_month: monthStr,
+            created_at: v.created_at || `${advanceDate}T12:00:00Z`,
+            is_direct_voucher_advance: true,
+            source_category: v.category_name,
+          };
+        });
+      }
+    } catch (err) {
+      console.warn('Bridged salary advances fetch warning:', err);
+    }
+
+    // 3. Merge: prefer direct staff_advances if receipt_number already exists, otherwise add bridged advance
+    const directReceipts = new Set(directAdvances.map((a) => a.receipt_number));
+    const mergedList: StaffAdvance[] = [...directAdvances];
+
+    // Load any local override status for bridged advances
+    let localOverrides: Record<string, Partial<StaffAdvance>> = {};
+    try {
+      const stored = localStorage.getItem('asopalav_advance_status_overrides');
+      if (stored) localOverrides = JSON.parse(stored);
+    } catch {}
+
+    bridgedAdvances.forEach((bridged) => {
+      if (!directReceipts.has(bridged.receipt_number)) {
+        const override = localOverrides[bridged.receipt_number];
+        if (override) {
+          mergedList.push({ ...bridged, ...override });
+        } else {
+          mergedList.push(bridged);
+        }
+      }
+    });
+
+    if (mergedList.length > 0) {
+      mergedList.sort((a, b) => b.advance_date.localeCompare(a.advance_date));
+      try {
+        localStorage.setItem(`asopalav_advances_${canonicalId}`, JSON.stringify(mergedList.slice(0, 200)));
+      } catch {}
+      return mergedList;
+    }
+
+    // 4. Local storage fallback if offline
     const keysToCheck = isAll
       ? ['asopalav_advances_ALL', 'asopalav_advances_Aellp-ASI', 'asopalav_advances_ASI', 'asopalav_advances_CG', 'asopalav_advances_NAV', 'asopalav_advances_SUR']
       : [`asopalav_advances_${canonicalId}`, `asopalav_advances_${code}`, `asopalav_advances_${branchId}`, 'asopalav_advances_ALL', 'asopalav_advances_Aellp-ASI'];
@@ -2942,9 +3082,7 @@ class ERPService {
             );
             if (filtered.length > 0) return filtered;
           }
-        } catch {
-          // Ignore
-        }
+        } catch {}
       }
     }
 
@@ -3239,6 +3377,19 @@ class ERPService {
     });
     localStorage.setItem(`asopalav_advances_${branchId}`, JSON.stringify(updated));
 
+    // Persist in local overrides for bridged salary advances
+    try {
+      const stored = localStorage.getItem('asopalav_advance_status_overrides') || '{}';
+      const parsed = JSON.parse(stored);
+      parsed[receiptNumber] = {
+        status: 'Flagged_Salary_Deduction',
+        salary_deduction_month: month,
+        salary_deducted_at: deductedAt,
+        salary_deducted_by_name: userName,
+      };
+      localStorage.setItem('asopalav_advance_status_overrides', JSON.stringify(parsed));
+    } catch {}
+
     const { error } = await supabase
       .from('staff_advances')
       .update({
@@ -3265,7 +3416,7 @@ class ERPService {
           description: `Flag salary deduction ${receiptNumber} (${month})`,
         });
       } else {
-        throw new Error(`Failed to flag advance for salary deduction in Supabase: ${error.message}`);
+        throw new Error(`Failed to flag advance for salary deduction in database: ${error.message}`);
       }
     }
 
@@ -3330,7 +3481,7 @@ class ERPService {
           description: `Waive advance ${receiptNumber}`,
         });
       } else {
-        throw new Error(`Failed to waive advance in Supabase: ${error.message}`);
+        throw new Error(`Failed to waive advance in database: ${error.message}`);
       }
     }
 
@@ -3396,7 +3547,7 @@ class ERPService {
           description: `Delete advance ${receiptNumber}`,
         });
       } else {
-        throw new Error(`Failed to delete advance in Supabase: ${error.message}`);
+        throw new Error(`Failed to delete advance in database: ${error.message}`);
       }
     }
 
@@ -3469,7 +3620,7 @@ class ERPService {
       .in(field, advanceIdsOrReceipts);
 
     if (error) {
-      throw new Error(`Failed to batch flag salary deductions in Supabase: ${error.message}`);
+      throw new Error(`Failed to batch flag salary deductions in database: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3536,7 +3687,7 @@ class ERPService {
       .in(field, advanceIdsOrReceipts);
 
     if (error) {
-      throw new Error(`Failed to batch clear salary deductions in Supabase: ${error.message}`);
+      throw new Error(`Failed to batch clear salary deductions in database: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3771,7 +3922,7 @@ class ERPService {
       .eq('closing_date', closingDate);
 
     if (error) {
-      throw new Error(`Failed to reopen cash closing in Supabase: ${error.message}`);
+      throw new Error(`Failed to reopen cash closing in database: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -3805,7 +3956,7 @@ class ERPService {
       .eq('branch_code', branchCode);
 
     if (error) {
-      throw new Error(`Failed to update cash closing in Supabase: ${error.message}`);
+      throw new Error(`Failed to update cash closing in database: ${error.message}`);
     }
 
     await logSecurityEvent({
@@ -4705,7 +4856,7 @@ class ERPService {
         try {
           await executeUserDbOp(fallbackPayload);
         } catch (retryErr: any) {
-          throw new Error(retryErr?.message || 'Failed to save user account in Supabase.');
+          throw new Error(retryErr?.message || 'Failed to save user account in database.');
         }
       } else {
         throw new Error(errMsg);
@@ -4769,7 +4920,7 @@ class ERPService {
     const { error } = await supabase.from('staff_members').upsert([payload]);
     if (error) {
       console.error('Staff member upsert error:', error);
-      throw new Error(error.message || 'Failed to save staff member in Supabase.');
+      throw new Error(error.message || 'Failed to save staff member in database.');
     }
 
     // DIRECT CUT: If staff member is marked inactive/quit, immediately revoke login access
@@ -5557,7 +5708,7 @@ class ERPService {
         return mapped;
       }
 
-      // If table exists in Supabase but has 0 records, attempt automatic seed
+      // If table exists in database but has 0 records, attempt automatic seed
       if (!error && data && data.length === 0) {
         try {
           const defaultSeed = [

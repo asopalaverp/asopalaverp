@@ -1,7 +1,7 @@
 import React from 'react';
 import { StaffMember, ExpenseCategory, Department } from '@/types/database';
-import { Plus, Trash2, Users, Calculator, UserCheck } from 'lucide-react';
-import { formatINR, cn } from '@/lib/utils';
+import { Plus, Trash2, Users, Calculator } from 'lucide-react';
+import { formatINR } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export interface SplitItem {

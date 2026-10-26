@@ -165,7 +165,7 @@ export const useCloudConfigStore = create<CloudConfigState>((set, get) => ({
       const result: ConnectionTestResult = {
         success: true,
         latencyMs,
-        message: `Successfully connected to Supabase (${latencyMs}ms latency). Master schema verified.`,
+        message: `Successfully connected to Cloud Database (${latencyMs}ms latency). Configuration verified.`,
         details: {
           appUsersCount: usersCount,
           staffCount: staffCount,
@@ -180,7 +180,7 @@ export const useCloudConfigStore = create<CloudConfigState>((set, get) => ({
       const result: ConnectionTestResult = {
         success: false,
         latencyMs,
-        message: err.message || 'Failed to connect to Supabase database.',
+        message: err.message || 'Failed to connect to Cloud Database.',
       };
       set({ lastTestResult: result, isTestingConnection: false });
       return result;

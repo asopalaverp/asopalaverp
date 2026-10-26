@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format, subMinutes, addMinutes } from 'date-fns';
 import { ExpenseVoucher } from '@/types/database';
 import { cn, formatINR } from '@/lib/utils';
-import { Radio, Receipt, Wallet, HandCoins, ShieldCheck } from 'lucide-react';
+import { Receipt, Wallet, HandCoins, ShieldCheck } from 'lucide-react';
 
 export interface TelemetryMetrics {
   totalSpend: number;
@@ -281,10 +281,7 @@ export const LogsBarChart: React.FC<LogsBarChartProps> = ({ metrics, vouchers = 
                         : 0;
 
                     // Proportions for stacked segments
-                    const errorPct = slot.total > 0 ? (slot.errors / slot.total) * totalHeightPct : 0;
-                    const warningPct = slot.total > 0 ? (slot.warnings / slot.total) * totalHeightPct : 0;
-                    const infoPct = slot.total > 0 ? (slot.infos / slot.total) * totalHeightPct : 0;
-
+                                                            
                     return (
                       <div
                         key={sIdx}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, ArrowLeft, Home, Lock } from 'lucide-react';
+import { ShieldAlert, Home, Lock } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 
 interface AccessDeniedViewProps {

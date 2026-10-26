@@ -22,6 +22,7 @@ interface BranchState {
 }
 
 let branchFetchInFlight: Promise<void> | null = null;
+let lastForceFetchTime = 0;
 
 const getInitialBranch = (): string => {
   if (typeof window !== 'undefined') {
@@ -132,6 +133,8 @@ export const useBranchStore = create<BranchState>((set, get) => ({
 
   fetchBranchesAndWallets: async (force = false) => {
     const now = Date.now();
+    if (force && now - lastForceFetchTime < 3000) return;
+    if (force) lastForceFetchTime = now;
     const { lastFetched, branches } = get();
 
     // Cache valid for 5 minutes when not forced; force=true always fetches immediately from Supabase
@@ -189,9 +192,7 @@ export const useBranchStore = create<BranchState>((set, get) => ({
         set({ wallets: walletMap });
         set({ lastFetched: Date.now() });
 
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('asopalav:wallet-updated', { detail: walletMap }));
-        }
+// Read query completed: Zustand state updated reactively
       } catch (e) {
         console.warn('Error fetching branches and wallets from database:', e);
       } finally {

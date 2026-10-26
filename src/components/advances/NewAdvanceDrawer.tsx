@@ -12,15 +12,6 @@ import {
   Check,
   AlertCircle,
   AlertTriangle,
-  Wallet,
-  Zap,
-  RotateCcw,
-  Sparkles,
-  Calendar,
-  Building2,
-  Tag,
-  PenTool,
-  Plus,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { DatePicker } from '@/components/ui/DatePicker';

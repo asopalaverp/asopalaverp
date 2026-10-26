@@ -4,59 +4,22 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { searchEngine, SearchResultItem, SearchCategory } from '@/lib/searchEngine';
-import { formatINR, formatDate, formatVoucherNumber, cn } from '@/lib/utils';
-import { animateModalOpen, animateModalClose, animateStaggerCards } from '@/lib/animations';
+import { formatINR, formatVoucherNumber, cn } from '@/lib/utils';
+import { animateModalOpen, animateModalClose } from '@/lib/animations';
 import {
   Search,
   Receipt,
-  Users,
-  Building2,
-  Plus,
-  HandCoins,
+  Users,  HandCoins,
   ShieldAlert,
   ShieldCheck,
   Sliders,
   FileSpreadsheet,
-  Keyboard,
-  Coins,
-  Wallet,
-  ArrowRight,
-  Sparkles,
-  Sun,
-  Moon,
-  Database,
-  FileText,
-  X,
-  Bell,
-  CornerDownLeft,
-  Check,
-} from 'lucide-react';
+  Keyboard,  Wallet,  Database,  X,
+  Bell,} from 'lucide-react';
 import {
-  AppTableIcon,
-  AppAuthIcon,
-  AppAdvisorIcon,
-  AppSettingsIcon,
-} from '@/components/icons/AppIcons';
-import { AsopalavLogo } from '@/components/icons/AsopalavLogo';
+  AppTableIcon,} from '@/components/icons/AppIcons';
 import { Kbd } from '@/components/ui/Kbd';
 import { showToast } from '@/components/ui/ToastContainer';
-
-const CATEGORY_CHIPS: { id: SearchCategory; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'all', label: 'All', icon: Sparkles },
-  { id: 'vouchers', label: 'Expenses', icon: Receipt },
-  { id: 'advances', label: 'Advances', icon: HandCoins },
-  { id: 'staff', label: 'Staff', icon: Users },
-  { id: 'master', label: 'Settings', icon: Sliders },
-  { id: 'actions', label: 'Actions', icon: ZapIcon },
-];
-
-function ZapIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-    </svg>
-  );
-}
 
 export const GlobalSearchModal: React.FC = () => {
   const {
@@ -64,16 +27,10 @@ export const GlobalSearchModal: React.FC = () => {
     setSearchOpen,
     setActivePage,
     openDrawer,
-    setSettleTargetAdvance,
-    setBulkImportOpen,
-    setAdvanceModalOpen,
-    setShortcutsModalOpen,
-    toggleTheme,
-    setTheme,
-    isStaffAdvanceBetaEnabled,
+    setSettleTargetAdvance,    setShortcutsModalOpen,    isStaffAdvanceBetaEnabled,
   } = useUIStore();
   const { can } = useAuthStore();
-  const { branches, setSelectedBranchId, selectedBranchId } = useBranchStore();
+  const { setSelectedBranchId, selectedBranchId } = useBranchStore();
 
   useScrollLock(isSearchOpen);
   const [query, setQuery] = useState('');
@@ -81,7 +38,7 @@ export const GlobalSearchModal: React.FC = () => {
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-
+  
   const inputRef = useRef<HTMLInputElement | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);

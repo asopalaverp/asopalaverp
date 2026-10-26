@@ -5,10 +5,8 @@ import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useOverrideStore } from '@/store/overrideStore';
 import { useVouchers } from '@/hooks/useVouchers';
 import { erpService } from '@/lib/erpService';
-import { supabase } from '@/lib/supabase';
 import { StaffSplitTable, SplitItem } from '@/components/vouchers/StaffSplitTable';
 import { VendorSplitTable } from '@/components/vouchers/VendorSplitTable';
-import { VoucherTable } from '@/components/vouchers/VoucherTable';
 import { BillUploader } from '@/components/vouchers/BillUploader';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -20,48 +18,22 @@ import { format } from 'date-fns';
 import { animateErrorBanner } from '@/lib/animations';
 import { showToast } from '@/components/ui/ToastContainer';
 import { VendorSplitItem, VoucherMode } from '@/types/database';
-import {
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle,
-  Check,
-  Building2,
-  Calendar,
-  Wallet,
-  RotateCcw,
-  Sparkles,
-  Plus,
-  Zap,
-  FileText,
-  Users,
-  Package,
-  Receipt,
-  Camera,
-  ShieldAlert,
+import {  CheckCircle2,  Check,  RotateCcw,
+  Sparkles,  Zap,  Users,  Receipt,  ShieldAlert,
   Store,
-  Truck,
-  HelpCircle,
-  X,
+  Truck,  X,
   CreditCard,
-  Coins,
-  UserCheck,
-  Eye,
+  Coins,  Eye,
 } from 'lucide-react';
 
 export const NewVoucherPage: React.FC = () => {
   const { setActivePage } = useUIStore();
-  const { user, can, getAllowedBranches, isBranchAllowed } = useAuthStore();
+  const { user, getAllowedBranches, isBranchAllowed } = useAuthStore();
   const { branches, selectedBranchId, setSelectedBranchId, getActiveBranch } = useBranchStore();
   const { categories, departments, couriers, staff, vouchers, refresh } = useVouchers();
 
   const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
-  const todayVouchers = useMemo(() => {
-    return vouchers.filter((v) => {
-      const vDate = v.payment_date ? v.payment_date.slice(0, 10) : (v.created_at ? v.created_at.slice(0, 10) : '');
-      return vDate === todayStr;
-    });
-  }, [vouchers, todayStr]);
-
+  
   const allowedBranches = getAllowedBranches(branches);
   const activeBranch = getActiveBranch();
   const initialBranch = (selectedBranchId && selectedBranchId !== 'ALL' && isBranchAllowed(selectedBranchId))
@@ -229,6 +201,85 @@ export const NewVoucherPage: React.FC = () => {
   const errorBannerRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const amountInputRef = useRef<HTMLInputElement | null>(null);
+  const payeeInputRef = useRef<HTMLInputElement | null>(null);
+  const payeeDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [isPayeeDropdownOpen, setIsPayeeDropdownOpen] = useState<boolean>(false);
+
+  // Payee Dictionary & Smart Autocomplete (Aggregated from Historical Vouchers)
+  const payeeSuggestionsMap = useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      count: number;
+      categoryName?: string;
+      departmentName?: string;
+    }>();
+
+    // Sort descending by date so we capture the latest category & department used
+    const sorted = [...vouchers].sort((a, b) => {
+      const da = a.payment_date || a.created_at || '';
+      const db = b.payment_date || b.created_at || '';
+      return db.localeCompare(da);
+    });
+
+    sorted.forEach((v) => {
+      const name = (v.recipient_name || '').trim();
+      if (!name || name.length < 2) return;
+      const key = name.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(key, {
+          name,
+          count: 1,
+          categoryName: v.category_name || undefined,
+          departmentName: v.department_name || undefined,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [vouchers]);
+
+  // Filtered matching payees based on current input text
+  const matchingPayees = useMemo(() => {
+    const q = recipientName.trim().toLowerCase();
+    if (!q) {
+      return payeeSuggestionsMap.slice(0, 6);
+    }
+    return payeeSuggestionsMap
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [payeeSuggestionsMap, recipientName]);
+
+  // Close Payee Autocomplete when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        payeeDropdownRef.current &&
+        !payeeDropdownRef.current.contains(e.target as Node) &&
+        payeeInputRef.current &&
+        !payeeInputRef.current.contains(e.target as Node)
+      ) {
+        setIsPayeeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectPayee = (payee: { name: string; categoryName?: string; departmentName?: string }) => {
+    triggerHaptic('light');
+    setRecipientName(payee.name);
+    if (payee.categoryName) {
+      setCategoryName(payee.categoryName);
+    }
+    if (payee.departmentName) {
+      setDepartmentName(payee.departmentName);
+    }
+    setIsPayeeDropdownOpen(false);
+    amountInputRef.current?.focus();
+  };
 
   // Listen to Global Counter Custom Events (Alt+1 / Alt+2 / Alt+3 / F2)
   useEffect(() => {
@@ -288,14 +339,7 @@ export const NewVoucherPage: React.FC = () => {
   }, [successVoucher]);
 
   // Quick Amount Add
-  const handleAddAmount = (inc: number) => {
-    triggerHaptic('selection');
-    setAmount((prev) => {
-      const cur = Number(prev) || 0;
-      return cur + inc;
-    });
-  };
-
+  
   // Calculated Total Amount
   const finalCalculatedAmount = useMemo(() => {
     if (mode === 'Staff_Split') {
@@ -433,6 +477,30 @@ export const NewVoucherPage: React.FC = () => {
         triggerHaptic('error');
         return;
       }
+    }
+
+    // Same-Month Duplicate Check:
+    // Rule: Same number can be used in the next month, but is strictly unique within the SAME month.
+    const targetMonth = (paymentDate || '').slice(0, 7);
+    const cleanDigits = effectiveVoucherDigits.toUpperCase();
+    const branchPrefix = currBranch.branch_code.toUpperCase();
+    const targetFullPrefix = `${branchPrefix}-${cleanDigits}`;
+
+    const duplicateInSameMonth = vouchers.some((v) => {
+      if (v.status === 'Voided') return false;
+      const vMonth = (v.payment_date || v.created_at || '').slice(0, 7);
+      if (vMonth !== targetMonth) return false;
+      const vNum = (v.voucher_number || '').toUpperCase();
+      return vNum === targetFullPrefix || vNum.startsWith(`${targetFullPrefix}-`);
+    });
+
+    if (duplicateInSameMonth) {
+      const monthLabel = format(new Date(`${paymentDate}T12:00:00`), 'MMMM yyyy');
+      const msg = `Bill #${branchPrefix}-${cleanDigits} already exists in ${monthLabel}. Same number cannot be reused in the same month.`;
+      setError(msg);
+      showToast({ type: 'error', title: 'Duplicate Number in Same Month', message: msg });
+      triggerHaptic('error');
+      return;
     }
 
     // Amount Validation
@@ -606,10 +674,42 @@ export const NewVoucherPage: React.FC = () => {
     }
 
     try {
-      // Internal batch-collision prevention random hash token (e.g. 'e54gf71e54')
-      // Guarantees mathematical uniqueness in Supabase when bill book series repeat every 3-4 months
-      const collisionToken = generateVoucherCollisionToken();
-      const generatedVoucherNumber = `${currBranch.branch_code}-${effectiveVoucherDigits.toUpperCase()}-${collisionToken}`;
+      // Guard: Same-Month Duplicate Check
+      const targetMonth = (paymentDate || '').slice(0, 7);
+      const cleanDigits = effectiveVoucherDigits.toUpperCase();
+      const branchPrefix = currBranch.branch_code.toUpperCase();
+      const targetFullPrefix = `${branchPrefix}-${cleanDigits}`;
+
+      const duplicateInSameMonth = vouchers.some((v) => {
+        if (v.status === 'Voided') return false;
+        const vMonth = (v.payment_date || v.created_at || '').slice(0, 7);
+        if (vMonth !== targetMonth) return false;
+        const vNum = (v.voucher_number || '').toUpperCase();
+        return vNum === targetFullPrefix || vNum.startsWith(`${targetFullPrefix}-`);
+      });
+
+      if (duplicateInSameMonth) {
+        const monthLabel = format(new Date(`${paymentDate}T12:00:00`), 'MMMM yyyy');
+        throw new Error(`Bill #${branchPrefix}-${cleanDigits} already exists in ${monthLabel}. Same number cannot be reused in the same month.`);
+      }
+
+      // Cross-Month Rollover Token:
+      // Token is ONLY applied if this same number already exists in a DIFFERENT month,
+      // preventing DB key collisions across repeating bill book batches.
+      // In the SAME month, duplicate numbers are strictly rejected above (never allowed).
+      const existsInDifferentMonth = vouchers.some((v) => {
+        if (v.status === 'Voided') return false;
+        const vMonth = (v.payment_date || v.created_at || '').slice(0, 7);
+        if (vMonth === targetMonth) return false;
+        const vNum = (v.voucher_number || '').toUpperCase();
+        return vNum === targetFullPrefix || vNum.startsWith(`${targetFullPrefix}-`);
+      });
+
+      let generatedVoucherNumber = targetFullPrefix;
+      if (existsInDifferentMonth) {
+        const collisionToken = generateVoucherCollisionToken();
+        generatedVoucherNumber = `${targetFullPrefix}-${collisionToken}`;
+      }
 
       const payload: any = {
         branch_id: selectedBranch,
@@ -1210,17 +1310,84 @@ export const NewVoucherPage: React.FC = () => {
                 {!isMultiVendor ? (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
-                          Paid To *
-                        </label>
+                      <div className="space-y-1 relative">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-medium text-slate-700 dark:text-[#EDEDED]">
+                            Paid To *
+                          </label>
+                          {matchingPayees.length > 0 && (
+                            <span className="text-[10px] text-emerald-600 dark:text-[#3ecf8e] font-sans font-medium flex items-center gap-1 select-none">
+                              <Sparkles className="w-3 h-3" />
+                              <span>Smart Suggestions</span>
+                            </span>
+                          )}
+                        </div>
                         <input
+                          ref={payeeInputRef}
                           type="text"
                           value={recipientName}
-                          onChange={(e) => setRecipientName(e.target.value)}
+                          onFocus={() => setIsPayeeDropdownOpen(true)}
+                          onChange={(e) => {
+                            setRecipientName(e.target.value);
+                            setIsPayeeDropdownOpen(true);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsPayeeDropdownOpen(false);
+                            }
+                          }}
                           placeholder="e.g. Ramesh Tea Stall, Sharma Electrician"
                           className="w-full rounded-[6px] border border-slate-200 dark:border-[#282828] bg-white dark:bg-[#181818] px-3.5 py-2 text-slate-900 dark:text-white text-xs font-sans placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 h-10 min-h-[40px] shadow-2xs"
                         />
+
+                        {/* Autocomplete Dropdown Popover */}
+                        {isPayeeDropdownOpen && matchingPayees.length > 0 && (
+                          <div
+                            ref={payeeDropdownRef}
+                            className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 rounded-[8px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] shadow-lg overflow-hidden divide-y divide-slate-100 dark:divide-[#242424] animate-in fade-in duration-100"
+                          >
+                            <div className="p-1.5 px-2 bg-slate-50 dark:bg-[#141414] text-[10px] font-sans text-slate-500 dark:text-zinc-400 flex items-center justify-between select-none">
+                              <span className="font-medium">Frequent Payees</span>
+                              <span className="font-mono text-emerald-600 dark:text-[#3ecf8e]">Auto-fills Category &amp; Dept</span>
+                            </div>
+                            <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 dark:divide-[#222222]">
+                              {matchingPayees.map((payee) => (
+                                <button
+                                  key={payee.name}
+                                  type="button"
+                                  onClick={() => handleSelectPayee(payee)}
+                                  className="w-full text-left p-2 hover:bg-slate-50 dark:hover:bg-[#202020] transition-colors flex items-center justify-between gap-2.5 cursor-pointer group"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-[#3ecf8e] transition-colors truncate">
+                                        {payee.name}
+                                      </span>
+                                      <span className="px-1.5 py-0.2 rounded-[4px] bg-slate-100 dark:bg-[#242424] text-[9.5px] font-mono text-slate-600 dark:text-zinc-400 shrink-0">
+                                        {payee.count} {payee.count === 1 ? 'bill' : 'bills'}
+                                      </span>
+                                    </div>
+                                    {(payee.categoryName || payee.departmentName) && (
+                                      <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-zinc-400 mt-0.5 truncate">
+                                        {payee.categoryName && (
+                                          <span className="truncate">📁 {payee.categoryName}</span>
+                                        )}
+                                        {payee.categoryName && payee.departmentName && <span>•</span>}
+                                        {payee.departmentName && (
+                                          <span className="truncate">🏢 {payee.departmentName}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-[#3ecf8e] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    Apply ↵
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-1">
@@ -1812,43 +1979,7 @@ export const NewVoucherPage: React.FC = () => {
           </div>
         )}
 
-        {/* Today's Shift Disbursements & Entries Table (F2 Shift Audit) */}
-        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-[#242424] space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-[8px] bg-emerald-500/10 border border-emerald-500/20 text-[#3ecf8e] flex items-center justify-center shrink-0">
-                <Receipt className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-slate-900 dark:text-white font-sans tracking-tight">
-                  Today's Shift Disbursements &amp; Entries (F2 Live Audit)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-[#A1A1A1]">
-                  Vouchers recorded today during this counter shift ({todayVouchers.length} bills). Verify amounts, splits, and print receipts without leaving F2.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActivePage('expenses')}
-              className="text-xs font-medium text-[#3ecf8e] hover:underline flex items-center gap-1 cursor-pointer font-sans"
-            >
-              <span>View Full Ledger (F3)</span>
-              <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
-            </button>
-          </div>
-
-          <VoucherTable
-            vouchers={vouchers}
-            categories={categories}
-            departments={departments}
-            showActionBanner={false}
-            hideTelemetry={false}
-            startDate={todayStr}
-            endDate={todayStr}
-          />
-        </div>
+        
 
       </div>
     </div>

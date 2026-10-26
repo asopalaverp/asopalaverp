@@ -1,7 +1,7 @@
 import React from 'react';
 import { ExpenseCategory, Department, VendorSplitItem } from '@/types/database';
-import { Plus, Trash2, Store, Calculator, Receipt, Building2 } from 'lucide-react';
-import { formatINR, cn } from '@/lib/utils';
+import { Plus, Trash2, Store, Calculator } from 'lucide-react';
+import { formatINR } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface VendorSplitTableProps {

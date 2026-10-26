@@ -3,16 +3,13 @@ import { format as formatDateFns, subDays, startOfMonth } from 'date-fns';
 import { WalletLedger } from '@/types/database';
 import { formatINR, cn, triggerHaptic, formatDate } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
-import { DatePicker } from '@/components/ui/DatePicker';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Layers,
   Search,
   X,
-  Calendar,
-  Printer,
-  ArrowDownLeft,
+  Calendar,  ArrowDownLeft,
   ArrowUpRight,
   User,
   Check,
@@ -94,7 +91,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy] = useState<SortOption>('newest');
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
@@ -279,107 +276,6 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
 
-  const handlePrint = () => {
-    triggerHaptic('selection');
-    const printWin = window.open('', '_blank', 'width=900,height=800');
-    if (!printWin) {
-      window.print();
-      return;
-    }
-
-    const rows = filteredEntries
-      .map((entry, idx) => {
-        const credit = Number(entry.credit_amount) || 0;
-        const debit = Number(entry.debit_amount) || 0;
-        const isUpi = entry.wallet_type === 'UPI';
-        const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
-        const balances = entriesWithRunningBalance.get(entryKey);
-        const runningBal = isUpi ? balances?.runningUpi : balances?.runningCash;
-        const parsed = parseLedgerNotes(entry.remarks);
-        const refCode = entry.reference_number || (entry.id ? String(entry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO');
-
-        return `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${formatDate(entry.created_at, 'dd-MMM-yyyy HH:mm')}</td>
-          <td>${entry.wallet_type}</td>
-          <td>${refCode}</td>
-          <td>${parsed.title || entry.transaction_type || 'Transaction'}${entry.remarks ? ` - ${entry.remarks}` : ''}</td>
-          <td style="text-align:right; color:#dc2626;">${debit > 0 ? `-${debit.toFixed(2)}` : '—'}</td>
-          <td style="text-align:right; color:#16a34a;">${credit > 0 ? `+${credit.toFixed(2)}` : '—'}</td>
-          <td style="text-align:right; font-weight:bold;">₹${(runningBal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-        </tr>
-      `;
-      })
-      .join('');
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Asopalav Passbook - ${selectedBranchId || 'ASI'}</title>
-        <style>
-          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #111; margin: 0 auto; }
-          .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 14px; }
-          .brand { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-          .sub { font-size: 12px; color: #555; margin-top: 3px; }
-          .meta-row { display: flex; justify-content: space-between; font-size: 11px; margin: 6px 0; font-family: monospace; }
-          table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 11px; font-family: monospace; }
-          th, td { padding: 6px 4px; border-bottom: 1px dotted #ccc; }
-          th { border-bottom: 2px solid #111; border-top: 2px solid #111; font-weight: 700; text-transform: uppercase; font-size: 10px; background: #f8f8f8; }
-          .summary-box { border: 1px solid #111; padding: 8px 12px; margin: 16px 0; display: flex; justify-content: space-between; font-family: monospace; font-size: 12px; }
-          .signatures { display: flex; justify-content: space-between; margin-top: 60px; font-size: 11px; }
-          .sig-box { width: 40%; border-top: 1px solid #111; text-align: center; padding-top: 6px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="brand">ASOPALAV ENDEAVOURS LLP</div>
-          <div class="sub">Showroom Cash Drawer &amp; Treasury Passbook Register</div>
-        </div>
-        <div class="meta-row">
-          <span><strong>Showroom:</strong> ${selectedBranchId || 'ASI'}</span>
-          <span><strong>Period:</strong> ${dateBounds.label}</span>
-          <span><strong>Generated:</strong> ${new Date().toLocaleString('en-IN')}</span>
-        </div>
-        <div class="summary-box">
-          <span>Current Cash Drawer: <strong>₹${Number(currentCashBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-          <span>Current UPI Account: <strong>₹${Number(currentUpiBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-          <span>Total Records: <strong>${filteredEntries.length}</strong></span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:30px;">#</th>
-              <th>Date &amp; Time</th>
-              <th>Channel</th>
-              <th>Reference #</th>
-              <th>Description / Particulars</th>
-              <th style="text-align:right;">Debit (₹)</th>
-              <th style="text-align:right;">Credit (₹)</th>
-              <th style="text-align:right;">Running Bal (₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-        <div class="signatures">
-          <div class="sig-box">Cashier Signature</div>
-          <div class="sig-box">Store Manager / Accountant Signature</div>
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWin.document.write(html);
-    printWin.document.close();
-  };
-
   return (
     <div
       className={cn(
@@ -408,19 +304,7 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Print */}
-        <div className="flex items-center gap-2 self-end sm:self-center">
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="h-8 px-2.5 rounded-[6px] border border-slate-200 dark:border-[#2e2e2e] bg-white dark:bg-[#202024] text-slate-700 dark:text-[#EDEDED] hover:bg-slate-100 dark:hover:bg-[#282828] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-            title="Print Passbook"
-          >
-            <Printer className="w-3.5 h-3.5 text-slate-500" />
-            <span>Print</span>
-          </button>
-        </div>
+        
       </div>
 
       {/* 2. Filters Toolbar */}
@@ -698,14 +582,12 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
                   const debit = Number(entry.debit_amount) || 0;
                   const parsed = parseLedgerNotes(entry.remarks);
                   const isUpi = entry.wallet_type === 'UPI';
-                  const isSafeDrop = entry.transaction_type === 'Safe_Drop';
-                  const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
+                                    const entryKey = entry.id || `${entry.created_at}-${entry.credit_amount}-${entry.debit_amount}`;
                   const balances = entriesWithRunningBalance.get(entryKey);
                   const runningBal = isUpi ? balances?.runningUpi : balances?.runningCash;
                   const rowSeq = (currentPage - 1) * pageSize + idx + 1;
                   const refCode = entry.reference_number || (entry.id ? String(entry.id).slice(0, 8).toUpperCase() : 'TRZ-AUTO');
-                  const vInfo = entry.reference_number ? voucherMap.get(entry.reference_number) : null;
-
+                  
                   return (
                     <tr
                       key={entryKey}

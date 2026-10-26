@@ -1,5 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertOctagon, RotateCcw, Home, Terminal } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertOctagon, RotateCcw, Terminal } from 'lucide-react';
 
 interface Props {
   children: ReactNode;

@@ -8,9 +8,7 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
-  isSameMonth,
-  isSameDay,
-  isToday,
+  isSameMonth,  isToday,
   addMonths,
   subMonths,
   subDays,
@@ -18,12 +16,8 @@ import {
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
-  ChevronRight,
-  ArrowRight,
-  X,
-  Check,
-  RotateCcw,
-} from 'lucide-react';
+  ChevronRight,  X,
+  Check,} from 'lucide-react';
 import { cn, triggerHaptic } from '@/lib/utils';
 
 export interface DateRange {

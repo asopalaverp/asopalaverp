@@ -127,7 +127,7 @@ export const ImageLightbox: React.FC = () => {
                 : 'The image link is currently unavailable or was not found on cloud storage.'}
             </p>
             <p className="text-[11px] text-[#3ecf8e] font-mono">
-              Use "Re-attach Bill Photo" in the Voucher Detail drawer to attach the receipt permanently to Cloudflare R2.
+              Use "Re-attach Bill Photo" in the Voucher Detail drawer to save the receipt photo permanently.
             </p>
           </div>
         ) : (
