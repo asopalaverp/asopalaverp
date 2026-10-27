@@ -13,10 +13,7 @@ import { MetricCard } from '@/components/ui/MetricCard';
 import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { SegmentedControl } from '@/components/ui';
 import { formatINR, cn, triggerHaptic } from '@/lib/utils';
-import { useAnomalyDetector } from '@/hooks/useAnomalyDetector';
-import { ExecutiveBriefingWidget } from '@/components/dashboard/ExecutiveBriefingWidget';
 import { HourlyHeatmapWidget } from '@/components/dashboard/HourlyHeatmapWidget';
-import { DepartmentBudgetCapsWidget } from '@/components/dashboard/DepartmentBudgetCapsWidget';
 import {
   Wallet,
   ArrowRight,
@@ -63,8 +60,7 @@ export const DashboardPage: React.FC = () => {
     dismissCluster,
   } = useDuplicateDetector(vouchers, ledgerEntries);
 
-  // Statistical Anomaly Radar (Google Cloud Monitoring Z-Score / IQR Engine)
-  const { anomaliesMap, anomalyList, anomalyCount } = useAnomalyDetector(vouchers);
+
 
 
   // Slicers State (For Admin/Executive: Multi-dimensional, For Cashier: Locked to today)
@@ -181,6 +177,18 @@ export const DashboardPage: React.FC = () => {
 
   // Active time range slicer
   const effectiveTimeRange = timeRange;
+
+  // Effective Start & End Dates for Table & Export Sync
+  const { tableStartDate, tableEndDate } = useMemo(() => {
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    if (effectiveTimeRange === 'today') return { tableStartDate: todayStr, tableEndDate: todayStr };
+    if (effectiveTimeRange === 'week') return { tableStartDate: format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'), tableEndDate: todayStr };
+    if (effectiveTimeRange === 'month') return { tableStartDate: format(startOfMonth(now), 'yyyy-MM-dd'), tableEndDate: todayStr };
+    if (effectiveTimeRange === 'quarter') return { tableStartDate: format(startOfQuarter(now), 'yyyy-MM-dd'), tableEndDate: todayStr };
+    if (effectiveTimeRange === 'custom') return { tableStartDate: customStartDate, tableEndDate: customEndDate };
+    return { tableStartDate: '', tableEndDate: '' };
+  }, [effectiveTimeRange, customStartDate, customEndDate]);
 
   // Slicer Filter Pipeline for Vouchers
   const filteredVouchers = useMemo(() => {
@@ -773,61 +781,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Duplicate Detection Alert Banner (Admin Only) */}
-        {isAdminOrManager && duplicateActiveCount > 0 && (
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-gradient-to-r from-rose-500/10 via-amber-500/5 to-transparent border border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-slate-900 dark:text-white shadow-xs animate-in fade-in duration-200">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-500 shrink-0 mt-0.5">
-                <ShieldAlert className="w-5 h-5 animate-pulse" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs sm:text-sm font-semibold tracking-tight text-rose-700 dark:text-rose-400">
-                    Duplicate Expense Radar: {duplicateActiveCount} Suspicious {duplicateActiveCount === 1 ? 'Entry' : 'Entries'} Detected
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-[4px] bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono text-[10px] font-bold">
-                    {formatINR(duplicateAtRiskAmount)} At-Risk
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-[#A1A1A1] mt-0.5">
-                  Identified potential duplicate bill numbers or rapid double-submissions. Review immediately to protect drawer ledger accuracy.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('medium');
-                setIsDuplicateModalOpen(true);
-              }}
-              className="h-8 px-3.5 rounded-[6px] bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
-            >
-              <span>Review &amp; Take Action ({duplicateActiveCount})</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* FAANG-Grade Executive Briefing Widget */}
-        <ExecutiveBriefingWidget
-          cashBalance={cashBalance}
-          runwayDays={cashRunway.runwayDays}
-          predictedDepletionDate={cashRunway.predictedDepletionDate}
-          recommendedTopUp={cashRunway.recommendedTopUp}
-          momComparison={momComparison}
-          burnRateStats={burnRateStats}
-          duplicateCount={duplicateActiveCount}
-          anomalyCount={anomalyCount}
-          topDepartment={departmentStats[0] || null}
-          pendingStaffAdvances={{
-            count: advanceMetrics.pendingCount,
-            totalAmount: advanceMetrics.totalUnsettled,
-          }}
-          onOpenDuplicates={() => setIsDuplicateModalOpen(true)}
-          onOpenReports={() => setActivePage('reports')}
-          onOpenAdvances={() => setActivePage('advances')}
-        />
+        
 
         {/* =========================================================================
             SECTION A: CASHIER VIEW (STRICTLY SHIFT TILL ONLY - NO MACRO SPEND)
@@ -1269,14 +1223,9 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
 
-            {/* FAANG-Grade Observability: Department Budget Caps & Hourly Spend Heatmap */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              <div className="lg:col-span-6">
-                <DepartmentBudgetCapsWidget departmentStats={departmentStats} />
-              </div>
-              <div className="lg:col-span-6">
-                <HourlyHeatmapWidget vouchers={filteredVouchers} />
-              </div>
+            {/* Hourly Spend Heatmap */}
+            <div className="w-full">
+              <HourlyHeatmapWidget vouchers={filteredVouchers} />
             </div>
 
             {/* Visual: Activity Histogram & Categories */}
@@ -1557,12 +1506,12 @@ export const DashboardPage: React.FC = () => {
 
           <div>
             <VoucherTable
-              vouchers={vouchers}
+              vouchers={filteredVouchers}
               categories={categories}
               departments={departments}
               hideTelemetry={true}
-              startDate={customStartDate}
-              endDate={customEndDate}
+              startDate={tableStartDate}
+              endDate={tableEndDate}
               departmentFilter={activeDeptFilter}
               categoryFilter={activeCatFilter}
               onClearDepartmentFilter={() => setActiveDeptFilter('ALL')}
