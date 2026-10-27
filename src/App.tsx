@@ -31,6 +31,9 @@ const StaffAdvancesPage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage }))
 );
+const AuditLogPage = lazy(() =>
+  import('@/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage }))
+);
 const StaffDirectoryPage = lazy(() =>
   import('@/pages/StaffDirectoryPage').then((m) => ({ default: m.StaffDirectoryPage }))
 );
@@ -425,6 +428,17 @@ export const App: React.FC = () => {
       case 'profile':
         return <ProfileSecurityPage />;
       case 'audit':
+        if (!isPrivilegedAdminRole(user?.role_code)) {
+          return (
+            <AccessDeniedView
+              title="Security Log Book Locked"
+              pageName="Log Book"
+              message="Access to the Master Security Log Book is strictly restricted to System Administrators and Developers. Cryptographic audit trails are confidential."
+              onGoBack={() => useUIStore.getState().setActivePage('dashboard')}
+            />
+          );
+        }
+        return <AuditLogPage />;
       case 'notifications':
         return <DashboardPage />;
       case '404':

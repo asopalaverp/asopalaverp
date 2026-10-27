@@ -443,6 +443,7 @@ export class GlobalSearchEngine {
       { title: 'All Expenses', subtitle: 'View and search all past bills & expenses', page: 'expenses', hotkey: 'F3', tags: ['ledger', 'register', 'table', 'export', 'csv', 'audit', 'bills'] },
       { title: 'Staff Directory', subtitle: 'Manage shop staff and PIN logins', page: 'staff', hotkey: 'F10', tags: ['staff', 'employee', 'cashier', 'user', 'role', 'pin'] },
       { title: 'Shop Settings', subtitle: 'Shop branches, categories and accounts', page: 'settings', hotkey: 'F11', tags: ['settings', 'config', 'categories', 'departments', 'branches', 'periods'] },
+      { title: 'Security Log Book', subtitle: 'Tamper-proof audit logs & activity ledger (Admin & Dev)', page: 'audit', hotkey: 'Logs', tags: ['audit', 'logs', 'security', 'history', 'telemetry', 'tamper', 'admin', 'dev'] },
       { title: 'Search Everything', subtitle: 'Search all bills, people, notes and advances', page: 'search', hotkey: 'Ctrl+K', tags: ['search', 'query', 'find', 'everything'] },
     ];
 

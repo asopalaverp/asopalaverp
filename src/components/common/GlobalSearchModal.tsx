@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useScrollLock } from '@/hooks/useScrollLock';
-import { useUIStore } from '@/store/uiStore';
-import { useAuthStore } from '@/store/authStore';
+import { useUIStore, PageId } from '@/store/uiStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { searchEngine, SearchResultItem, SearchCategory } from '@/lib/searchEngine';
 import { formatINR, formatVoucherNumber, cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export const GlobalSearchModal: React.FC = () => {
     openDrawer,
     setSettleTargetAdvance,    setShortcutsModalOpen,    isStaffAdvanceBetaEnabled,
   } = useUIStore();
-  const { can } = useAuthStore();
+  const { user, can } = useAuthStore();
   const { setSelectedBranchId, selectedBranchId } = useBranchStore();
 
   useScrollLock(isSearchOpen);
@@ -246,6 +246,20 @@ export const GlobalSearchModal: React.FC = () => {
         actionPayload: { page: 'settings' },
         perm: 'can_manage_periods',
       },
+      ...(isPrivilegedAdminRole(user?.role_code)
+        ? [
+            {
+              id: 'cmd-audit',
+              category: 'master' as const,
+              title: 'Master Security Log Book',
+              categoryLabel: 'SECURITY & GOVERNANCE',
+              subtitle: 'Inspect real-time cryptographic audit trails and user activities',
+              relevanceScore: 68,
+              actionType: 'navigate' as const,
+              actionPayload: { page: 'audit' as PageId },
+            },
+          ]
+        : []),
 
       {
         id: 'cmd-shortcuts',
@@ -274,7 +288,7 @@ export const GlobalSearchModal: React.FC = () => {
       if (item.perm && !can(item.perm)) return false;
       return true;
     });
-  }, [can, isStaffAdvanceBetaEnabled]);
+  }, [user, can, isStaffAdvanceBetaEnabled]);
 
   // Display Items: either search results or default quick actions
   const displayItems = query.trim() ? results : defaultCommands;

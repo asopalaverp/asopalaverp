@@ -178,6 +178,16 @@ export const Sidebar: React.FC = () => {
           icon: SlidersHorizontal,
           permission: 'can_manage_periods',
         },
+        ...(isPrivilegedAdminRole(user?.role_code)
+          ? [
+              {
+                id: 'audit' as PageId,
+                label: 'Security Log Book',
+                description: 'Tamper-proof audit ledger',
+                icon: ShieldCheck,
+              },
+            ]
+          : []),
       ],
     },
   ];
