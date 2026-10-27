@@ -20,7 +20,12 @@ import {
   Clock,
   Building2,
   Coins,
+  Edit3,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
+import { erpService } from '@/lib/erpService';
 
 export interface TreasuryPassbookTableProps {
   entries: WalletLedger[];
@@ -98,6 +103,75 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
 
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const { user } = useAuthStore();
+  const [editingFloat, setEditingFloat] = useState<{
+    allocationNumber: string;
+    currentAmount: number;
+    notes: string;
+    branchId: string;
+  } | null>(null);
+  const [floatNewAmount, setFloatNewAmount] = useState<string>('');
+  const [floatNotes, setFloatNotes] = useState<string>('');
+  const [floatReason, setFloatReason] = useState<string>('');
+  const [isSavingFloat, setIsSavingFloat] = useState<boolean>(false);
+  const [floatError, setFloatError] = useState<string | null>(null);
+
+  const handleOpenFloatEdit = (params: {
+    allocationNumber: string;
+    currentAmount: number;
+    notes: string;
+    branchId: string;
+  }) => {
+    triggerHaptic('selection');
+    setEditingFloat(params);
+    setFloatNewAmount(String(params.currentAmount));
+    setFloatNotes(params.notes || '');
+    setFloatReason('');
+    setFloatError(null);
+  };
+
+  const handleSaveFloatEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFloat) return;
+
+    const numAmount = parseFloat(floatNewAmount);
+    if (!numAmount || numAmount <= 0) {
+      setFloatError('Please enter a valid amount greater than zero.');
+      return;
+    }
+    if (!floatReason || floatReason.trim().length < 3) {
+      setFloatError('Reason for modification is mandatory (min 3 characters).');
+      return;
+    }
+
+    setIsSavingFloat(true);
+    setFloatError(null);
+    try {
+      await erpService.updateFloatTopup({
+        allocationNumber: editingFloat.allocationNumber,
+        newAmount: numAmount,
+        referenceNotes: floatNotes.trim(),
+        reason: floatReason.trim(),
+        userName: `${user?.first_name || 'Manager'} ${user?.last_name || ''}`.trim(),
+        userRole: user?.role_code || 'Store_Manager',
+        branchId: editingFloat.branchId,
+      });
+
+      showToast({
+        type: 'success',
+        title: 'Top-up Corrected',
+        message: `Float #${editingFloat.allocationNumber} corrected to ${formatINR(numAmount)}. Drawer balance reconciled.`,
+      });
+      triggerHaptic('heavy');
+      setEditingFloat(null);
+    } catch (err: any) {
+      setFloatError(err.message || 'Failed to update float top-up.');
+      triggerHaptic('error');
+    } finally {
+      setIsSavingFloat(false);
+    }
+  };
 
   const handleCopy = (refText: string) => {
     triggerHaptic('success');
@@ -628,19 +702,52 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
 
                       {/* Voucher / Slip # */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(refCode)}
-                          className="inline-flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-[#EDEDED] hover:text-[#3ecf8e] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#202024] border border-slate-200 dark:border-[#2e2e34] transition-colors cursor-pointer text-xs"
-                          title="Copy reference number"
-                        >
-                          <span>{refCode}</span>
-                          {copiedRef === refCode ? (
-                            <Check className="w-2.5 h-2.5 text-[#3ecf8e]" />
-                          ) : (
-                            <Copy className="w-2.5 h-2.5 text-slate-400" />
-                          )}
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(refCode)}
+                            className="inline-flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-[#EDEDED] hover:text-[#3ecf8e] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#202024] border border-slate-200 dark:border-[#2e2e34] transition-colors cursor-pointer text-xs"
+                            title="Copy reference number"
+                          >
+                            <span>{refCode}</span>
+                            {copiedRef === refCode ? (
+                              <Check className="w-2.5 h-2.5 text-[#3ecf8e]" />
+                            ) : (
+                              <Copy className="w-2.5 h-2.5 text-slate-400" />
+                            )}
+                          </button>
+
+                          {(() => {
+                            const isAuditor = user?.role_code === 'Auditor';
+                            const isStoreManager = user?.role_code === 'Store_Manager';
+                            const isPrivileged = isPrivilegedAdminRole(user?.role_code);
+                            const todayStr = new Date().toISOString().slice(0, 10);
+                            const entryDate = (entry.created_at || '').slice(0, 10);
+                            const isToday = entryDate === todayStr;
+
+                            const canEditFloat = !isAuditor && entry.transaction_type === 'Float_Topup' && (isPrivileged || (isStoreManager && isToday));
+
+                            if (!canEditFloat) return null;
+
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenFloatEdit({
+                                    allocationNumber: refCode,
+                                    currentAmount: credit,
+                                    notes: parsed.title,
+                                    branchId: entry.branch_id || selectedBranchId,
+                                  })
+                                }
+                                className="p-1 rounded-[4px] text-slate-400 hover:text-emerald-600 dark:hover:text-[#3ecf8e] hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                                title="Edit today's float top-up amount"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </td>
 
                       {/* Withdrawal (-) */}
@@ -790,6 +897,110 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Float Top-up Edit Modal */}
+      {editingFloat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-[12px] bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#282828] shadow-2xl p-5 space-y-4 font-sans animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#242424]">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[#3ecf8e]" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Edit Float Top-up #{editingFloat.allocationNumber}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingFloat(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#222] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+              Correct amount entered for today's float injection. The wallet drawer cash balance and passbook ledger will be automatically updated.
+            </p>
+
+            <form onSubmit={handleSaveFloatEdit} className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                  New Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="1"
+                  required
+                  value={floatNewAmount}
+                  onChange={(e) => setFloatNewAmount(e.target.value)}
+                  className="w-full h-10 px-3 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-sm font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                  placeholder="e.g. 500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300">
+                  Notes / Particulars
+                </label>
+                <input
+                  type="text"
+                  value={floatNotes}
+                  onChange={(e) => setFloatNotes(e.target.value)}
+                  className="w-full h-10 px-3 rounded-[6px] bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#282828] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                  placeholder="Head Office Imprest / Float replenishment"
+                />
+              </div>
+
+              <div className="space-y-1 p-3 rounded-[8px] bg-amber-500/10 border border-amber-500/20">
+                <label className="block text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  Mandatory Reason for Change (Audit Trail) *
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={floatReason}
+                  onChange={(e) => setFloatReason(e.target.value)}
+                  placeholder="e.g. Correcting typo: entered 400 instead of 500"
+                  className="w-full p-2 rounded-[6px] bg-white dark:bg-[#141414] border border-amber-500/30 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {floatError && (
+                <div className="p-2.5 rounded-[6px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{floatError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#242424]">
+                <button
+                  type="button"
+                  onClick={() => setEditingFloat(null)}
+                  disabled={isSavingFloat}
+                  className="h-9 px-3.5 rounded-[6px] border border-slate-200 dark:border-[#282828] text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingFloat}
+                  className="h-9 px-4 rounded-[6px] bg-[#3ecf8e] hover:bg-[#34b27b] text-[#171717] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                >
+                  {isSavingFloat ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Reconciling...</span>
+                    </>
+                  ) : (
+                    <span>Save & Reconcile</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

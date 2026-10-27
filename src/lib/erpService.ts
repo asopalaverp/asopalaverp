@@ -2320,6 +2320,24 @@ class ERPService {
   }
 
   async voidVoucher(voucher: ExpenseVoucher, reason: string, userName: string, userRole: string) {
+    const isPrivileged = isPrivilegedAdminRole(userRole);
+
+    // 1. Auditor is strictly read-only
+    if (userRole === 'Auditor') {
+      throw new Error('Auditors have read-only access. Voiding vouchers is not permitted.');
+    }
+
+    // 2. Cashiers cannot void vouchers
+    if (userRole === 'Cashier' && !isPrivileged) {
+      throw new Error('Cashiers cannot void vouchers. Please contact your Store Manager or Administrator.');
+    }
+
+    // 3. Store Managers can ONLY void TODAY'S vouchers (no past dates)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const vDate = (voucher.payment_date || voucher.created_at || '').slice(0, 10);
+    if (!isPrivileged && vDate !== todayStr) {
+      throw new Error('Past-day vouchers are locked. Store Managers can only void vouchers created during today\'s shift.');
+    }
     // H-4 Security: Re-fetch the voucher's TRUE status from DB before refunding wallet.
     // The client-passed voucher.status cannot be trusted — a buggy/malicious client could set it to 'Approved'
     // for a Pending_Approval voucher to trigger an unearned wallet credit.
@@ -2428,8 +2446,35 @@ class ERPService {
   ) {
     this.invalidateVoucherSplits(voucherNumber);
     const isPrivileged = isPrivilegedAdminRole(userRole);
+
+    // 1. Auditor is strictly read-only: zero modifications allowed
+    if (userRole === 'Auditor') {
+      throw new Error('Auditors have read-only access. Voucher modifications are not permitted.');
+    }
+
+    // 2. Pre-fetch original voucher to verify shift date
+    let existingVoucher: ExpenseVoucher | null = null;
+    try {
+      const { data } = await supabase
+        .from('expense_vouchers')
+        .select('*')
+        .eq('voucher_number', voucherNumber)
+        .maybeSingle();
+      if (data) existingVoucher = data as ExpenseVoucher;
+    } catch {
+      // fallback
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const voucherDate = (existingVoucher?.payment_date || existingVoucher?.created_at || '').slice(0, 10);
+    const isTodayVoucher = voucherDate === todayStr;
+
+    // 3. Date check: Store Managers & Cashiers can ONLY edit TODAY'S vouchers
+    if (!isPrivileged && !isTodayVoucher) {
+      throw new Error('Past-day vouchers are locked. Store Managers and Cashiers can only edit vouchers created during today\'s shift.');
+    }
+
     const ALLOWED_UPDATE_FIELDS: (keyof ExpenseVoucher)[] = [
-      'payment_date',
       'payment_type',
       'payment_method',
       'bank_utr_number',
@@ -2446,7 +2491,13 @@ class ERPService {
       'vendor_splits',
     ];
 
+    // Only Super Admin / Developer can alter payment_date
     if (isPrivileged) {
+      ALLOWED_UPDATE_FIELDS.push('payment_date');
+    }
+
+    // Both Super Admin and today's cashier/manager can adjust total_amount on today's bill
+    if (isPrivileged || isTodayVoucher) {
       ALLOWED_UPDATE_FIELDS.push('total_amount');
     }
 
@@ -2465,19 +2516,20 @@ class ERPService {
       console.warn(`[updateVoucher] Blocked attempt to update restricted fields: ${blockedFields.join(', ')}.`);
     }
 
-    // 1. Fetch original voucher from database or memory
-    let existingVoucher: ExpenseVoucher | null = null;
-    try {
-      const { data } = await supabase
-        .from('expense_vouchers')
-        .select('*')
-        .eq('voucher_number', voucherNumber)
-        .maybeSingle();
-      if (data) {
-        existingVoucher = data;
+    // Fallback if not fetched in pre-check
+    if (!existingVoucher) {
+      try {
+        const { data } = await supabase
+          .from('expense_vouchers')
+          .select('*')
+          .eq('voucher_number', voucherNumber)
+          .maybeSingle();
+        if (data) {
+          existingVoucher = data;
+        }
+      } catch (e) {
+        console.warn('Failed to query existing voucher from DB:', e);
       }
-    } catch (e) {
-      console.warn('Failed to query existing voucher from DB:', e);
     }
 
     if (!existingVoucher) {
@@ -2868,6 +2920,106 @@ class ERPService {
     }
 
     return fullAllocation;
+  }
+
+  /**
+   * Update an existing Cash or UPI Float Top-up (Store Manager can only edit TODAY'S entries).
+   * Automatically reconciles the ledger, updates wallet cash balance, and logs immutable audit.
+   */
+  async updateFloatTopup(params: {
+    allocationNumber: string;
+    newAmount: number;
+    referenceNotes?: string;
+    reason: string;
+    userName: string;
+    userRole: string;
+    branchId: string;
+  }): Promise<void> {
+    const isPrivileged = isPrivilegedAdminRole(params.userRole);
+    if (params.userRole === 'Auditor') {
+      throw new Error('Auditors have read-only access. Modifying cash entries is not permitted.');
+    }
+
+    if (!params.newAmount || params.newAmount <= 0) {
+      throw new Error('Amount must be a positive number greater than zero.');
+    }
+
+    if (!params.reason || params.reason.trim().length < 3) {
+      throw new Error('Modification reason is mandatory (minimum 3 characters).');
+    }
+
+    // 1. Fetch current float allocation record
+    const { data: floatRec, error: fErr } = await supabase
+      .from('float_allocations')
+      .select('*')
+      .eq('allocation_number', params.allocationNumber)
+      .maybeSingle();
+
+    if (fErr || !floatRec) {
+      throw new Error(`Float top-up #${params.allocationNumber} not found.`);
+    }
+
+    // Check date: Store Managers can ONLY edit TODAY'S entries
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const floatDate = (floatRec.created_at || '').slice(0, 10);
+    if (!isPrivileged && floatDate !== todayStr) {
+      throw new Error('Past-day cash entries are locked. Store Managers can only edit cash entries recorded during today\'s shift.');
+    }
+
+    const oldAmount = Number(floatRec.amount) || 0;
+    const diff = params.newAmount - oldAmount;
+    const notes = params.referenceNotes !== undefined ? params.referenceNotes.trim() : floatRec.reference_notes;
+
+    // 2. Update float_allocations table
+    const { error: fUpdateErr } = await supabase
+      .from('float_allocations')
+      .update({
+        amount: params.newAmount,
+        reference_notes: notes,
+      })
+      .eq('allocation_number', params.allocationNumber);
+
+    if (fUpdateErr) {
+      throw new Error(`Failed to update cash allocation: ${fUpdateErr.message}`);
+    }
+
+    // 3. Update wallet_ledger table
+    const { error: lUpdateErr } = await supabase
+      .from('wallet_ledger')
+      .update({
+        credit_amount: params.newAmount,
+        remarks: notes,
+      })
+      .eq('reference_number', params.allocationNumber);
+
+    if (lUpdateErr) {
+      console.warn('Ledger float update notice:', lUpdateErr);
+    }
+
+    // 4. Update branch_wallets cash balance
+    const wallet = await this.getBranchWallet(params.branchId);
+    if (floatRec.wallet_type === 'Cash') {
+      wallet.cash_balance += diff;
+    } else {
+      wallet.upi_balance += diff;
+    }
+    await this.updateBranchWallet(wallet);
+
+    // 5. Audit Log
+    await logSecurityEvent({
+      userName: params.userName,
+      userRole: params.userRole,
+      actionType: 'Float_Topup',
+      targetEntity: 'float_allocations',
+      targetIdentifier: params.allocationNumber,
+      eventDescription: `Updated Float Top-up ${params.allocationNumber}: ${floatRec.wallet_type} amount changed from ₹${oldAmount} to ₹${params.newAmount}`,
+      justification: params.reason,
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('asopalav:ledger-updated'));
+      window.dispatchEvent(new Event('asopalav:wallet-updated'));
+    }
   }
 
   async recordSafeDrop(params: SafeDropParams): Promise<{ dropNumber: string; newCashBalance: number }> {

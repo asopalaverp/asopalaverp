@@ -17,7 +17,10 @@ import {
   Save,
   Undo,  Users,
   Loader2,
-  Printer,} from 'lucide-react';
+  Printer,
+  Shield,
+  Lock,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showToast } from '@/components/ui/ToastContainer';
 import { useOverrideStore } from '@/store/overrideStore';
@@ -197,9 +200,22 @@ export const VoucherDetailDrawer: React.FC = () => {
 
   const v = activeDrawerVoucher;
   const isPrivileged = isPrivilegedAdminRole(user?.role_code);
-    const isSuperAdmin = isPrivileged;
-  const allowCashierVoid = isCashierVoidAllowed();
-  const canVoid = can('can_void_voucher') || isSuperAdmin || user?.role_code === 'Store_Manager' || allowCashierVoid;
+  const isAuditor = user?.role_code === 'Auditor';
+  const isStoreManager = user?.role_code === 'Store_Manager';
+  const isCashier = user?.role_code === 'Cashier' || user?.role_code === 'Showroom_Cashier';
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const voucherDate = (v.payment_date || v.created_at || '').slice(0, 10);
+  const isTodayVoucher = voucherDate === todayStr;
+
+  // RBAC:
+  // - Auditor: strictly read-only
+  // - Super Admin: full master override
+  // - Store Manager: can edit & void TODAY'S vouchers only
+  // - Cashier: can edit TODAY'S vouchers only (cannot void)
+  const canEditVoucher = !isAuditor && (isPrivileged || ((isStoreManager || isCashier) && isTodayVoucher));
+  const canVoid = !isAuditor && (isPrivileged || (isStoreManager && isTodayVoucher));
+  const canDelete = !isAuditor && isPrivileged;
 
   const isStaffVoucher = v.payment_type === 'Staff_Split' || editStaffSplits.length > 0 || staffSplits.length > 0;
   const isMultiVendorVoucher =
@@ -353,7 +369,7 @@ export const VoucherDetailDrawer: React.FC = () => {
         v.voucher_number,
         updates,
         `${user?.first_name || 'Admin'} ${user?.last_name || ''}`.trim(),
-        user?.role_code || 'Super_Admin',
+        user?.role_code || 'Store_Manager',
         editReason.trim(),
         cleanedStaffSplits
       );
@@ -470,7 +486,7 @@ export const VoucherDetailDrawer: React.FC = () => {
       await erpService.deleteVoucher(
         v,
         `${user?.first_name} ${user?.last_name}`,
-        'Super_Admin',
+        user?.role_code || 'Super_Admin',
         actionReason.trim()
       );
       showToast({
@@ -626,7 +642,7 @@ export const VoucherDetailDrawer: React.FC = () => {
           <span>Print Voucher</span>
         </button>
 
-        {isPrivileged && (
+        {canEditVoucher && (
           <button
             type="button"
             onClick={handleStartEdit}
@@ -648,7 +664,7 @@ export const VoucherDetailDrawer: React.FC = () => {
           </button>
         )}
 
-        {isPrivileged && (
+        {canDelete && (
           <button
             type="button"
             onClick={() => setActiveAction(activeAction === 'delete' ? 'none' : 'delete')}
@@ -657,6 +673,20 @@ export const VoucherDetailDrawer: React.FC = () => {
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete</span>
           </button>
+        )}
+
+        {isAuditor && (
+          <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-[6px] bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-400 text-xs font-medium font-sans">
+            <Shield className="w-3.5 h-3.5 text-blue-500" />
+            <span>Auditor View • Read-Only Mode</span>
+          </div>
+        )}
+
+        {!isAuditor && !isPrivileged && !isTodayVoucher && (
+          <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-[6px] bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium font-sans">
+            <Lock className="w-3.5 h-3.5 text-amber-500" />
+            <span>Past Bill • Locked for Counter</span>
+          </div>
         )}
       </div>
 
@@ -944,7 +974,9 @@ export const VoucherDetailDrawer: React.FC = () => {
                   type="date"
                   value={editPaymentDate}
                   onChange={(e) => setEditPaymentDate(e.target.value)}
-                  className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30"
+                  disabled={!isPrivileged}
+                  title={!isPrivileged ? "Date editing is restricted to Super Admin" : "Select date"}
+                  className="w-full h-10 min-h-[40px] px-3 rounded-[6px] bg-white dark:bg-[#181818] border border-slate-200 dark:border-[#282828] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#3ecf8e] focus:ring-1 focus:ring-[#3ecf8e]/30 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>

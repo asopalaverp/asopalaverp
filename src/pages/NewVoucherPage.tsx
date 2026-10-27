@@ -444,6 +444,15 @@ export const NewVoucherPage: React.FC = () => {
   const _handleValidateAndPreview = () => {
     setError(null);
 
+    // Auditor is strictly read-only
+    if (user?.role_code === 'Auditor') {
+      const msg = 'Auditors have read-only access. Creating expense vouchers is not permitted.';
+      setError(msg);
+      showToast({ type: 'error', title: 'Read-Only Access', message: msg });
+      triggerHaptic('error');
+      return;
+    }
+
     // Cash Limit Check (₹10,000 threshold)
     if (sec40A3Check.exceeded && !is40A3ExceededAllowed()) {
       setError(`Cash payment of ${formatINR(finalCalculatedAmount)} exceeds the ₹10,000 cash limit. Please switch to Online UPI or obtain Manager Approval.`);
@@ -458,7 +467,7 @@ export const NewVoucherPage: React.FC = () => {
 
     // Date Validation for Cashiers
     if (isBackdateBlocked) {
-      const msg = `Past dates are locked for Cashiers. You can only record for today (${format(new Date(), 'dd-MMM-yyyy')}).`;
+      const msg = `Past dates are locked. Store Managers and Cashiers can only record for today (${format(new Date(), 'dd-MMM-yyyy')}).`;
       setError(msg);
       showToast({ type: 'error', title: 'Date Locked', message: msg });
       triggerHaptic('error');
@@ -1025,6 +1034,17 @@ export const NewVoucherPage: React.FC = () => {
               message={error}
               onClose={() => setError(null)}
             />
+          </div>
+        )}
+
+        {/* Auditor Read-Only Notice */}
+        {user?.role_code === 'Auditor' && (
+          <div className="p-3.5 rounded-[12px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 flex items-center gap-2.5 text-xs font-sans animate-in fade-in shadow-xs text-blue-900 dark:text-blue-200">
+            <ShieldAlert className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div>
+              <strong className="block font-semibold">Auditor Mode (Read-Only)</strong>
+              <span>You have read-only inspection access across all branches. Creating expense vouchers is disabled.</span>
+            </div>
           </div>
         )}
 

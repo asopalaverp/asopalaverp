@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { DuplicateCluster, EnrichedDuplicateVoucher } from '@/hooks/useDuplicateDetector';
 import { erpService } from '@/lib/erpService';
 import { showToast } from '@/components/ui/ToastContainer';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, isPrivilegedAdminRole } from '@/store/authStore';
 import { useDialogStore } from '@/store/dialogStore';
 import { useUIStore } from '@/store/uiStore';
 
@@ -36,6 +36,11 @@ export const DuplicateDetectionModal: React.FC<DuplicateDetectionModalProps> = (
   const { openConfirm } = useDialogStore();
   const { openLightbox } = useUIStore();
   const [isVoiding, setIsVoiding] = useState<string | null>(null);
+
+  const isAuditor = user?.role_code === 'Auditor';
+  const isStoreManager = user?.role_code === 'Store_Manager';
+  const isPrivileged = isPrivilegedAdminRole(user?.role_code);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   if (!isOpen) return null;
 
@@ -304,15 +309,31 @@ export const DuplicateDetectionModal: React.FC<DuplicateDetectionModalProps> = (
                               <span className="text-[11px] text-slate-400 italic">No bill photo</span>
                             )}
 
-                            <button
-                              type="button"
-                              disabled={isVoidingThis}
-                              onClick={() => handleVoidVoucher(v, cluster)}
-                              className="px-2.5 py-1 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>{isVoidingThis ? 'Voiding...' : 'Void Duplicate'}</span>
-                            </button>
+                            {(() => {
+                              const vDate = (v.payment_date || v.created_at || '').slice(0, 10);
+                              const isTodayVoucher = vDate === todayStr;
+                              const canVoidThis = !isAuditor && (isPrivileged || (isStoreManager && isTodayVoucher));
+
+                              if (!canVoidThis) {
+                                return (
+                                  <span className="text-[11px] text-slate-400 dark:text-zinc-500 italic">
+                                    {isAuditor ? 'Auditor View Only' : 'Past Bill (Locked)'}
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={isVoidingThis}
+                                  onClick={() => handleVoidVoucher(v, cluster)}
+                                  className="px-2.5 py-1 rounded-[6px] border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>{isVoidingThis ? 'Voiding...' : 'Void Duplicate'}</span>
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
