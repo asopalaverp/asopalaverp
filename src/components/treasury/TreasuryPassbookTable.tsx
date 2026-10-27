@@ -318,31 +318,6 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
     return sorted;
   }, [entries, scopeFilter, channelFilter, selectedDayFilter, dateBounds, searchQuery, sortBy, voucherMap]);
 
-  const summaryTotals = useMemo(() => {
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-    let cashCount = 0;
-    let upiCount = 0;
-
-    filteredEntries.forEach((e) => {
-      const credit = Number(e.credit_amount) || 0;
-      const debit = Number(e.debit_amount) || 0;
-      totalDeposits += credit;
-      totalWithdrawals += debit;
-      if (e.wallet_type === 'UPI') upiCount++;
-      else cashCount++;
-    });
-
-    return {
-      totalDeposits,
-      totalWithdrawals,
-      netFlow: totalDeposits - totalWithdrawals,
-      cashCount,
-      upiCount,
-      totalCount: filteredEntries.length,
-    };
-  }, [filteredEntries]);
-
   const paginatedEntries = useMemo(() => {
     const startIdx = (currentPage - 1) * pageSize;
     return filteredEntries.slice(startIdx, startIdx + pageSize);
@@ -803,36 +778,6 @@ export const TreasuryPassbookTable: React.FC<TreasuryPassbookTableProps> = ({
                 })
               )}
             </tbody>
-            {/* Summary Footer Row */}
-            <tfoot className="border-t-2 border-slate-300 dark:border-[#2e2e2e] bg-slate-50 dark:bg-[#121212] font-semibold text-slate-900 dark:text-white text-xs">
-              <tr>
-                <td colSpan={4} className="py-2.5 px-3 font-sans">
-                  Total Selection ({filteredEntries.length} records)
-                </td>
-                <td className="py-2.5 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400 font-bold">
-                  -{formatINR(summaryTotals.totalWithdrawals)}
-                </td>
-                <td className="py-2.5 px-3 text-right tabular-nums text-emerald-600 dark:text-[#3ecf8e] font-bold">
-                  +{formatINR(summaryTotals.totalDeposits)}
-                </td>
-                <td
-                  className={cn(
-                    'py-2.5 px-3 text-right tabular-nums font-bold font-mono',
-                    summaryTotals.netFlow > 0
-                      ? 'text-emerald-600 dark:text-[#3ecf8e]'
-                      : summaryTotals.netFlow < 0
-                      ? 'text-rose-600 dark:text-rose-400'
-                      : 'text-slate-900 dark:text-white'
-                  )}
-                  title="Net Movement for selected records (Deposits minus Withdrawals). This indicates cash flow movement for this batch, NOT your current wallet balance."
-                >
-                  Net Flow: {summaryTotals.netFlow > 0 ? `+${formatINR(summaryTotals.netFlow)}` : formatINR(summaryTotals.netFlow)}
-                </td>
-                <td className="py-2.5 px-3 text-slate-500 font-sans text-[11px]">
-                  {summaryTotals.cashCount} Cash · {summaryTotals.upiCount} UPI
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </div>
