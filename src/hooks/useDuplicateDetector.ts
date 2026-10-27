@@ -146,6 +146,14 @@ export function useDuplicateDetector(
           continue;
         }
 
+        // Only inspect recent vouchers (last 48 hours) to avoid false alerts on old historical bills
+        const now = Date.now();
+        const t1 = new Date(v1.created_at || v1.payment_date || '').getTime();
+        const t2 = new Date(v2.created_at || v2.payment_date || '').getTime();
+        if (now - t1 > 48 * 3600 * 1000 && now - t2 > 48 * 3600 * 1000) {
+          continue;
+        }
+
         if (Number(v1.total_amount) !== Number(v2.total_amount)) continue;
         if (Number(v1.total_amount) <= 0) continue;
 
